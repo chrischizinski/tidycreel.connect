@@ -1,0 +1,27 @@
+Package: tidycreel.connect
+Title: Database and File Connections for tidycreel
+Version: 0.1.0
+Authors@R:
+    person("Christopher", "Chizinski", role = c("aut", "cre"),
+           email = "chris.chizinski@unl.edu")
+Description: Provides connection objects and data loaders for the tidycreel
+    creel survey analysis package. Supports SQL Server (via ODBC),
+    DBI-compliant databases, and flat CSV files.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Depends:
+    R (>= 4.1.0)
+Imports:
+    cli,
+    DBI,
+    readr,
+    tidycreel
+Suggests:
+    config,
+    duckdb,
+    odbc,
+    testthat (>= 3.0.0),
+    withr
+Config/testthat/edition: 3

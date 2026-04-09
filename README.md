@@ -1,0 +1,216 @@
+# tidycreel.connect
+
+**Database and file connections for the
+[tidycreel](https://github.com/cchizinski2/tidycreel) creel survey package.**
+
+tidycreel.connect provides a unified connection layer that loads interview,
+count, catch, and length data from flat CSV files or a SQL Server database,
+renames columns to the canonical names expected by tidycreel, and coerces
+types consistently — so the rest of your analysis code doesn't care where
+the data came from.
+
+---
+
+## Installation
+
+```r
+# Install tidycreel.connect
+# (requires tidycreel to be installed first)
+remotes::install_github("cchizinski2/tidycreel")
+remotes::install_github("cchizinski2/tidycreel", subdir = "tidycreel.connect")
+```
+
+### ODBC prerequisites (SQL Server backend only)
+
+You need both the **R `odbc` package** and a **native ODBC driver** for your OS.
+
+```r
+install.packages("odbc")
+```
+
+Then install the Microsoft ODBC Driver 17 or 18 for SQL Server:
+
+#### Windows
+
+Download and run the installer from Microsoft:
+
+- [ODBC Driver 18 for SQL Server (Windows)](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server)
+- Or install silently via winget:
+  ```
+  winget install Microsoft.ODBCDriverForSQLServer
+  ```
+
+Windows integrated authentication (`auth_type: windows`) is supported on
+Windows only. Use `auth_type: password` on macOS and Linux.
+
+#### macOS
+
+Install unixODBC and the Microsoft driver via Homebrew:
+
+```bash
+# 1. Install unixODBC (ODBC driver manager)
+brew install unixodbc
+
+# 2. Add the Microsoft tap
+brew tap microsoft/mssql-release https://github.com/Microsoft/homebrew-mssql-release
+
+# 3. Install ODBC Driver 18 for SQL Server
+HOMEBREW_ACCEPT_EULA=Y brew install msodbcsql18
+
+# Optional: also install the command-line tools
+HOMEBREW_ACCEPT_EULA=Y brew install mssql-tools18
+```
+
+Verify the driver is registered:
+
+```r
+odbc::odbcListDrivers()
+# Should include: ODBC Driver 17 for SQL Server  (or 18)
+```
+
+#### Linux (Ubuntu / Debian)
+
+```bash
+# 1. Add Microsoft package repository
+curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list \
+  | sudo tee /etc/apt/sources.list.d/mssql-release.list
+
+# 2. Install ODBC Driver 18
+sudo apt-get update
+ACCEPT_EULA=Y sudo apt-get install -y msodbcsql18
+
+# 3. Install unixODBC development headers (needed by the R odbc package)
+sudo apt-get install -y unixodbc-dev
+```
+
+#### Linux (RHEL / CentOS / Fedora)
+
+```bash
+sudo curl -o /etc/yum.repos.d/mssql-release.repo \
+  https://packages.microsoft.com/config/rhel/8/prod.repo
+
+ACCEPT_EULA=Y sudo dnf install -y msodbcsql18
+sudo dnf install -y unixODBC-devel
+```
+
+---
+
+## Quick start
+
+### CSV backend
+
+```r
+library(tidycreel)
+library(tidycreel.connect)
+library(config)
+
+# 1. Define a column-mapping schema
+schema <- creel_schema(
+  survey_type       = "instantaneous",
+  interview_uid_col = "InterviewID",
+  date_col          = "SurveyDate",
+  effort_col        = "EffortHours",
+  catch_col         = "TotalCatch",
+  trip_status_col   = "TripStatus",
+  count_col         = "AnglerCount",
+  catch_uid_col     = "CatchUID",
+  species_col       = "SpeciesCode",
+  catch_count_col   = "CatchCount",
+  catch_type_col    = "CatchCategory",
+  length_uid_col    = "LengthUID",
+  length_mm_col     = "LengthMM",
+  length_type_col   = "LengthType"
+)
+
+# 2. Connect via YAML config
+conn <- creel_connect_from_yaml("creel-config.yml")
+
+# 3. Fetch data
+interviews      <- fetch_interviews(conn)
+counts          <- fetch_counts(conn)
+catch_data      <- fetch_catch(conn)
+harvest_lengths <- fetch_harvest_lengths(conn)
+release_lengths <- fetch_release_lengths(conn)
+```
+
+**creel-config.yml** (CSV backend):
+
+```yaml
+default:
+  backend: csv
+  files:
+    interviews:      data/interviews.csv
+    counts:          data/counts.csv
+    catch:           data/catch.csv
+    harvest_lengths: data/harvest_lengths.csv
+    release_lengths: data/release_lengths.csv
+  schema:
+    survey_type: instantaneous
+```
+
+### SQL Server backend
+
+**creel-config.yml** (SQL Server with password auth):
+
+```yaml
+default:
+  backend:   sqlserver
+  server:    myserver.example.com
+  database:  CreelDB
+  auth_type: password
+  username:  !expr Sys.getenv("CREEL_USER")
+  password:  !expr Sys.getenv("CREEL_PASS")
+  schema:
+    survey_type:       instantaneous
+    interviews_table:  vwInterviews
+    counts_table:      vwCounts
+    catch_table:       vwCatch
+    lengths_table:     vwLengths
+    interview_uid_col: InterviewID
+    date_col:          SurveyDate
+    effort_col:        EffortHours
+    catch_col:         TotalCatch
+    trip_status_col:   TripStatus
+    count_col:         AnglerCount
+    catch_uid_col:     CatchUID
+    species_col:       SpeciesCode
+    catch_count_col:   CatchCount
+    catch_type_col:    CatchCategory
+    length_uid_col:    LengthUID
+    length_mm_col:     LengthMM
+    length_type_col:   LengthType
+```
+
+Set credentials before connecting — never store them as plain text:
+
+```r
+# In ~/.Renviron (never commit this file):
+# CREEL_USER=your_username
+# CREEL_PASS=your_password
+
+Sys.setenv(CREEL_USER = "your_username", CREEL_PASS = "your_password")
+conn <- creel_connect_from_yaml("creel-config.yml")
+```
+
+---
+
+## Authentication
+
+| `auth_type` | Platforms | Notes |
+|-------------|-----------|-------|
+| `password`  | Windows, macOS, Linux | Requires `username` + `password` in YAML |
+| `windows`   | **Windows only** | Uses domain credentials; no username/password needed |
+
+Using `auth_type: windows` on macOS or Linux produces an immediate, helpful
+error before any connection is attempted.
+
+---
+
+## Further reading
+
+- `vignette("getting-started", package = "tidycreel.connect")` — full
+  walkthrough of YAML config, schema setup, fetching data, and integrating
+  with the tidycreel estimation API
+- `vignette("getting-started", package = "tidycreel")` — complete estimation
+  pipeline from design through results
