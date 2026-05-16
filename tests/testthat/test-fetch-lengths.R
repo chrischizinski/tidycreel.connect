@@ -50,3 +50,74 @@ test_that("fetch_*_lengths() aborts with clear error when required column is mis
     "length_mm"
   )
 })
+
+# --- creel_connection_api tests (API-04) ---
+
+test_that("fetch_harvest_lengths.creel_connection_api() returns canonical columns (API-04)", {
+  httr2::local_mocked_responses(function(req) {
+    httr2::response(
+      200,
+      headers = "Content-Type: application/json",
+      body    = charToRaw('[{"iiUID":"A1","api_Species":"86","api_Length":350}]')
+    )
+  })
+  conn   <- make_api_conn()
+  result <- fetch_harvest_lengths(conn)
+  expect_true(is.data.frame(result))
+  expect_equal(
+    sort(names(result)),
+    sort(c("length_uid", "interview_uid", "species", "length_mm", "length_type"))
+  )
+  expect_equal(result$interview_uid, "A1")
+  expect_true(is.character(result$species))
+  expect_true(is.numeric(result$length_mm))
+  expect_equal(result$length_type, "harvest")
+  expect_true(!is.na(result$length_uid))
+})
+
+test_that("fetch_harvest_lengths.creel_connection_api() handles empty API response (API-04)", {
+  httr2::local_mocked_responses(function(req) {
+    httr2::response(200, headers = "Content-Type: application/json", body = charToRaw("[]"))
+  })
+  conn   <- make_api_conn()
+  result <- fetch_harvest_lengths(conn)
+  expect_equal(nrow(result), 0L)
+  expect_true("length_uid" %in% names(result))
+  expect_true("interview_uid" %in% names(result))
+  expect_true("length_type" %in% names(result))
+})
+
+# --- creel_connection_api tests (API-05) ---
+
+test_that("fetch_release_lengths.creel_connection_api() returns canonical columns (API-05)", {
+  httr2::local_mocked_responses(function(req) {
+    httr2::response(
+      200,
+      headers = "Content-Type: application/json",
+      body    = charToRaw('[{"iiUID":"A1","api_Species":"86","api_LengthBand":300,"api_Count":1}]')
+    )
+  })
+  conn   <- make_api_conn()
+  result <- fetch_release_lengths(conn)
+  expect_true(is.data.frame(result))
+  expect_equal(
+    sort(names(result)),
+    sort(c("length_uid", "interview_uid", "species", "length_mm", "length_type"))
+  )
+  expect_equal(result$interview_uid, "A1")
+  expect_true(is.character(result$species))
+  expect_true(is.numeric(result$length_mm))
+  expect_equal(result$length_type, "release")
+})
+
+test_that("fetch_release_lengths.creel_connection_api() handles empty API response (API-05)", {
+  httr2::local_mocked_responses(function(req) {
+    httr2::response(200, headers = "Content-Type: application/json", body = charToRaw("[]"))
+  })
+  conn   <- make_api_conn()
+  result <- fetch_release_lengths(conn)
+  expect_equal(nrow(result), 0L)
+  expect_true("length_uid" %in% names(result))
+  expect_true("length_type" %in% names(result))
+  expect_equal(character(0), result$length_type)
+})

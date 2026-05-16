@@ -6,6 +6,31 @@
 \usage{
 creel_connect_from_yaml(path, config = "default")
 }
+\arguments{
+\item{path}{Path to the YAML config file. Must exist.}
+
+\item{config}{Environment block to use (default: \code{"default"}). Passed to
+\code{config::get(config = ...)}. Common values: \code{"default"}, \code{"production"},
+\code{"staging"}.}
+}
+\value{
+A \code{creel_connection} S3 object.
+}
 \description{
-Create a creel connection from a YAML config file
+\code{creel_connect_from_yaml()} reads a YAML configuration file and creates a
+validated \code{creel_connection} object. All required keys and types are
+validated before any connection is attempted (fail-fast).
+
+Credentials must never be stored as plain text in the YAML file. Use the
+\code{config} package's \code{!expr} tag to inject environment variables:
+
+\if{html}{\out{<div class="sourceCode yaml">}}\preformatted{username: !expr Sys.getenv("CREEL_USER")
+password: !expr Sys.getenv("CREEL_PASS")
+}\if{html}{\out{</div>}}
+}
+\examples{
+\dontrun{
+conn <- creel_connect_from_yaml("config.yml")
+conn <- creel_connect_from_yaml("config.yml", config = "production")
+}
 }

@@ -37,3 +37,39 @@ test_that("fetch_catch() aborts with clear error when required column is missing
     "species"
   )
 })
+
+# --- creel_connection_api tests (API-03) ---
+
+test_that("fetch_catch.creel_connection_api() returns canonical columns (API-03)", {
+  httr2::local_mocked_responses(function(req) {
+    httr2::response(
+      200,
+      headers = "Content-Type: application/json",
+      body    = charToRaw('[{"api_UID":"A1","api_Species":"86","Num":2,"CatchCategory":"harvested"}]')
+    )
+  })
+  conn   <- make_api_conn()
+  result <- fetch_catch(conn)
+  expect_true(is.data.frame(result))
+  expect_equal(
+    sort(names(result)),
+    sort(c("catch_uid", "interview_uid", "species", "catch_count", "catch_type"))
+  )
+  expect_equal(result$interview_uid, "A1")
+  expect_true(is.character(result$species))
+  expect_equal(result$species, "86")
+  expect_true(is.numeric(result$catch_count))
+  expect_true(!is.na(result$catch_uid))
+})
+
+test_that("fetch_catch.creel_connection_api() handles empty API response (API-03)", {
+  httr2::local_mocked_responses(function(req) {
+    httr2::response(200, headers = "Content-Type: application/json", body = charToRaw("[]"))
+  })
+  conn   <- make_api_conn()
+  result <- fetch_catch(conn)
+  expect_equal(nrow(result), 0L)
+  expect_true("catch_uid" %in% names(result))
+  expect_true("interview_uid" %in% names(result))
+  expect_true(is.character(result$species))
+})
