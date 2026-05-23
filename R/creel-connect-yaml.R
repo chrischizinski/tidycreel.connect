@@ -37,7 +37,7 @@ creel_connect_from_yaml <- function(path, config = "default") {
   if (!file.exists(path)) {
     cli::cli_abort("{.arg path} does not exist: {.file {path}}")
   }
-  # Load all keys at once — use_parent=FALSE prevents searching parent directories
+  # Load all keys at once -- use_parent=FALSE prevents searching parent directories
   cfg <- config::get(value = NULL, config = config, file = path, use_parent = FALSE)
   # Pre-validate all required keys and types before any connection attempt
   .validate_yaml_config(cfg, path)
@@ -122,7 +122,7 @@ creel_connect_from_yaml <- function(path, config = "default") {
       cli::cli_abort(c(
         "Credential field{?s} resolved to empty string in YAML config: {.file {path}}",
         stats::setNames(
-          paste0("{.field ", empty_creds, "} — check that the environment variable is set"),
+          paste0("{.field ", empty_creds, "} -- check that the environment variable is set"),
           rep("x", length(empty_creds))
         ),
         "i" = "Use {.code !expr Sys.getenv('VAR_NAME')} and ensure the variable is exported."
@@ -139,7 +139,7 @@ creel_connect_from_yaml <- function(path, config = "default") {
   survey_type <- cfg$schema$survey_type
 
   # Build a minimal creel_schema from the YAML schema block
-  # Column mappings are not in YAML — this schema holds table names only
+  # Column mappings are not in YAML -- this schema holds table names only
   schema_args <- list(survey_type = survey_type)
   table_keys <- c(
     "interviews_table", "counts_table", "catch_table",
@@ -160,6 +160,8 @@ creel_connect_from_yaml <- function(path, config = "default") {
         "i" = "Install it with {.code install.packages('odbc')}."
       ))
     }
+    # WARNING: cfg$username and cfg$password must come from Sys.getenv() via YAML !expr tags.
+    # Do NOT log or print cfg$password -- credentials are validated non-empty above.
     dbi_con <- DBI::dbConnect(
       odbc::odbc(),
       Driver   = "ODBC Driver 17 for SQL Server",

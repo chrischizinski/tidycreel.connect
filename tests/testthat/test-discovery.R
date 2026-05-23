@@ -1,14 +1,14 @@
 # Tests for list_creels() and search_creels() — API-07, API-08
 
 # --- Shared fixture body ---
-# Use the raw AGENCY field names from api_rename_map in creel-discovery.R
-# (api_UID, Creel_Name, api_Title, Active, DataComplete, api_Comments)
+# Use the confirmed AGENCY field names from api_rename_map in creel-discovery.R
+# (Creel_UID, Creel_Title, Creel_Description, Creel_Active, Creel_DataComplete, Creel_Comments)
 discovery_body_two_surveys <- charToRaw(paste0(
   '[',
-  '{"api_UID":"S001","Creel_Name":"Calamus 2016","api_Title":"Summer survey",',
-  '"Active":true,"DataComplete":false,"api_Comments":"Pilot"},',
-  '{"api_UID":"S002","Creel_Name":"Cedar 2018","api_Title":"Fish survey",',
-  '"Active":true,"DataComplete":true,"api_Comments":""}',
+  '{"Creel_UID":"S001","Creel_Title":"Calamus 2016","Creel_Description":"Summer survey",',
+  '"Creel_Active":true,"Creel_DataComplete":false,"Creel_Comments":"Pilot"},',
+  '{"Creel_UID":"S002","Creel_Title":"Cedar 2018","Creel_Description":"Fish survey",',
+  '"Creel_Active":true,"Creel_DataComplete":true,"Creel_Comments":""}',
   ']'
 ))
 
@@ -39,7 +39,7 @@ test_that("list_creels.creel_connection_api() coerces types correctly (API-07)",
   expect_true(is.logical(result$data_complete))
 })
 
-test_that("list_creels.creel_connection_api() returns 0-row data.frame on empty API response (API-07)", {
+test_that("list_creels.creel_connection_api() returns 0-row tibble on empty API response (API-10)", {
   httr2::local_mocked_responses(function(req) {
     httr2::response(200, headers = "Content-Type: application/json", body = charToRaw("[]"))
   })
@@ -50,6 +50,15 @@ test_that("list_creels.creel_connection_api() returns 0-row data.frame on empty 
     sort(names(result)),
     sort(c("creel_uid", "title", "description", "active", "data_complete", "comments"))
   )
+  # API-10: empty response must be a tibble, not a plain data.frame
+  expect_true(inherits(result, "tbl_df"))
+  # Column types must be preserved even with 0 rows
+  expect_true(is.character(result$creel_uid))
+  expect_true(is.character(result$title))
+  expect_true(is.character(result$description))
+  expect_true(is.logical(result$active))
+  expect_true(is.logical(result$data_complete))
+  expect_true(is.character(result$comments))
 })
 
 test_that("list_creels.creel_connection_csv() aborts with not-supported error (API-07)", {

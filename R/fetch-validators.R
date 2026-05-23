@@ -6,12 +6,13 @@
 # Returns character(0) on pass, a named "x" bullet on fail
 .check_col <- function(df, col, expected_type, fn_name) {
   if (!col %in% names(df)) {
+    if (expected_type == "optional") return(character(0))
     return(stats::setNames(
       paste0(col, " (", expected_type, "): column missing"),
       "x"
     ))
   }
-  if (expected_type == "any") {
+  if (expected_type %in% c("any", "optional")) {
     return(character(0))
   }
   ok <- switch(expected_type,
@@ -64,8 +65,10 @@ validate_fetch_interviews <- function(df) {
 #' @keywords internal
 validate_fetch_counts <- function(df) {
   spec <- list(
-    date         = "Date",
-    angler_count = "numeric"
+    date          = "Date",
+    bank_anglers  = "numeric",
+    angler_boats  = "optional",  # absent for non-AGENCY backends; numeric when present
+    non_ang_boats = "optional"   # absent for non-AGENCY backends; numeric when present
   )
   .validate_fetch(df, spec, "fetch_counts")
 }

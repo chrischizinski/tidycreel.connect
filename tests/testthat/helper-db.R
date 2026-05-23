@@ -21,8 +21,10 @@ make_test_db <- function() {
   )
 
   counts <- data.frame(
-    date = as.Date(c("2024-06-01", "2024-06-02", "2024-06-03")),
-    angler_count = c(12L, 8L, 20L),
+    date          = as.Date(c("2024-06-01", "2024-06-02", "2024-06-03")),
+    bank_anglers  = c(12L, 8L, 20L),
+    angler_boats  = c(0L, 0L, 0L),
+    non_ang_boats = c(0L, 0L, 0L),
     stringsAsFactors = FALSE
   )
 

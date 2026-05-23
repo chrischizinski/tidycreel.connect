@@ -1,7 +1,7 @@
 # tidycreel.connect
 
 **Database and file connections for the
-[tidycreel](https://github.com/cchizinski2/tidycreel) creel survey package.**
+[tidycreel](https://github.com/chrischizinski/tidycreel) creel survey package.**
 
 tidycreel.connect provides a unified connection layer that loads interview,
 count, catch, and length data from flat CSV files or a SQL Server database,
@@ -16,8 +16,8 @@ the data came from.
 ```r
 # Install tidycreel.connect
 # (requires tidycreel to be installed first)
-remotes::install_github("cchizinski2/tidycreel")
-remotes::install_github("cchizinski2/tidycreel", subdir = "tidycreel.connect")
+remotes::install_github("chrischizinski/tidycreel")
+remotes::install_github("chrischizinski/tidycreel", subdir = "tidycreel.connect")
 ```
 
 ### ODBC prerequisites (SQL Server backend only)

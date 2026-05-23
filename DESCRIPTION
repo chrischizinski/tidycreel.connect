@@ -1,9 +1,9 @@
 Package: tidycreel.connect
-Title: Database and File Connections for tidycreel
+Title: Database and File Connections for Tidycreel
 Version: 0.1.0
 Authors@R:
     person("Christopher", "Chizinski", role = c("aut", "cre"),
-           email = "chris.chizinski@unl.edu")
+           email = "cchizinski2@unl.edu")
 Description: Provides connection objects and data loaders for the tidycreel
     creel survey analysis package. Supports SQL Server (via ODBC),
     DBI-compliant databases, and flat CSV files.
@@ -18,11 +18,15 @@ Imports:
     DBI,
     httr2 (>= 1.0.0),
     readr,
+    tibble,
     tidycreel
 Suggests:
     config,
     duckdb,
+    knitr,
     odbc,
+    rmarkdown,
     testthat (>= 3.0.0),
     withr
+VignetteBuilder: knitr
 Config/testthat/edition: 3

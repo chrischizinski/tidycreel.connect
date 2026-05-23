@@ -8,8 +8,9 @@
 #' @return A character vector of formatted lines (via `cli_format_method()`).
 #' @export
 format.creel_connection <- function(x, ...) {
-  # For DBI backend, re-check validity dynamically
-  status_str <- if (x$backend == "csv") { # nolint: object_usage_linter
+  status_str <- if (x$backend == "csv") {
+    x$status
+  } else if (x$backend == "api") {
     x$status
   } else {
     if (DBI::dbIsValid(x$con)) "open" else "closed"
@@ -26,6 +27,12 @@ format.creel_connection <- function(x, ...) {
         padded <- formatC(nm, width = max(nchar(path_names)), flag = "-") # nolint: object_usage_linter
         cli::cli_text("  {padded} {cli::symbol$arrow_right} {x$con[[nm]]}")
       }
+    } else if (x$backend == "api") {
+      # WARNING: do NOT add x$con$auth display here -- auth$token must not appear in output
+      cli::cli_text("Backend: API")
+      cli::cli_text("  base_url:   {x$con$base_url}")
+      cli::cli_text("  creel_uids: {length(x$con$creel_uids)} UID(s)")
+      cli::cli_text("  auth:       {if (!is.null(x$con$auth)) x$con$auth$type else 'none'}")
     } else {
       cli::cli_text("Backend: DBI")
     }

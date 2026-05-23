@@ -9,7 +9,9 @@ make_test_schema <- function() {
     catch_col         = "catch_count",
     effort_col        = "effort_hours",
     trip_status_col   = "trip_status",
-    count_col         = "angler_count",
+    bank_anglers_col  = "bank_anglers",
+    angler_boats_col  = "angler_boats",
+    non_ang_boats_col = "non_ang_boats",
     catch_uid_col     = "catch_uid",
     species_col       = "species",
     catch_count_col   = "catch_count",
@@ -33,7 +35,9 @@ make_test_csv <- function() {
   )
   counts <- data.frame(
     date = as.Date(c("2024-06-01", "2024-06-02")),
-    angler_count = c(12L, 8L),
+    bank_anglers  = c(12L, 8L),
+    angler_boats  = c(0L, 0L),
+    non_ang_boats = c(0L, 0L),
     stringsAsFactors = FALSE
   )
   catch <- data.frame(
@@ -91,7 +95,9 @@ make_test_csv_bom <- function() {
   )
   counts <- data.frame(
     date = as.Date(c("2024-06-01", "2024-06-02")),
-    angler_count = c(12L, 8L),
+    bank_anglers  = c(12L, 8L),
+    angler_boats  = c(0L, 0L),
+    non_ang_boats = c(0L, 0L),
     stringsAsFactors = FALSE
   )
   catch <- data.frame(
@@ -153,7 +159,9 @@ make_test_csv_numeric_species <- function() {
   )
   counts <- data.frame(
     date = as.Date(c("2024-06-01", "2024-06-02")),
-    angler_count = c(12L, 8L),
+    bank_anglers  = c(12L, 8L),
+    angler_boats  = c(0L, 0L),
+    non_ang_boats = c(0L, 0L),
     stringsAsFactors = FALSE
   )
   # species column uses integer codes to simulate AGENCY SQL Server exports

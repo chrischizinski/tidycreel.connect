@@ -2,23 +2,25 @@
 
 schema_inst <- function() {
   tidycreel::creel_schema(
-    survey_type = "instantaneous",
-    interviews_table = "interviews",
-    counts_table = "counts",
-    catch_table = "catch",
-    date_col = "date",
-    catch_col = "catch_count",
-    effort_col = "effort_hours",
-    trip_status_col = "trip_status",
-    count_col = "angler_count",
-    catch_uid_col = "catch_uid",
+    survey_type       = "instantaneous",
+    interviews_table  = "interviews",
+    counts_table      = "counts",
+    catch_table       = "catch",
+    date_col          = "date",
+    catch_col         = "catch_count",
+    effort_col        = "effort_hours",
+    trip_status_col   = "trip_status",
+    bank_anglers_col  = "bank_anglers",
+    angler_boats_col  = "angler_boats",
+    non_ang_boats_col = "non_ang_boats",
+    catch_uid_col     = "catch_uid",
     interview_uid_col = "interview_uid",
-    species_col = "species",
-    catch_count_col = "catch_count",
-    catch_type_col = "catch_type",
-    length_uid_col = "length_uid",
-    length_mm_col = "length_mm",
-    length_type_col = "length_type"
+    species_col       = "species",
+    catch_count_col   = "catch_count",
+    catch_type_col    = "catch_type",
+    length_uid_col    = "length_uid",
+    length_mm_col     = "length_mm",
+    length_type_col   = "length_type"
   )
 }
 

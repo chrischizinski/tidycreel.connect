@@ -17,7 +17,7 @@ knitr::opts_chunk$set(
 ## Overview
 
 **tidycreel.connect** provides a unified connection layer for the
-[tidycreel](https://github.com/cchizinski2/tidycreel) creel survey package.
+[tidycreel](https://github.com/chrischizinski/tidycreel) creel survey package.
 It lets you load interview, count, catch, and length data from two backends:
 
 | Backend | When to use |
@@ -69,7 +69,7 @@ schema <- creel_schema(
   effort_col        = "EffortHours",
   catch_col         = "TotalCatch",
   trip_status_col   = "TripStatus",
-  count_col         = "AnglerCount",
+  bank_anglers_col  = "BankAnglers",
   catch_uid_col     = "CatchUID",
   species_col       = "SpeciesCode",
   catch_count_col   = "CatchCount",
@@ -218,7 +218,7 @@ readr::write_csv(
   interviews_csv
 )
 readr::write_csv(
-  data.frame(SurveyDate = "2024-06-01", AnglerCount = 12L),
+  data.frame(SurveyDate = "2024-06-01", BankAnglers = 12L),
   counts_csv
 )
 readr::write_csv(
