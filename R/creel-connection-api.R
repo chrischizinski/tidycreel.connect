@@ -75,9 +75,10 @@ creel_connect_api <- function(
     base_url,
     creel_uids,
     schema,
-    uid_param = "Creel_UIDs",
-    endpoints = NULL,
-    auth      = NULL
+    uid_param     = "Creel_UIDs",
+    endpoints     = NULL,
+    auth          = NULL,
+    api_field_map = NULL
 ) {
   if (!inherits(schema, "creel_schema")) {
     cli::cli_abort(c(
@@ -98,6 +99,27 @@ creel_connect_api <- function(
     .validate_api_auth(auth)
   }
 
+  # Warn when schema has col-mapping args but api_field_map not supplied.
+  # Schema col-mappings configure CSV/SQL column names, not API JSON field names.
+  if (is.null(api_field_map)) {
+    schema_mapping_fields <- c(
+      "interview_uid_col", "date_col", "catch_col", "effort_col",
+      "trip_status_col", "catch_uid_col", "species_col", "catch_count_col",
+      "catch_type_col", "length_uid_col", "length_mm_col", "length_type_col",
+      "bank_anglers_col", "angler_boats_col", "non_ang_boats_col"
+    )
+    has_schema_mappings <- any(
+      vapply(schema_mapping_fields, function(f) !is.null(schema[[f]]), logical(1L))
+    )
+    if (has_schema_mappings) {
+      cli::cli_warn(c(
+        "{.arg schema} column mappings are ignored by the API backend.",
+        "i" = "API JSON field names default to AGENCY field names.",
+        "i" = "To configure non-AGENCY field names, use the {.arg api_field_map} argument."
+      ))
+    }
+  }
+
   if (!endsWith(base_url, "/")) base_url <- paste0(base_url, "/")
 
   resolved_endpoints <- .default_api_endpoints()
@@ -113,14 +135,17 @@ creel_connect_api <- function(
     resolved_endpoints[names(endpoints)] <- endpoints
   }
 
+  resolved_field_map <- .merge_api_field_map(api_field_map)
+
   new_creel_connection(
     backend  = "api",
     con      = list(
-      base_url   = base_url,
-      creel_uids = creel_uids,
-      uid_param  = uid_param,
-      endpoints  = resolved_endpoints,
-      auth       = auth
+      base_url      = base_url,
+      creel_uids    = creel_uids,
+      uid_param     = uid_param,
+      endpoints     = resolved_endpoints,
+      auth          = auth,
+      api_field_map = resolved_field_map
     ),
     schema   = schema,
     status   = "ready",
@@ -139,6 +164,65 @@ creel_connect_api <- function(
     release_lengths = "AnalysisData/ReleaseLengthRecords",
     discovery       = "AnalysisData/CreelList" # TODO: confirm endpoint path with live API
   )
+}
+
+# Default JSON field names for the AGENCY creel survey API, keyed by endpoint.
+# Each entry maps a canonical name to the raw JSON field name returned by the API.
+# For interviews: effort_hours + effort_minutes are combined as hours + minutes/60.
+#' @noRd
+.default_api_field_map <- function() {
+  list(
+    interviews = list(
+      interview_uid  = "api_UID",
+      date           = "api_Date",
+      catch_count    = "Num",
+      trip_status    = "api_TripKind",
+      effort_hours   = "api_TimeFishedHours",
+      effort_minutes = "api_TimeFishedMinutes"
+    ),
+    counts = list(
+      date          = "api_Date",
+      bank_anglers  = "api_BankAnglers",
+      angler_boats  = "api_AnglerBoats",
+      non_ang_boats = "api_NonAngBoats"
+    ),
+    catch = list(
+      interview_uid = "api_UID",
+      species       = "api_Species",
+      catch_count   = "Num",
+      catch_type    = "CatchCategory"
+    ),
+    harvest_lengths = list(
+      interview_uid = "iiUID",
+      species       = "api_Species",
+      length_mm     = "api_Length"
+    ),
+    release_lengths = list(
+      interview_uid = "iiUID",
+      species       = "api_Species",
+      length_mm     = "api_LengthBand"
+    )
+  )
+}
+
+# Merge user api_field_map overrides into the defaults.
+# User may supply a partial nested list — only specified fields are overridden.
+#' @noRd
+.merge_api_field_map <- function(user_map) {
+  defaults <- .default_api_field_map()
+  if (is.null(user_map)) return(defaults)
+  valid_endpoints <- names(defaults)
+  bad_endpoints   <- setdiff(names(user_map), valid_endpoints)
+  if (length(bad_endpoints) > 0L) {
+    cli::cli_abort(c(
+      "Unknown endpoint{?s} in {.arg api_field_map}: {.val {bad_endpoints}}",
+      "i" = "Valid endpoint names: {.val {valid_endpoints}}"
+    ))
+  }
+  for (ep in names(user_map)) {
+    defaults[[ep]][names(user_map[[ep]])] <- user_map[[ep]]
+  }
+  defaults
 }
 
 # Validate an auth spec list -- aborts on any invalid configuration

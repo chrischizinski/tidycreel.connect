@@ -102,21 +102,24 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
     ))
   }
 
-  # Hardcoded AGENCY field names -- do NOT route through creel_schema (CONTEXT.md D-01 through D-04)
+  fm <- conn$con$api_field_map$interviews
   api_rename_map <- c(
-    interview_uid = "api_UID",
-    date          = "api_Date",
-    catch_count   = "Num",          # TODO: confirm field name with live API
-    trip_status   = "api_TripKind"   # TODO: confirm field name with live API
+    interview_uid = fm$interview_uid,
+    date          = fm$date,
+    catch_count   = fm$catch_count,
+    trip_status   = fm$trip_status
   )
+  api_rename_map <- api_rename_map[!is.na(api_rename_map) & nzchar(api_rename_map)]
   df <- .rename_api_to_canonical(raw_df, api_rename_map)
 
-  # Effort: arithmetic from two raw fields -- only method requiring field arithmetic (API-01)
-  hours_col   <- "api_TimeFishedHours"   # TODO: confirm field name with live API
-  minutes_col <- "api_TimeFishedMinutes" # TODO: confirm field name with live API
-  if (hours_col %in% names(raw_df) && minutes_col %in% names(raw_df)) {
-    df$effort <- as.numeric(raw_df[[hours_col]]) +
-                 as.numeric(raw_df[[minutes_col]]) / 60
+  # Effort: arithmetic from two raw fields (API-01); or single field when effort_minutes is NULL
+  hours_col   <- fm$effort_hours
+  minutes_col <- fm$effort_minutes
+  if (!is.null(hours_col) && nzchar(hours_col) && hours_col %in% names(raw_df)) {
+    df$effort <- as.numeric(raw_df[[hours_col]])
+    if (!is.null(minutes_col) && nzchar(minutes_col) && minutes_col %in% names(raw_df)) {
+      df$effort <- df$effort + as.numeric(raw_df[[minutes_col]]) / 60
+    }
   }
 
   if ("date" %in% names(df))        df$date        <- .parse_api_date(df$date)
@@ -184,15 +187,16 @@ fetch_counts.creel_connection_api <- function(conn, ...) {
     ))
   }
 
-  # Hardcoded AGENCY field names -- do NOT route through creel_schema (CONTEXT.md D-01 through D-04)
-  # bank_anglers = anglers on shore; angler_boats = boats (not anglers); non_ang_boats = boats without anglers
-  # boat angler count is derived from angler_boats * mean(anglers/boat) from interview data -- not a raw field
+  fm <- conn$con$api_field_map$counts
+  # bank_anglers = anglers on shore; angler_boats = boats with anglers; non_ang_boats = boats without anglers
+  # boat angler count derived from angler_boats * mean(anglers/boat) from interviews -- not a raw field
   api_rename_map <- c(
-    date          = "api_Date",
-    bank_anglers  = "api_BankAnglers",
-    angler_boats  = "api_AnglerBoats",
-    non_ang_boats = "api_NonAngBoats"
+    date          = fm$date,
+    bank_anglers  = fm$bank_anglers,
+    angler_boats  = fm$angler_boats,
+    non_ang_boats = fm$non_ang_boats
   )
+  api_rename_map <- api_rename_map[!is.na(api_rename_map) & nzchar(api_rename_map)]
   df <- .rename_api_to_canonical(raw_df, api_rename_map)
 
   if ("date"          %in% names(df)) df$date          <- .parse_api_date(df$date)
@@ -261,13 +265,14 @@ fetch_catch.creel_connection_api <- function(conn, ...) {
     ))
   }
 
-  # Hardcoded AGENCY field names -- do NOT route through creel_schema (CONTEXT.md D-01 through D-04)
+  fm <- conn$con$api_field_map$catch
   api_rename_map <- c(
-    interview_uid = "api_UID",
-    species       = "api_Species",
-    catch_count   = "Num",
-    catch_type    = "CatchCategory"
+    interview_uid = fm$interview_uid,
+    species       = fm$species,
+    catch_count   = fm$catch_count,
+    catch_type    = fm$catch_type
   )
+  api_rename_map <- api_rename_map[!is.na(api_rename_map) & nzchar(api_rename_map)]
   df <- .rename_api_to_canonical(raw_df, api_rename_map)
 
   # UID synthesis: catch_uid absent from API response -- synthesize as row index (D-05, D-06)
@@ -339,13 +344,14 @@ fetch_harvest_lengths.creel_connection_api <- function(conn, ...) {
     ))
   }
 
-  # Hardcoded AGENCY field names -- do NOT route through creel_schema (CONTEXT.md D-01 through D-04)
-  # NOTE: harvest/release lengths use iiUID (no underscore), NOT api_UID used by interviews/catch
+  fm <- conn$con$api_field_map$harvest_lengths
+  # NOTE: AGENCY harvest lengths use "iiUID" (no underscore), unlike "api_UID" in interviews/catch
   api_rename_map <- c(
-    interview_uid = "iiUID",       # NOTE: no underscore -- differs from api_UID in interviews/catch
-    species       = "api_Species",
-    length_mm     = "api_Length"
+    interview_uid = fm$interview_uid,
+    species       = fm$species,
+    length_mm     = fm$length_mm
   )
+  api_rename_map <- api_rename_map[!is.na(api_rename_map) & nzchar(api_rename_map)]
   df <- .rename_api_to_canonical(raw_df, api_rename_map)
 
   # UID synthesis: length_uid absent from API response -- synthesize as row index (D-05, D-06)
@@ -419,15 +425,15 @@ fetch_release_lengths.creel_connection_api <- function(conn, ...) {
     ))
   }
 
-  # Hardcoded AGENCY field names -- do NOT route through creel_schema (CONTEXT.md D-01 through D-04)
-  # NOTE: release lengths use iiUID (no underscore) same as harvest lengths
+  fm <- conn$con$api_field_map$release_lengths
+  # NOTE: AGENCY release lengths use "iiUID" (no underscore), same as harvest lengths
+  # api_Count (binned count) is not in the canonical field map; dropped by .rename_api_to_canonical
   api_rename_map <- c(
-    interview_uid = "iiUID",          # NOTE: no underscore
-    species       = "api_Species",
-    length_mm     = "api_LengthBand"
-    # api_Count is NOT renamed -- no canonical target; dropped silently by .rename_api_to_canonical
-    # TODO: confirm api_Count aggregation policy with live API (CONTEXT.md D-03)
+    interview_uid = fm$interview_uid,
+    species       = fm$species,
+    length_mm     = fm$length_mm
   )
+  api_rename_map <- api_rename_map[!is.na(api_rename_map) & nzchar(api_rename_map)]
   df <- .rename_api_to_canonical(raw_df, api_rename_map)
 
   # UID synthesis: length_uid absent from API response -- synthesize as row index (D-05, D-06)
