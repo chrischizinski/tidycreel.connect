@@ -61,6 +61,20 @@ validate_fetch_interviews <- function(df) {
   .validate_fetch(df, spec, "fetch_interviews")
 }
 
+# API variant: catch_count is absent from the AGENCY interviews endpoint (Num is in
+# CatchRecords, not InterviewRecords). Users aggregate from fetch_catch() instead.
+#' @noRd
+#' @keywords internal
+validate_fetch_interviews_api <- function(df) {
+  spec <- list(
+    interview_uid = "uid",
+    date          = "Date",
+    effort        = "numeric",
+    trip_status   = "character"
+  )
+  .validate_fetch(df, spec, "fetch_interviews")
+}
+
 
 #' @noRd
 #' @keywords internal

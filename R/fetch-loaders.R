@@ -115,7 +115,6 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
     return(data.frame(
       interview_uid    = character(0),
       date             = as.Date(character(0)),
-      catch_count      = numeric(0),
       effort           = numeric(0),
       trip_status      = character(0),
       stringsAsFactors = FALSE
@@ -123,6 +122,9 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
   }
 
   fm <- conn$con$api_field_map$interviews
+  # catch_count: NULL in AGENCY defaults (Num lives in CatchRecords, not InterviewRecords);
+  # non-NULL when caller supplies a custom api_field_map for a non-AGENCY API.
+  # c() drops NULL entries silently, so the field is simply absent for AGENCY connections.
   api_rename_map <- c(
     interview_uid = fm$interview_uid,
     date          = fm$date,
@@ -146,7 +148,7 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
   if ("catch_count" %in% names(df)) df$catch_count <- .coerce_numeric(df$catch_count, "catch_count")
   if ("trip_status" %in% names(df)) df$trip_status <- as.character(df$trip_status)
 
-  validate_fetch_interviews(df) # nolint: object_usage_linter
+  validate_fetch_interviews_api(df) # nolint: object_usage_linter
   df
 }
 

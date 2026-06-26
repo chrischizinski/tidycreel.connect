@@ -64,11 +64,13 @@ test_that("fetch_interviews() aborts with clear error when column has wrong type
 # --- creel_connection_api tests (API-01) ---
 
 test_that("fetch_interviews.creel_connection_api() returns canonical columns (API-01)", {
+  # AGENCY InterviewRecords does not include per-trip catch totals (Num is in CatchRecords).
+  # catch_count is intentionally absent from API interview results.
   httr2::local_mocked_responses(function(req) {
     httr2::response(
       200,
       headers = "Content-Type: application/json",
-      body    = charToRaw('[{"api_UID":"A1","api_Date":"2016-03-28","Num":2,"api_TripKind":"complete","api_TimeFishedHours":2,"api_TimeFishedMinutes":30}]')
+      body    = charToRaw('[{"api_UID":"A1","api_Date":"2016-03-28","api_TripKind":"complete","api_TimeFishedHours":2,"api_TimeFishedMinutes":30}]')
     )
   })
   conn   <- make_api_conn()
@@ -76,13 +78,12 @@ test_that("fetch_interviews.creel_connection_api() returns canonical columns (AP
   expect_true(is.data.frame(result))
   expect_equal(
     sort(names(result)),
-    sort(c("interview_uid", "date", "catch_count", "effort", "trip_status"))
+    sort(c("interview_uid", "date", "effort", "trip_status"))
   )
   expect_equal(result$interview_uid, "A1")
   expect_true(inherits(result$date, "Date"))
   expect_true(is.numeric(result$effort))
   expect_equal(result$effort, 2 + 30 / 60)
-  expect_true(is.numeric(result$catch_count))
   expect_true(is.character(result$trip_status))
 })
 
