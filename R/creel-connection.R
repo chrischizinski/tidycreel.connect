@@ -82,6 +82,14 @@ creel_connect <- function(con, schema) {
 
 #' @noRd
 .creel_connect_csv <- function(paths, schema) {
+  required_keys <- c("interviews", "counts", "catch", "harvest_lengths", "release_lengths")
+  missing_keys  <- setdiff(required_keys, names(paths))
+  if (length(missing_keys) > 0L) {
+    cli::cli_abort(c(
+      "CSV path list is missing required key{?s}: {.val {missing_keys}}",
+      "i" = "Required keys: {.val {required_keys}}"
+    ))
+  }
   missing_files <- names(paths)[!vapply(paths, file.exists, logical(1L))]
   if (length(missing_files) > 0L) {
     bullets <- stats::setNames(

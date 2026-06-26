@@ -1,3 +1,33 @@
+# tidycreel.connect 0.2.0
+
+## Bug fixes and robustness improvements
+
+* `creel_connect_from_yaml()`: guards against NULL/non-list config block after
+  `config::get()`; catches missing credential keys (not just empty strings);
+  validates `survey_type` against known enum before calling `creel_schema()`;
+  wraps `DBI::dbConnect()` in `tryCatch()` to prevent password leaking into
+  error tracebacks.
+* `creel_connect()`: `creel_connect_csv()` now validates all 5 required path
+  keys (`interviews`, `counts`, `catch`, `harvest_lengths`, `release_lengths`)
+  before checking file existence, giving a clear error on missing keys.
+* `.api_fetch()`: guards against NULL endpoint key with a clear error; wraps
+  `as.data.frame()` for non-tabular API JSON responses; `.parse_api_date()`
+  now strips ISO 8601 timezone suffixes (`Z`, `+HH:MM`, `-HH:MM`) before
+  parsing, preventing silent NA on timezone-aware timestamps.
+* `fetch_interviews()`, `fetch_counts()`, `fetch_catch()`,
+  `fetch_harvest_lengths()`, `fetch_release_lengths()`: all `as.numeric()` and
+  `as.Date()` coercions on data columns now warn when values cannot be parsed
+  rather than silently producing `NA` (via new `.coerce_numeric()` and
+  `.coerce_date()` internal helpers).
+* `list_creels()`: missing AGENCY API fields now trigger a warning and are filled
+  with typed `NA` rather than silently producing a short-column data frame;
+  return type unified to tibble across empty and non-empty responses.
+* Validation (`fetch-validators`): `switch()` default now `stop()`s on unknown
+  `expected_type` values rather than silently returning `TRUE`; UID columns
+  (`interview_uid`, `catch_uid`, `length_uid`) use new `"uid"` type that
+  accepts numeric or character (covers both synthesized row-index UIDs and UUID
+  strings), replacing the unchecked `"any"` type.
+
 # tidycreel.connect 0.1.0
 
 ## Initial release

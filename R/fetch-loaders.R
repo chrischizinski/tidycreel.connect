@@ -6,6 +6,28 @@
   readr::read_csv(path, show_col_types = FALSE, progress = FALSE)
 }
 
+# Internal: as.numeric() that warns when coercion introduces NAs
+.coerce_numeric <- function(x, col_name) {
+  result <- suppressWarnings(as.numeric(x))
+  na_new <- is.na(result) & !is.na(x)
+  if (any(na_new)) {
+    cli::cli_warn("Coercion introduced {sum(na_new)} NA{?s} in column {.field {col_name}}.")
+  }
+  result
+}
+
+# Internal: as.Date() that warns when parsing introduces NAs
+.coerce_date <- function(x, col_name, formats = c("%Y-%m-%d", "%m/%d/%Y")) {
+  result <- suppressWarnings(as.Date(x, tryFormats = formats))
+  na_new <- is.na(result) & !is.na(x)
+  if (any(na_new)) {
+    cli::cli_warn(
+      "Could not parse {sum(na_new)} date value{?s} in column {.field {col_name}}; coerced to NA."
+    )
+  }
+  result
+}
+
 # Internal: rename raw AGENCY API columns to canonical names using a hardcoded map.
 # api_rename_map: named character vector where names = canonical names,
 #   values = raw AGENCY JSON field names (e.g., c(interview_uid = "api_UID", date = "api_Date")).
@@ -71,11 +93,9 @@ fetch_interviews.creel_connection_csv <- function(conn, ...) {
     trip_status   = "trip_status_col"
   )
   df <- .rename_to_canonical(df, conn$schema, rename_map)
-  if ("date" %in% names(df)) {
-    df$date <- as.Date(df$date, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
-  }
-  if ("catch_count" %in% names(df)) df$catch_count <- as.numeric(df$catch_count)
-  if ("effort" %in% names(df)) df$effort <- as.numeric(df$effort)
+  if ("date"        %in% names(df)) df$date        <- .coerce_date(df$date, "date")
+  if ("catch_count" %in% names(df)) df$catch_count <- .coerce_numeric(df$catch_count, "catch_count")
+  if ("effort"      %in% names(df)) df$effort      <- .coerce_numeric(df$effort, "effort")
   if ("trip_status" %in% names(df)) df$trip_status <- as.character(df$trip_status)
   validate_fetch_interviews(df) # nolint: object_usage_linter
   df
@@ -116,14 +136,14 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
   hours_col   <- fm$effort_hours
   minutes_col <- fm$effort_minutes
   if (!is.null(hours_col) && nzchar(hours_col) && hours_col %in% names(raw_df)) {
-    df$effort <- as.numeric(raw_df[[hours_col]])
+    df$effort <- .coerce_numeric(raw_df[[hours_col]], hours_col)
     if (!is.null(minutes_col) && nzchar(minutes_col) && minutes_col %in% names(raw_df)) {
-      df$effort <- df$effort + as.numeric(raw_df[[minutes_col]]) / 60
+      df$effort <- df$effort + .coerce_numeric(raw_df[[minutes_col]], minutes_col) / 60
     }
   }
 
-  if ("date" %in% names(df))        df$date        <- .parse_api_date(df$date)
-  if ("catch_count" %in% names(df)) df$catch_count <- as.numeric(df$catch_count)
+  if ("date"        %in% names(df)) df$date        <- .parse_api_date(df$date)
+  if ("catch_count" %in% names(df)) df$catch_count <- .coerce_numeric(df$catch_count, "catch_count")
   if ("trip_status" %in% names(df)) df$trip_status <- as.character(df$trip_status)
 
   validate_fetch_interviews(df) # nolint: object_usage_linter
@@ -157,12 +177,10 @@ fetch_counts.creel_connection_csv <- function(conn, ...) {
     non_ang_boats = "non_ang_boats_col"
   )
   df <- .rename_to_canonical(df, conn$schema, rename_map)
-  if ("date" %in% names(df)) {
-    df$date <- as.Date(df$date, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
-  }
-  if ("bank_anglers"  %in% names(df)) df$bank_anglers  <- as.numeric(df$bank_anglers)
-  if ("angler_boats"  %in% names(df)) df$angler_boats  <- as.numeric(df$angler_boats)
-  if ("non_ang_boats" %in% names(df)) df$non_ang_boats <- as.numeric(df$non_ang_boats)
+  if ("date"          %in% names(df)) df$date          <- .coerce_date(df$date, "date")
+  if ("bank_anglers"  %in% names(df)) df$bank_anglers  <- .coerce_numeric(df$bank_anglers, "bank_anglers")
+  if ("angler_boats"  %in% names(df)) df$angler_boats  <- .coerce_numeric(df$angler_boats, "angler_boats")
+  if ("non_ang_boats" %in% names(df)) df$non_ang_boats <- .coerce_numeric(df$non_ang_boats, "non_ang_boats")
   validate_fetch_counts(df) # nolint: object_usage_linter
   df
 }
@@ -200,9 +218,9 @@ fetch_counts.creel_connection_api <- function(conn, ...) {
   df <- .rename_api_to_canonical(raw_df, api_rename_map)
 
   if ("date"          %in% names(df)) df$date          <- .parse_api_date(df$date)
-  if ("bank_anglers"  %in% names(df)) df$bank_anglers  <- as.numeric(df$bank_anglers)
-  if ("angler_boats"  %in% names(df)) df$angler_boats  <- as.numeric(df$angler_boats)
-  if ("non_ang_boats" %in% names(df)) df$non_ang_boats <- as.numeric(df$non_ang_boats)
+  if ("bank_anglers"  %in% names(df)) df$bank_anglers  <- .coerce_numeric(df$bank_anglers, "bank_anglers")
+  if ("angler_boats"  %in% names(df)) df$angler_boats  <- .coerce_numeric(df$angler_boats, "angler_boats")
+  if ("non_ang_boats" %in% names(df)) df$non_ang_boats <- .coerce_numeric(df$non_ang_boats, "non_ang_boats")
 
   validate_fetch_counts(df) # nolint: object_usage_linter
   df
@@ -237,9 +255,9 @@ fetch_catch.creel_connection_csv <- function(conn, ...) {
   )
   df <- .rename_to_canonical(df, conn$schema, rename_map)
   # Coerce species to character BEFORE validation (AGENCY integer codes)
-  if ("species" %in% names(df)) df$species <- as.character(df$species)
-  if ("catch_count" %in% names(df)) df$catch_count <- as.numeric(df$catch_count)
-  if ("catch_type" %in% names(df)) df$catch_type <- as.character(df$catch_type)
+  if ("species"     %in% names(df)) df$species     <- as.character(df$species)
+  if ("catch_count" %in% names(df)) df$catch_count <- .coerce_numeric(df$catch_count, "catch_count")
+  if ("catch_type"  %in% names(df)) df$catch_type  <- as.character(df$catch_type)
   validate_fetch_catch(df) # nolint: object_usage_linter
   df
 }
@@ -280,9 +298,9 @@ fetch_catch.creel_connection_api <- function(conn, ...) {
     df$catch_uid <- seq_len(nrow(df))
   }
 
-  if ("species" %in% names(df))     df$species     <- as.character(df$species)
-  if ("catch_count" %in% names(df)) df$catch_count <- as.numeric(df$catch_count)
-  if ("catch_type" %in% names(df))  df$catch_type  <- as.character(df$catch_type)
+  if ("species"     %in% names(df)) df$species     <- as.character(df$species)
+  if ("catch_count" %in% names(df)) df$catch_count <- .coerce_numeric(df$catch_count, "catch_count")
+  if ("catch_type"  %in% names(df)) df$catch_type  <- as.character(df$catch_type)
 
   validate_fetch_catch(df) # nolint: object_usage_linter
   df
@@ -316,8 +334,8 @@ fetch_harvest_lengths.creel_connection_csv <- function(conn, ...) {
     length_type   = "length_type_col"
   )
   df <- .rename_to_canonical(df, conn$schema, rename_map)
-  if ("species" %in% names(df)) df$species <- as.character(df$species)
-  if ("length_mm" %in% names(df)) df$length_mm <- as.numeric(df$length_mm)
+  if ("species"     %in% names(df)) df$species     <- as.character(df$species)
+  if ("length_mm"   %in% names(df)) df$length_mm   <- .coerce_numeric(df$length_mm, "length_mm")
   if ("length_type" %in% names(df)) df$length_type <- as.character(df$length_type)
   validate_fetch_harvest_lengths(df) # nolint: object_usage_linter
   df
@@ -362,8 +380,8 @@ fetch_harvest_lengths.creel_connection_api <- function(conn, ...) {
   # Constant injection: API returns no length_type flag for harvest endpoint (CONTEXT.md D-07)
   df$length_type <- "harvest"
 
-  if ("species" %in% names(df))   df$species   <- as.character(df$species)
-  if ("length_mm" %in% names(df)) df$length_mm <- as.numeric(df$length_mm)
+  if ("species"   %in% names(df)) df$species   <- as.character(df$species)
+  if ("length_mm" %in% names(df)) df$length_mm <- .coerce_numeric(df$length_mm, "length_mm")
 
   validate_fetch_harvest_lengths(df) # nolint: object_usage_linter
   df
@@ -397,8 +415,8 @@ fetch_release_lengths.creel_connection_csv <- function(conn, ...) {
     length_type   = "length_type_col"
   )
   df <- .rename_to_canonical(df, conn$schema, rename_map)
-  if ("species" %in% names(df)) df$species <- as.character(df$species)
-  if ("length_mm" %in% names(df)) df$length_mm <- as.numeric(df$length_mm)
+  if ("species"     %in% names(df)) df$species     <- as.character(df$species)
+  if ("length_mm"   %in% names(df)) df$length_mm   <- .coerce_numeric(df$length_mm, "length_mm")
   if ("length_type" %in% names(df)) df$length_type <- as.character(df$length_type)
   validate_fetch_release_lengths(df) # nolint: object_usage_linter
   df
@@ -444,8 +462,8 @@ fetch_release_lengths.creel_connection_api <- function(conn, ...) {
   # Constant injection: API returns no length_type flag for release endpoint (CONTEXT.md D-07)
   df$length_type <- "release"
 
-  if ("species" %in% names(df))   df$species   <- as.character(df$species)
-  if ("length_mm" %in% names(df)) df$length_mm <- as.numeric(df$length_mm)
+  if ("species"   %in% names(df)) df$species   <- as.character(df$species)
+  if ("length_mm" %in% names(df)) df$length_mm <- .coerce_numeric(df$length_mm, "length_mm")
 
   validate_fetch_release_lengths(df) # nolint: object_usage_linter
   df

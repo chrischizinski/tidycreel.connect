@@ -39,6 +39,12 @@ creel_connect_from_yaml <- function(path, config = "default") {
   }
   # Load all keys at once -- use_parent=FALSE prevents searching parent directories
   cfg <- config::get(value = NULL, config = config, file = path, use_parent = FALSE)
+  if (is.null(cfg) || !is.list(cfg)) {
+    cli::cli_abort(c(
+      "Config block {.val {config}} not found or empty in {.file {path}}.",
+      "i" = "Check that the YAML file has a {.code {config}:} top-level block."
+    ))
+  }
   # Pre-validate all required keys and types before any connection attempt
   .validate_yaml_config(cfg, path)
   # Build connection from validated config
@@ -112,11 +118,11 @@ creel_connect_from_yaml <- function(path, config = "default") {
         )
       ))
     }
-    # Validate credentials are non-empty (Pitfall 2: !expr returns "" for unset env vars)
+    # Validate credentials exist and are non-empty (!expr returns "" for unset env vars)
     cred_fields <- c("username", "password")
     empty_creds <- cred_fields[vapply(cred_fields, function(k) {
       val <- cfg[[k]]
-      !is.null(val) && !nzchar(val)
+      is.null(val) || !nzchar(val)
     }, logical(1))]
     if (length(empty_creds) > 0L) {
       cli::cli_abort(c(
@@ -140,6 +146,13 @@ creel_connect_from_yaml <- function(path, config = "default") {
 
   # Build a minimal creel_schema from the YAML schema block
   # Column mappings are not in YAML -- this schema holds table names only
+  valid_survey_types <- c("instantaneous", "bus_route", "ice", "camera", "aerial")
+  if (!survey_type %in% valid_survey_types) {
+    cli::cli_abort(c(
+      "{.field schema.survey_type} must be one of {.val {valid_survey_types}}, not {.val {survey_type}}.",
+      "i" = "Check the {.code survey_type} value under {.code schema:} in your YAML config."
+    ))
+  }
   schema_args <- list(survey_type = survey_type)
   table_keys <- c(
     "interviews_table", "counts_table", "catch_table",
@@ -162,13 +175,22 @@ creel_connect_from_yaml <- function(path, config = "default") {
     }
     # WARNING: cfg$username and cfg$password must come from Sys.getenv() via YAML !expr tags.
     # Do NOT log or print cfg$password -- credentials are validated non-empty above.
-    dbi_con <- DBI::dbConnect(
-      odbc::odbc(),
-      Driver   = "ODBC Driver 17 for SQL Server",
-      Server   = cfg$server,
-      Database = cfg$database,
-      UID      = cfg$username,
-      PWD      = cfg$password
+    dbi_con <- tryCatch(
+      DBI::dbConnect(
+        odbc::odbc(),
+        Driver   = "ODBC Driver 17 for SQL Server",
+        Server   = cfg$server,
+        Database = cfg$database,
+        UID      = cfg$username,
+        PWD      = cfg$password
+      ),
+      error = function(e) {
+        cli::cli_abort(c(
+          "Failed to connect to SQL Server {.val {cfg$database}} on {.val {cfg$server}}.",
+          "i" = "Check that the server is reachable and credentials are correct.",
+          "x" = conditionMessage(e)
+        ))
+      }
     )
     .creel_connect_dbi(dbi_con, schema) # nolint: object_usage_linter
   }

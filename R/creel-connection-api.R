@@ -256,6 +256,9 @@ creel_connect_api <- function(
 #' @noRd
 .api_fetch <- function(con_info, endpoint_key, no_uid_filter = FALSE) {
   endpoint <- con_info$endpoints[[endpoint_key]]
+  if (is.null(endpoint)) {
+    cli::cli_abort("Unknown API endpoint key {.val {endpoint_key}}.")
+  }
   url      <- paste0(con_info$base_url, endpoint)
 
   req <- httr2::request(url)
@@ -316,18 +319,30 @@ creel_connect_api <- function(
   if (is.null(result) || (is.list(result) && length(result) == 0L)) {
     return(data.frame())
   }
-  df <- as.data.frame(result)
+  df <- tryCatch(
+    as.data.frame(result),
+    error = function(e) {
+      cli::cli_abort(c(
+        "API returned non-tabular JSON for endpoint {.val {endpoint_key}}.",
+        "i" = "Expected a JSON array of flat objects.",
+        "x" = conditionMessage(e)
+      ))
+    }
+  )
   names(df) <- trimws(names(df))
   df
 }
 
-# Parse a date column that may arrive as "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM:SS"
+# Parse a date column that may arrive as "YYYY-MM-DD", "YYYY-MM-DDTHH:MM:SS",
+# or ISO 8601 with timezone suffix ("...Z" or "...+HH:MM" / "...-HH:MM").
 #' @noRd
 .parse_api_date <- function(x) {
-  result  <- suppressWarnings(as.Date(x, tryFormats = c("%Y-%m-%d", "%m/%d/%Y")))
-  na_mask <- is.na(result) & !is.na(x)
+  # Strip trailing timezone suffix from datetime strings before parsing
+  x_clean <- sub("T(\\d{2}:\\d{2}:\\d{2})([Zz]|[+-]\\d{2}:\\d{2})$", "T\\1", x)
+  result  <- suppressWarnings(as.Date(x_clean, tryFormats = c("%Y-%m-%d", "%m/%d/%Y")))
+  na_mask <- is.na(result) & !is.na(x_clean)
   if (any(na_mask)) {
-    result[na_mask] <- as.Date(strptime(x[na_mask], "%Y-%m-%dT%H:%M:%S"))
+    result[na_mask] <- as.Date(strptime(x_clean[na_mask], "%Y-%m-%dT%H:%M:%S"))
   }
   result
 }

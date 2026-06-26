@@ -53,7 +53,23 @@ list_creels.creel_connection_api <- function(conn, ...) {
   if ("data_complete" %in% names(df)) df$data_complete <- as.logical(df$data_complete)
   if ("comments"      %in% names(df)) df$comments      <- as.character(df$comments)
 
-  df
+  # Ensure all documented columns are present; warn and fill missing ones with typed NA
+  expected_cols <- list(
+    creel_uid     = NA_character_,
+    title         = NA_character_,
+    description   = NA_character_,
+    active        = NA,
+    data_complete = NA,
+    comments      = NA_character_
+  )
+  for (col in names(expected_cols)) {
+    if (!col %in% names(df)) {
+      cli::cli_warn("API response missing expected field {.field {col}}; filling with NA.")
+      df[[col]] <- expected_cols[[col]]
+    }
+  }
+
+  tibble::as_tibble(df)
 }
 
 

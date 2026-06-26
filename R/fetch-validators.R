@@ -19,7 +19,8 @@
     "Date"      = inherits(df[[col]], "Date"),
     "numeric"   = is.numeric(df[[col]]),
     "character" = is.character(df[[col]]),
-    TRUE
+    "uid"       = is.numeric(df[[col]]) || is.character(df[[col]]),
+    stop(paste0("Unknown expected_type '", expected_type, "' for column '", col, "'"))
   )
   if (!ok) {
     actual <- paste(class(df[[col]]), collapse = "/")
@@ -51,7 +52,7 @@
 #' @keywords internal
 validate_fetch_interviews <- function(df) {
   spec <- list(
-    interview_uid = "any",
+    interview_uid = "uid",
     date          = "Date",
     catch_count   = "numeric",
     effort        = "numeric",
@@ -78,8 +79,8 @@ validate_fetch_counts <- function(df) {
 #' @keywords internal
 validate_fetch_catch <- function(df) {
   spec <- list(
-    catch_uid     = "any",
-    interview_uid = "any",
+    catch_uid     = "uid",
+    interview_uid = "uid",
     species       = "character",
     catch_count   = "numeric",
     catch_type    = "character"
@@ -92,8 +93,8 @@ validate_fetch_catch <- function(df) {
 #' @keywords internal
 validate_fetch_harvest_lengths <- function(df) {
   spec <- list(
-    length_uid    = "any",
-    interview_uid = "any",
+    length_uid    = "uid",
+    interview_uid = "uid",
     species       = "character",
     length_mm     = "numeric",
     length_type   = "character"
@@ -106,8 +107,8 @@ validate_fetch_harvest_lengths <- function(df) {
 #' @keywords internal
 validate_fetch_release_lengths <- function(df) {
   spec <- list(
-    length_uid    = "any",
-    interview_uid = "any",
+    length_uid    = "uid",
+    interview_uid = "uid",
     species       = "character",
     length_mm     = "numeric",
     length_type   = "character"
