@@ -160,6 +160,20 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
 #' canonical tidycreel names, coerces types, validates, and returns a
 #' data frame ready for [tidycreel::add_counts()].
 #'
+#' The result carries up to three numeric count columns, so
+#' [tidycreel::add_counts()] cannot infer which one to expand into effort and
+#' will abort unless you name it:
+#'
+#' ```r
+#' counts <- fetch_counts(conn)
+#' design <- tidycreel::add_counts(design, counts, count_col = bank_anglers)
+#' ```
+#'
+#' `bank_anglers` counts anglers on shore; `angler_boats` and `non_ang_boats`
+#' count boats, not anglers. Converting boats to anglers needs a mean party
+#' size from the interviews, so summing the three columns is not a total angler
+#' count -- build the column you want before calling `add_counts()`.
+#'
 #' @param conn A `creel_connection` object created by [creel_connect()].
 #' @param ... Reserved for future arguments.
 #'

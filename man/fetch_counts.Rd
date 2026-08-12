@@ -13,10 +13,24 @@ fetch_counts(conn, ...)
 }
 \value{
 A data frame with canonical columns: \code{date} (Date),
-\code{angler_count} (numeric). Extra CSV columns are dropped.
+\code{bank_anglers} (numeric), \code{angler_boats} (numeric), \code{non_ang_boats}
+(numeric). Extra CSV columns are dropped.
 }
 \description{
 Reads the counts table from a creel data source, renames columns to
 canonical tidycreel names, coerces types, validates, and returns a
 data frame ready for \code{\link[tidycreel:add_counts]{tidycreel::add_counts()}}.
+
+The result carries up to three numeric count columns, so
+\code{\link[tidycreel:add_counts]{tidycreel::add_counts()}} cannot infer which one to expand into effort and
+will abort unless you name it:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{counts <- fetch_counts(conn)
+design <- tidycreel::add_counts(design, counts, count_col = bank_anglers)
+}\if{html}{\out{</div>}}
+
+\code{bank_anglers} counts anglers on shore; \code{angler_boats} and \code{non_ang_boats}
+count boats, not anglers. Converting boats to anglers needs a mean party
+size from the interviews, so summing the three columns is not a total angler
+count -- build the column you want before calling \code{add_counts()}.
 }
