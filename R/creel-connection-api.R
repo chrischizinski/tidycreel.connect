@@ -150,6 +150,13 @@ creel_connect_api <- function(
 
   # Schema col-mappings configure CSV/SQL column names, not API JSON field
   # names; the API backend reads api_field_map instead.
+  #
+  # `strata_cols` is deliberately NOT in this list. It is the one schema field
+  # the API backend does read, and it does not name a raw JSON field: its
+  # *names* are the caller's own design-facing columns, which `add_counts()`
+  # matches on, while the raw field each comes from is looked up in
+  # `api_field_map` as usual (GH #171). Adding it here would warn that a
+  # working, required declaration is ignored.
   schema_mapping_fields <- c(
     "interview_uid_col", "date_col", "catch_col", "effort_col",
     "trip_status_col", "catch_uid_col", "species_col", "catch_count_col",

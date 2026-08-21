@@ -28,6 +28,7 @@ make_optional_cols_csv <- function() {
   )
   counts <- data.frame(
     date          = as.Date(c("2024-06-01", "2024-06-02")),
+    day_type      = c("weekday", "weekday"),
     bank_anglers  = c(12L, 8L),
     angler_boats  = c(3L, 2L),
     non_ang_boats = c(0L, 0L),
@@ -82,6 +83,7 @@ make_optional_cols_schema <- function() {
     bank_anglers_col  = "bank_anglers",
     angler_boats_col  = "angler_boats",
     non_ang_boats_col = "non_ang_boats",
+    strata_cols       = c(day_type = "day_type"),
     catch_uid_col     = "catch_uid",
     species_col       = "species",
     catch_count_col   = "catch_count",
@@ -301,9 +303,7 @@ test_that("a fetched party size reaches the effort SE (GH #126)", {
     day_type = "weekday",
     stringsAsFactors = FALSE
   )
-  # The counts rename map carries no stratum label, so the caller attaches it.
-  # add_counts() requires the design's strata columns to be present in counts.
-  counts <- merge(counts, calendar, by = "date")
+  # No manual re-join: the counts rename map carries the stratum now (GH #171).
 
   design <- suppressWarnings(tidycreel::creel_design(
     calendar,

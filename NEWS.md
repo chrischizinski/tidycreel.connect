@@ -1,5 +1,26 @@
 # tidycreel.connect 0.3.0
 
+## Bug fixes
+
+* `fetch_counts()` and `fetch_interviews()` now carry stratum columns through
+  on both backends, driven by the new `strata_cols` field on
+  `tidycreel::creel_schema()` (#171). The rename maps previously had no entry
+  for a stratum and no schema field named one, so every other column of the
+  source counts table was dropped — including the day-type label. A fetched
+  counts frame therefore reached `add_counts()` with no stratum, and any design
+  built with `strata =` aborted with `Strata column(s) from design not found in
+  count data`, making the documented handoff impossible for the ordinary
+  stratified case. The caller had to re-join the label from the calendar by
+  hand, which is the risky part: a wrong join is the same "information that
+  existed upstream never reached the calculation" failure, but silent.
+
+  On the CSV and SQL backends the source column name comes from the schema
+  entry's value. On the API backend it comes from `api_field_map`, keyed by the
+  design-facing name, so raw JSON field names stay out of `creel_schema()`; a
+  stratum absent from the field map falls back to its own name. `strata_cols`
+  is consequently the one schema field the API backend does read, and is
+  exempt from the "schema column mappings are ignored" warning.
+
 ## Breaking changes
 
 * **The API backend no longer ships any organisation's contract.**

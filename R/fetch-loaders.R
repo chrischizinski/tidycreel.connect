@@ -58,7 +58,7 @@
 # Columns not found in the data frame are dropped (optional mapping).
 # table: canonical table name, used to attribute the dropped-column message.
 # Returns a plain data.frame with only canonical columns.
-.rename_to_canonical <- function(df, schema, rename_map, table) {
+.rename_to_canonical <- function(df, schema, rename_map, table, direct_map = character(0)) {
   keep <- character(0)
   for (canonical in names(rename_map)) {
     field <- rename_map[[canonical]]
@@ -67,10 +67,48 @@
       keep[[canonical]] <- csv_col
     }
   }
+  # Already-resolved source names, for fields whose target name the caller
+  # chooses rather than the schema (strata -- see .strata_direct_map()).
+  for (canonical in names(direct_map)) {
+    src <- direct_map[[canonical]]
+    if (src %in% names(df)) {
+      keep[[canonical]] <- src
+    }
+  }
   result <- df[, keep, drop = FALSE]
   names(result) <- names(keep)
   .report_dropped_cols(names(df), keep, table, "creel_schema")
   result
+}
+
+
+# Internal: resolve the stratum columns to carry through, as
+# c(<design-facing name> = <source column name>).
+#
+# The design-facing names always come from the schema, because they are the
+# caller's own calendar column names and `add_counts()` matches on them. Where
+# the *source* name comes from differs by backend, and deliberately so: CSV and
+# SQL column names live in `creel_schema()`, while raw API field names live only
+# in the connection's `api_field_map`, and the two must never be routed through
+# each other. On the API path a stratum absent from the field map falls back to
+# its own name, which covers a payload that already uses it.
+.strata_direct_map <- function(schema, field_map = NULL) {
+  strata <- schema$strata_cols
+  if (is.null(strata) || length(strata) == 0L) {
+    return(character(0))
+  }
+  if (is.null(field_map)) {
+    return(stats::setNames(as.character(strata), names(strata)))
+  }
+  sources <- vapply(
+    names(strata),
+    function(nm) {
+      mapped <- field_map[[nm]]
+      if (is.null(mapped) || !nzchar(mapped)) nm else as.character(mapped)
+    },
+    character(1L)
+  )
+  stats::setNames(sources, names(strata))
 }
 
 # Internal: report source columns that did not survive the rename.
@@ -150,7 +188,10 @@ fetch_interviews.creel_connection_csv <- function(conn, ...) {
     n_counted     = "n_counted_col",
     n_interviewed = "n_interviewed_col"
   )
-  df <- .rename_to_canonical(df, conn$schema, rename_map, "interviews")
+  df <- .rename_to_canonical(
+    df, conn$schema, rename_map, "interviews",
+    direct_map = .strata_direct_map(conn$schema)
+  )
   if ("date"        %in% names(df)) df$date        <- .coerce_date(df$date, "date")
   if ("catch_count" %in% names(df)) df$catch_count <- .coerce_numeric(df$catch_count, "catch_count")
   if ("effort"      %in% names(df)) df$effort      <- .coerce_numeric(df$effort, "effort")
@@ -213,6 +254,7 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
     n_interviewed = fm$n_interviewed
   )
   api_rename_map <- api_rename_map[!is.na(api_rename_map) & nzchar(api_rename_map)]
+  api_rename_map <- c(api_rename_map, .strata_direct_map(conn$schema, fm))
 
   # Effort: arithmetic from two raw fields (API-01); or single field when effort_minutes is NULL
   hours_col   <- fm$effort_hours
@@ -287,7 +329,10 @@ fetch_counts.creel_connection_csv <- function(conn, ...) {
     angler_boats  = "angler_boats_col",
     non_ang_boats = "non_ang_boats_col"
   )
-  df <- .rename_to_canonical(df, conn$schema, rename_map, "counts")
+  df <- .rename_to_canonical(
+    df, conn$schema, rename_map, "counts",
+    direct_map = .strata_direct_map(conn$schema)
+  )
   if ("date"          %in% names(df)) df$date          <- .coerce_date(df$date, "date")
   if ("bank_anglers"  %in% names(df)) df$bank_anglers  <- .coerce_numeric(df$bank_anglers, "bank_anglers")
   if ("angler_boats"  %in% names(df)) df$angler_boats  <- .coerce_numeric(df$angler_boats, "angler_boats")
@@ -326,6 +371,7 @@ fetch_counts.creel_connection_api <- function(conn, ...) {
     non_ang_boats = fm$non_ang_boats
   )
   api_rename_map <- api_rename_map[!is.na(api_rename_map) & nzchar(api_rename_map)]
+  api_rename_map <- c(api_rename_map, .strata_direct_map(conn$schema, fm))
   df <- .rename_api_to_canonical(raw_df, api_rename_map, "counts")
 
   if ("date"          %in% names(df)) df$date          <- .parse_api_date(df$date)
