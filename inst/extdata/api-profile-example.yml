@@ -1,0 +1,108 @@
+# API profile template for tidycreel.connect -----------------------------------
+#
+# Every name below is invented. tidycreel.connect ships no endpoint paths and no
+# JSON field names for any organisation's API: those describe one deployment,
+# and a built-in default would decode that payload while silently misreading
+# every other one. Copy this file, replace the values with your API's, and keep
+# it outside your analysis code:
+#
+#   conn <- creel_connect_from_yaml("~/.config/tidycreel/my-api.yml")
+#
+# The left-hand name in each field_map entry is tidycreel's canonical name and
+# must not be changed. The right-hand value is the raw JSON key your API returns.
+
+default:
+  backend: api
+
+  # Base URL and the query parameter your API filters surveys by:
+  #   GET {base_url}/{endpoint}?{uid_param}={creel_uids joined by commas}
+  base_url: "https://api.example.org/creel/"
+  uid_param: "survey_id"
+  creel_uids:
+    - "survey-2016-001"
+
+  # Credentials, if your API needs them. Never write a token in this file --
+  # read it from the environment. Drop the block entirely for an open API.
+  # auth:
+  #   type: bearer
+  #   token: !expr Sys.getenv("CREEL_API_TOKEN")
+
+  schema:
+    # Only the survey type is needed here: the API backend reads field_map
+    # below, not the schema's column mappings.
+    survey_type: instantaneous
+
+  # Endpoint paths, relative to base_url. Supply the ones you intend to fetch;
+  # fetch_*() aborts for any you omit rather than guessing a path.
+  endpoints:
+    interviews: "v2/interviews"
+    counts: "v2/counts"
+    catch: "v2/catch"
+    harvest_lengths: "v2/lengths/harvest"
+    release_lengths: "v2/lengths/release"
+    discovery: "v2/surveys"
+
+  field_map:
+    interviews:
+      interview_uid: "InterviewID"
+      date: "SurveyDate"
+      trip_status: "TripStatus"
+      # Effort is read as hours + minutes/60. Name effort_hours alone if your
+      # API reports a single decimal-hours field.
+      effort_hours: "HoursFished"
+      effort_minutes: "MinutesFished"
+      # Optional, and each one carries statistical weight when present:
+      #   n_anglers     party size. Without it add_interviews() assumes one
+      #                 angler per interview, so party-hours are consumed as
+      #                 angler-hours and every rate denominator is wrong by the
+      #                 mean party size.
+      #   angler_type   bank/boat label, used to take a party size over boat
+      #                 parties only.
+      #   site, circuit bus-route designs join their site inclusion
+      #                 probabilities on these.
+      #   n_counted, n_interviewed  the enumeration behind the expansion factor.
+      n_anglers: "PartySize"
+      angler_type: "AnglerType"
+      site: "SiteName"
+      circuit: "RouteName"
+      n_counted: "AnglersCounted"
+      n_interviewed: "AnglersInterviewed"
+      # catch_count belongs here only if your interviews endpoint reports a
+      # per-trip total. Where catch lives in its own endpoint, leave it unset
+      # and aggregate from fetch_catch() instead.
+      # catch_count: "TotalCatch"
+
+    counts:
+      date: "SurveyDate"
+      # bank_anglers counts people; angler_boats and non_ang_boats count hulls.
+      # Converting boats to anglers needs a party size, so summing the three is
+      # not an angler total.
+      bank_anglers: "ShoreAnglers"
+      angler_boats: "FishingBoats"
+      non_ang_boats: "OtherBoats"
+
+    catch:
+      interview_uid: "InterviewID"
+      species: "SpeciesCode"
+      catch_count: "FishCount"
+      catch_type: "CatchCategory"
+
+    harvest_lengths:
+      interview_uid: "InterviewID"
+      species: "SpeciesCode"
+      # Lengths must reach tidycreel in millimetres. Convert before the fetch if
+      # your API reports inches or length groups -- nothing downstream can tell.
+      length_mm: "LengthMM"
+
+    release_lengths:
+      interview_uid: "InterviewID"
+      species: "SpeciesCode"
+      length_mm: "LengthMM"
+
+    discovery:
+      creel_uid: "SurveyID"
+      title: "SurveyTitle"
+      description: "SurveyDescription"
+      active: "IsActive"
+      data_complete: "IsComplete"
+      comments: "Notes"

@@ -23,7 +23,8 @@ It lets you load interview, count, catch, and length data from two backends:
 | Backend | When to use |
 |---------|-------------|
 | **CSV** | Flat files from a data export or field laptop |
-| **SQL Server** | Agency production database (e.g. AGENCY creel DB) |
+| **SQL Server** | An agency production database |
+| **REST API** | A service returning JSON, described by a profile you supply |
 
 The same `creel_connection` object is accepted by all `fetch_*()` functions
 and passes cleanly into `tidycreel::add_interviews()`.
@@ -194,6 +195,54 @@ conn_dev <- creel_connect_from_yaml("creel-config.yml")
 # Production SQL Server
 conn_prod <- creel_connect_from_yaml("creel-config.yml", config = "production")
 ```
+
+### REST API profile
+
+tidycreel.connect ships **no endpoint paths and no JSON field names for any
+API**. Those describe one deployment, and a built-in default would decode that
+service's payload while silently misreading everyone else's — so `endpoints`,
+`api_field_map` and `uid_param` are all required, and the connection aborts
+without them.
+
+Keep them in a profile rather than in your analysis code. A commented template
+with invented names is installed with the package:
+
+```{r api-template, eval = FALSE}
+file.edit(
+  system.file("extdata", "api-profile-example.yml", package = "tidycreel.connect")
+)
+```
+
+```yaml
+# my-api.yml — API backend example
+default:
+  backend: api
+  base_url: "https://api.example.org/creel/"
+  uid_param: "survey_id"
+  creel_uids: ["survey-2016-001"]
+  schema:
+    survey_type: instantaneous
+  endpoints:
+    interviews: "v2/interviews"
+    counts: "v2/counts"
+  field_map:
+    interviews:
+      interview_uid: "InterviewID"
+      date: "SurveyDate"
+      trip_status: "TripStatus"
+      effort_hours: "HoursFished"
+      n_anglers: "PartySize"     # map it: see section 4
+    counts:
+      date: "SurveyDate"
+      bank_anglers: "ShoreAnglers"
+```
+
+```{r yaml-api, eval = FALSE}
+conn <- creel_connect_from_yaml("~/.config/tidycreel/my-api.yml")
+```
+
+Pointing the same script at a different file is how it runs against a different
+organisation's API.
 
 ---
 

@@ -45,7 +45,7 @@ test_that("fetch_catch.creel_connection_api() returns canonical columns (API-03)
     httr2::response(
       200,
       headers = "Content-Type: application/json",
-      body    = charToRaw('[{"api_UID":"A1","api_Species":"86","Num":2,"CatchCategory":"harvested"}]')
+      body    = charToRaw('[{"InterviewID":"A1","SpeciesCode":"86","FishCount":2,"CatchCategory":"harvested"}]')
     )
   })
   conn   <- make_api_conn()

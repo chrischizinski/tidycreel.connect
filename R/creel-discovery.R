@@ -34,17 +34,23 @@ list_creels.creel_connection_api <- function(conn, ...) {
     ))
   }
 
-  # Hardcoded AGENCY field names -- do NOT route through creel_schema (D-03, CONTEXT.md D-15)
-  # Field names confirmed via agency-field-discovery.R probe (API-09)
+  # Field names come from the connection's api_field_map$discovery, never from
+  # creel_schema (D-03): the schema maps CSV/SQL columns, not JSON keys. No
+  # default names them -- a discovery payload's shape is a property of the
+  # deployment.
+  fm <- conn$con$api_field_map$discovery
   api_rename_map <- c(
-    creel_uid     = "Creel_UID",          # confirmed AGENCY field name -- see agency-field-discovery.R output
-    title         = "Creel_Title",        # confirmed AGENCY field name -- see agency-field-discovery.R output
-    description   = "Creel_Description",  # confirmed AGENCY field name -- see agency-field-discovery.R output
-    active        = "Creel_Active",       # confirmed AGENCY field name -- see agency-field-discovery.R output
-    data_complete = "Creel_DataComplete", # confirmed AGENCY field name -- trimws() in .api_fetch() strips trailing space
-    comments      = "Creel_Comments"      # confirmed AGENCY field name -- see agency-field-discovery.R output
+    creel_uid     = fm$creel_uid,
+    title         = fm$title,
+    description   = fm$description,
+    active        = fm$active,
+    data_complete = fm$data_complete,
+    comments      = fm$comments
   )
-  df <- .rename_api_to_canonical(raw_df, api_rename_map)
+  api_rename_map <- api_rename_map[!is.na(api_rename_map) & nzchar(api_rename_map)]
+  # nolint next: object_usage_linter reads the 3-arg call as one argument too
+  # many; the helper takes (df, map, table, also_used).
+  df <- .rename_api_to_canonical(raw_df, api_rename_map, "discovery") # nolint
 
   if ("creel_uid"     %in% names(df)) df$creel_uid     <- as.character(df$creel_uid)
   if ("title"         %in% names(df)) df$title         <- as.character(df$title)

@@ -79,8 +79,9 @@ validate_fetch_interviews <- function(df) {
   .validate_fetch(df, spec, "fetch_interviews")
 }
 
-# API variant: catch_count is absent from the AGENCY interviews endpoint (Num is in
-# CatchRecords, not InterviewRecords). Users aggregate from fetch_catch() instead.
+# API variant: catch_count is not required, because many APIs report catch on a
+# separate endpoint rather than as a per-trip total on the interview. Users
+# aggregate from fetch_catch() instead.
 #' @noRd
 #' @keywords internal
 validate_fetch_interviews_api <- function(df) {
@@ -106,8 +107,8 @@ validate_fetch_counts <- function(df) {
   spec <- list(
     date          = "Date",
     bank_anglers  = "numeric",
-    angler_boats  = "optional",  # absent for non-AGENCY backends; numeric when present
-    non_ang_boats = "optional"   # absent for non-AGENCY backends; numeric when present
+    angler_boats  = "optional",  # absent where a source counts no boats; numeric when present
+    non_ang_boats = "optional"   # absent where a source counts no boats; numeric when present
   )
   .validate_fetch(df, spec, "fetch_counts")
 }

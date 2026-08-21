@@ -201,11 +201,10 @@ test_that("optional interview columns pass validation when absent (GH #126)", {
 # circuit field, so an API backend reaches these columns only by being told
 # which raw fields hold them.
 api_conn_with_map <- function(field_map) {
-  creel_connect_api(
-    base_url      = "http://test.example.com/api/",
-    creel_uids    = "test-uid-001",
-    schema        = tidycreel::creel_schema(survey_type = "bus_route"),
-    api_field_map = list(interviews = field_map)
+  make_api_conn(
+    field_map = list(interviews = field_map),
+    endpoints = list(interviews = "v2/interviews"),
+    schema    = tidycreel::creel_schema(survey_type = "bus_route")
   )
 }
 

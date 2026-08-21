@@ -27,6 +27,19 @@ Credentials must never be stored as plain text in the YAML file. Use the
 \if{html}{\out{<div class="sourceCode yaml">}}\preformatted{username: !expr Sys.getenv("CREEL_USER")
 password: !expr Sys.getenv("CREEL_PASS")
 }\if{html}{\out{</div>}}
+\subsection{API profiles}{
+
+With \code{backend: api}, the profile carries the whole API contract -- \code{base_url},
+\code{uid_param}, \code{creel_uids}, \code{endpoints} and \code{field_map} -- because none of it
+ships with the package. A commented template with invented names is
+installed at
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{system.file("extdata", "api-profile-example.yml", package = "tidycreel.connect")
+}\if{html}{\out{</div>}}
+
+Keeping the profile outside your analysis code is what lets the same script
+run against a different organisation's API by pointing at a different file.
+}
 }
 \examples{
 \dontrun{

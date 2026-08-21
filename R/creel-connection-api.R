@@ -4,13 +4,26 @@
 #'
 #' @description
 #' `creel_connect_api()` creates a `creel_connection` object that fetches data
-#' from a REST API returning JSON arrays. The default endpoint paths match the
-#' UNL/AGENCY creel survey API, but every path can be overridden to work with any
-#' compatible service.
+#' from a REST API returning JSON arrays.
 #'
 #' Requests follow the pattern:
 #' ```
 #' GET {base_url}/{endpoint}?{uid_param}={uid1,uid2,...}
+#' ```
+#'
+#' ## No API is assumed
+#'
+#' The package ships no endpoint paths and no field names for any organisation's
+#' API: both `endpoints` and `api_field_map` are required, and the call aborts
+#' without them. A creel API's paths and JSON keys are properties of that
+#' deployment, not of this package, and a built-in default would quietly decode
+#' one agency's payload while misreading everyone else's.
+#'
+#' Keep the two together in a YAML profile outside your analysis code and load
+#' it with [creel_connect_from_yaml()]. A commented template ships with the
+#' package:
+#' ```r
+#' system.file("extdata", "api-profile-example.yml", package = "tidycreel.connect")
 #' ```
 #'
 #' ## Authentication
@@ -28,21 +41,24 @@
 #' ```
 #'
 #' @param base_url Base URL of the API, with or without a trailing slash.
-#'   Example: `"http://api.example.org/api/"`.
+#'   Example: `"https://api.example.org/creel/"`.
 #' @param creel_uids Character vector of one or more creel UIDs to query.
 #' @param schema A `creel_schema` object created by [tidycreel::creel_schema()].
-#' @param uid_param Query parameter name for the creel UID list.
-#'   Default: `"Creel_UIDs"`.
-#' @param endpoints Named list of endpoint path overrides. Valid names:
-#'   `interviews`, `counts`, `catch`, `harvest_lengths`, `release_lengths`.
-#'   Unspecified names retain their defaults.
+#' @param uid_param Query parameter name for the creel UID list. Example:
+#'   `"survey_id"`.
+#' @param endpoints Named list of endpoint paths, relative to `base_url`.
+#'   **Required.** Valid names: `interviews`, `counts`, `catch`,
+#'   `harvest_lengths`, `release_lengths`, `discovery`. Supply the endpoints
+#'   you intend to fetch; the matching `fetch_*()` aborts for any you omit.
 #' @param auth Authentication spec (see Description). Default: `NULL`.
-#' @param api_field_map Named list of raw JSON field-name overrides, keyed by
-#'   endpoint (`interviews`, `counts`, `catch`, `harvest_lengths`,
-#'   `release_lengths`). Partial: only the fields you name are overridden. Use
-#'   it to name the fields your API returns, including the optional interview
-#'   fields no default covers -- `n_anglers`, `angler_type`, `site`, `circuit`,
-#'   `n_counted`, `n_interviewed` (see [fetch_interviews()]). Default: `NULL`.
+#' @param api_field_map Named list of raw JSON field names, keyed by endpoint
+#'   (`interviews`, `counts`, `catch`, `harvest_lengths`, `release_lengths`,
+#'   `discovery`). **Required.** Within each endpoint, name the raw field that
+#'   holds each canonical quantity, e.g.
+#'   `list(interviews = list(date = "SurveyDate", n_anglers = "PartySize"))`.
+#'   The optional interview fields -- `n_anglers`, `angler_type`, `site`,
+#'   `circuit`, `n_counted`, `n_interviewed` -- are carried only when named
+#'   here; see [fetch_interviews()] for what each one is used for.
 #'
 #' @return A `creel_connection` S3 object with subclass `creel_connection_api`.
 #' @export
@@ -50,41 +66,52 @@
 #' \dontrun{
 #' schema <- tidycreel::creel_schema(survey_type = "instantaneous")
 #'
-#' # No auth
+#' # Endpoints and field names both describe YOUR API, so both are required.
 #' conn <- creel_connect_api(
-#'   base_url   = "http://api.example.org/api/",
-#'   creel_uids = "90f5375c-afe0-e511-80bf-0050568372f9",
-#'   schema     = schema
-#' )
-#'
-#' # Bearer token auth, two surveys
-#' conn <- creel_connect_api(
-#'   base_url   = "https://api.example.com/creel/",
-#'   creel_uids = c("uid-1", "uid-2"),
-#'   schema     = schema,
-#'   auth       = list(type = "bearer", token = Sys.getenv("CREEL_TOKEN"))
-#' )
-#'
-#' # Custom endpoint paths (non-AGENCY API)
-#' conn <- creel_connect_api(
-#'   base_url  = "https://api.example.com/",
+#'   base_url   = "https://api.example.org/creel/",
 #'   creel_uids = "survey-001",
-#'   schema    = schema,
-#'   uid_param = "survey_id",
-#'   endpoints = list(
+#'   schema     = schema,
+#'   uid_param  = "survey_id",
+#'   endpoints  = list(
 #'     interviews = "v2/interviews",
 #'     counts     = "v2/counts"
+#'   ),
+#'   api_field_map = list(
+#'     interviews = list(
+#'       interview_uid = "InterviewID",
+#'       date          = "SurveyDate",
+#'       trip_status   = "TripStatus",
+#'       effort_hours  = "HoursFished",
+#'       n_anglers     = "PartySize"
+#'     ),
+#'     counts = list(
+#'       date         = "SurveyDate",
+#'       bank_anglers = "ShoreAnglers"
+#'     )
 #'   )
+#' )
+#'
+#' # Usual practice: keep both in a YAML profile outside your code.
+#' conn <- creel_connect_from_yaml("~/.config/tidycreel/my-api.yml")
+#'
+#' # Bearer token auth
+#' conn <- creel_connect_api(
+#'   base_url      = "https://api.example.org/creel/",
+#'   creel_uids    = c("uid-1", "uid-2"),
+#'   schema        = schema,
+#'   endpoints     = my_endpoints,
+#'   api_field_map = my_field_map,
+#'   auth          = list(type = "bearer", token = Sys.getenv("CREEL_TOKEN"))
 #' )
 #' }
 creel_connect_api <- function(
     base_url,
     creel_uids,
     schema,
-    uid_param     = "Creel_UIDs",
-    endpoints     = NULL,
+    uid_param,
+    endpoints,
     auth          = NULL,
-    api_field_map = NULL
+    api_field_map
 ) {
   if (!inherits(schema, "creel_schema")) {
     cli::cli_abort(c(
@@ -98,52 +125,53 @@ creel_connect_api <- function(
   if (!is.character(creel_uids) || length(creel_uids) == 0L || !all(nzchar(creel_uids))) {
     cli::cli_abort("{.arg creel_uids} must be a non-empty character vector with no blank entries.")
   }
+  # uid_param, endpoints and api_field_map all describe one deployment's API.
+  # They are required rather than defaulted: a default would be one
+  # organisation's contract shipped as though it were everyone's, and it would
+  # decode their payload silently while misreading every other.
+  if (missing(uid_param) || is.null(uid_param)) {
+    cli::cli_abort(c(
+      "{.arg uid_param} is required.",
+      "i" = "Name the query parameter your API expects, e.g. {.code uid_param = \"survey_id\"}."
+    ))
+  }
   if (!is.character(uid_param) || length(uid_param) != 1L || !nzchar(uid_param)) {
     cli::cli_abort("{.arg uid_param} must be a non-empty single string.")
+  }
+  if (missing(endpoints) || is.null(endpoints)) {
+    .abort_api_contract_missing("endpoints")
+  }
+  if (missing(api_field_map) || is.null(api_field_map)) {
+    .abort_api_contract_missing("api_field_map")
   }
   if (!is.null(auth)) {
     .validate_api_auth(auth)
   }
 
-  # Warn when schema has col-mapping args but api_field_map not supplied.
-  # Schema col-mappings configure CSV/SQL column names, not API JSON field names.
-  if (is.null(api_field_map)) {
-    schema_mapping_fields <- c(
-      "interview_uid_col", "date_col", "catch_col", "effort_col",
-      "trip_status_col", "catch_uid_col", "species_col", "catch_count_col",
-      "catch_type_col", "length_uid_col", "length_mm_col", "length_type_col",
-      "bank_anglers_col", "angler_boats_col", "non_ang_boats_col",
-      "n_anglers_col", "angler_type_col", "site_col", "circuit_col",
-      "n_counted_col", "n_interviewed_col"
-    )
-    has_schema_mappings <- any(
-      vapply(schema_mapping_fields, function(f) !is.null(schema[[f]]), logical(1L))
-    )
-    if (has_schema_mappings) {
-      cli::cli_warn(c(
-        "{.arg schema} column mappings are ignored by the API backend.",
-        "i" = "API JSON field names default to AGENCY field names.",
-        "i" = "To configure non-AGENCY field names, use the {.arg api_field_map} argument."
-      ))
-    }
+  # Schema col-mappings configure CSV/SQL column names, not API JSON field
+  # names; the API backend reads api_field_map instead.
+  schema_mapping_fields <- c(
+    "interview_uid_col", "date_col", "catch_col", "effort_col",
+    "trip_status_col", "catch_uid_col", "species_col", "catch_count_col",
+    "catch_type_col", "length_uid_col", "length_mm_col", "length_type_col",
+    "bank_anglers_col", "angler_boats_col", "non_ang_boats_col",
+    "n_anglers_col", "angler_type_col", "site_col", "circuit_col",
+    "n_counted_col", "n_interviewed_col"
+  )
+  has_schema_mappings <- any(
+    vapply(schema_mapping_fields, function(f) !is.null(schema[[f]]), logical(1L))
+  )
+  if (has_schema_mappings) {
+    cli::cli_warn(c(
+      "{.arg schema} column mappings are ignored by the API backend.",
+      "i" = "Name the raw JSON fields in {.arg api_field_map} instead."
+    ))
   }
 
   if (!endsWith(base_url, "/")) base_url <- paste0(base_url, "/")
 
-  resolved_endpoints <- .default_api_endpoints()
-  if (!is.null(endpoints)) {
-    valid_names <- names(resolved_endpoints)
-    bad_names   <- setdiff(names(endpoints), valid_names)
-    if (length(bad_names) > 0L) {
-      cli::cli_abort(c(
-        "Unknown endpoint name{?s} in {.arg endpoints}: {.val {bad_names}}",
-        "i" = "Valid names: {.val {valid_names}}"
-      ))
-    }
-    resolved_endpoints[names(endpoints)] <- endpoints
-  }
-
-  resolved_field_map <- .merge_api_field_map(api_field_map)
+  resolved_endpoints <- .validate_api_endpoints(endpoints)
+  resolved_field_map <- .validate_api_field_map(api_field_map)
 
   new_creel_connection(
     backend  = "api",
@@ -161,79 +189,91 @@ creel_connect_api <- function(
   )
 }
 
-# Default endpoint paths matching the UNL/AGENCY creel survey API
+# The endpoint keys this package knows how to fetch. Paths and field names for
+# any actual deployment are the caller's to supply -- this is the vocabulary,
+# not a configuration.
 #' @noRd
-.default_api_endpoints <- function() {
-  list(
-    interviews      = "AnalysisData/InterviewRecords",
-    counts          = "AnalysisData/CountRecords",
-    catch           = "AnalysisData/CatchRecords",
-    harvest_lengths = "AnalysisData/HarvestLengthRecords",
-    release_lengths = "AnalysisData/ReleaseLengthRecords",
-    discovery       = "AnalysisData/CreelList" # TODO: confirm endpoint path with live API
-  )
+.api_endpoint_names <- function() {
+  c("interviews", "counts", "catch", "harvest_lengths", "release_lengths", "discovery")
 }
 
-# Default JSON field names for the AGENCY creel survey API, keyed by endpoint.
-# Each entry maps a canonical name to the raw JSON field name returned by the API.
-# For interviews: effort_hours + effort_minutes are combined as hours + minutes/60.
+# Shared abort for a missing half of the API contract.
 #' @noRd
-.default_api_field_map <- function() {
-  list(
-    interviews = list(
-      interview_uid  = "api_UID",
-      date           = "api_Date",
-      trip_status    = "api_TripKind",
-      effort_hours   = "api_TimeFishedHours",
-      effort_minutes = "api_TimeFishedMinutes"
-      # n_anglers, angler_type, site, circuit, n_counted and n_interviewed are
-      # routed by fetch_interviews() but named by no default: which field holds
-      # a party size is a property of the source API, not of this package.
-      # Supply them through api_field_map (GH #126).
-    ),
-    counts = list(
-      date          = "api_Date",
-      bank_anglers  = "api_BankAnglers",
-      angler_boats  = "api_AnglerBoats",
-      non_ang_boats = "api_NonAngBoats"
-    ),
-    catch = list(
-      interview_uid = "api_UID",
-      species       = "api_Species",
-      catch_count   = "Num",
-      catch_type    = "CatchCategory"
-    ),
-    harvest_lengths = list(
-      interview_uid = "iiUID",
-      species       = "api_Species",
-      length_mm     = "api_Length"
-    ),
-    release_lengths = list(
-      interview_uid = "iiUID",
-      species       = "api_Species",
-      length_mm     = "api_LengthBand"
+.abort_api_contract_missing <- function(arg) {
+  template <- "system.file(\"extdata\", \"api-profile-example.yml\", package = \"tidycreel.connect\")" # nolint: object_usage_linter, line_length_linter
+  cli::cli_abort(c(
+    "{.arg {arg}} is required.",
+    "i" = "This package ships no endpoint paths or field names for any API: \\
+           both describe one deployment, and a built-in default would decode \\
+           one payload while silently misreading others.",
+    "i" = "Start from the template profile: {.code {template}}",
+    "i" = "Or load a saved profile with {.fn creel_connect_from_yaml}."
+  ))
+}
+
+# Validate the endpoint list: known names, single non-empty strings.
+#' @noRd
+.validate_api_endpoints <- function(endpoints) {
+  if (!is.list(endpoints) || length(endpoints) == 0L || is.null(names(endpoints))) {
+    cli::cli_abort("{.arg endpoints} must be a non-empty named list of endpoint paths.")
+  }
+  valid_names <- .api_endpoint_names()
+  bad_names   <- setdiff(names(endpoints), valid_names)
+  if (length(bad_names) > 0L) {
+    cli::cli_abort(c(
+      "Unknown endpoint name{?s} in {.arg endpoints}: {.val {bad_names}}",
+      "i" = "Valid names: {.val {valid_names}}"
+    ))
+  }
+  bad_paths <- names(endpoints)[!vapply(endpoints, function(p) {
+    is.character(p) && length(p) == 1L && nzchar(p)
+  }, logical(1L))]
+  if (length(bad_paths) > 0L) {
+    cli::cli_abort(
+      "Endpoint path{?s} must be a non-empty single string: {.field {bad_paths}}"
     )
-  )
+  }
+  endpoints
 }
 
-# Merge user api_field_map overrides into the defaults.
-# User may supply a partial nested list — only specified fields are overridden.
+# Validate the field map: known endpoint names, each a named list of single
+# non-empty strings. Which canonical fields must be present is decided per
+# fetch by the validators, not here -- an API that serves only counts should
+# not have to describe an interviews endpoint it does not have.
 #' @noRd
-.merge_api_field_map <- function(user_map) {
-  defaults <- .default_api_field_map()
-  if (is.null(user_map)) return(defaults)
-  valid_endpoints <- names(defaults)
-  bad_endpoints   <- setdiff(names(user_map), valid_endpoints)
+.validate_api_field_map <- function(field_map) {
+  if (!is.list(field_map) || length(field_map) == 0L || is.null(names(field_map))) {
+    cli::cli_abort(c(
+      "{.arg api_field_map} must be a non-empty list keyed by endpoint.",
+      "i" = "For example {.code list(interviews = list(date = \"SurveyDate\"))}."
+    ))
+  }
+  valid_names   <- .api_endpoint_names()
+  bad_endpoints <- setdiff(names(field_map), valid_names)
   if (length(bad_endpoints) > 0L) {
     cli::cli_abort(c(
       "Unknown endpoint{?s} in {.arg api_field_map}: {.val {bad_endpoints}}",
-      "i" = "Valid endpoint names: {.val {valid_endpoints}}"
+      "i" = "Valid endpoint names: {.val {valid_names}}"
     ))
   }
-  for (ep in names(user_map)) {
-    defaults[[ep]][names(user_map[[ep]])] <- user_map[[ep]]
+  for (ep in names(field_map)) {
+    entry <- field_map[[ep]]
+    if (!is.list(entry) || is.null(names(entry))) {
+      cli::cli_abort(
+        "{.arg api_field_map}${.field {ep}} must be a named list of raw field names."
+      )
+    }
+    bad_fields <- names(entry)[!vapply(entry, function(f) {
+      is.character(f) && length(f) == 1L && nzchar(f)
+    }, logical(1L))]
+    if (length(bad_fields) > 0L) {
+      cli::cli_abort(c(
+        "Every raw field name must be a non-empty single string.",
+        "x" = "In {.arg api_field_map}${ep}: {.field {bad_fields}}"
+      ))
+    }
   }
-  defaults
+  field_map
 }
 
 # Validate an auth spec list -- aborts on any invalid configuration
@@ -268,7 +308,22 @@ creel_connect_api <- function(
 .api_fetch <- function(con_info, endpoint_key, no_uid_filter = FALSE) {
   endpoint <- con_info$endpoints[[endpoint_key]]
   if (is.null(endpoint)) {
-    cli::cli_abort("Unknown API endpoint key {.val {endpoint_key}}.")
+    cli::cli_abort(c(
+      "No {.val {endpoint_key}} endpoint is configured for this connection.",
+      "i" = "Add it to {.arg endpoints} in {.fn creel_connect_api}, or to the \\
+             {.field endpoints} block of your YAML profile."
+    ))
+  }
+  # Refused rather than fetched-and-dropped: with no field names for this
+  # endpoint every column would be discarded by the rename and the failure would
+  # surface as "column missing" from a validator, pointing nowhere near the
+  # cause.
+  if (is.null(con_info$api_field_map[[endpoint_key]])) {
+    cli::cli_abort(c(
+      "No field names are configured for the {.val {endpoint_key}} endpoint.",
+      "i" = "Add an {.field {endpoint_key}} block to {.arg api_field_map} naming \\
+             the raw JSON fields this endpoint returns."
+    ))
   }
   url      <- paste0(con_info$base_url, endpoint)
 

@@ -1,12 +1,13 @@
 Package: tidycreel.connect
 Title: Database and File Connections for Tidycreel
-Version: 0.2.0
+Version: 0.3.0
 Authors@R:
     person("Christopher", "Chizinski", role = c("aut", "cre"),
            email = "cchizinski2@unl.edu")
 Description: Provides connection objects and data loaders for the tidycreel
     creel survey analysis package. Supports SQL Server (via ODBC),
-    DBI-compliant databases, and flat CSV files.
+    DBI-compliant databases, flat CSV files, and REST APIs described by a
+    caller-supplied profile.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -27,6 +28,7 @@ Suggests:
     odbc,
     rmarkdown,
     testthat (>= 3.0.0),
-    withr
+    withr,
+    yaml
 VignetteBuilder: knitr
 Config/testthat/edition: 3

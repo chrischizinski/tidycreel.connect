@@ -5,7 +5,7 @@ test_that(".api_fetch() returns data.frame on 200 response (API-06)", {
     httr2::response(
       200,
       headers = "Content-Type: application/json",
-      body    = charToRaw('[{"api_UID":"A1","api_Date":"2016-03-28","Num":2,"api_TripKind":"complete","api_TimeFishedHours":2,"api_TimeFishedMinutes":30}]')
+      body    = charToRaw('[{"InterviewID":"A1","SurveyDate":"2016-03-28","FishCount":2,"TripStatus":"complete","HoursFished":2,"MinutesFished":30}]')
     )
   })
   conn   <- make_api_conn()

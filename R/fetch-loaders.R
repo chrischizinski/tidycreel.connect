@@ -28,9 +28,10 @@
   result
 }
 
-# Internal: rename raw AGENCY API columns to canonical names using a hardcoded map.
+# Internal: rename raw API columns to canonical names.
 # api_rename_map: named character vector where names = canonical names,
-#   values = raw AGENCY JSON field names (e.g., c(interview_uid = "api_UID", date = "api_Date")).
+#   values = the raw JSON field names the connection was configured with
+#   (e.g., c(interview_uid = "InterviewID", date = "SurveyDate")).
 # Columns in api_rename_map but absent from df are dropped.
 # table: canonical table name, used to attribute the dropped-column message.
 # also_used: raw field names the caller consumes outside the map (the interview
@@ -188,9 +189,10 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
   }
 
   fm <- conn$con$api_field_map$interviews
-  # catch_count: NULL in AGENCY defaults (Num lives in CatchRecords, not InterviewRecords);
-  # non-NULL when caller supplies a custom api_field_map for a non-AGENCY API.
-  # c() drops NULL entries silently, so the field is simply absent for AGENCY connections.
+  # catch_count belongs here only where the interviews endpoint reports a
+  # per-trip total; where catch lives in its own endpoint the field is unnamed
+  # and users aggregate from fetch_catch(). c() drops NULL entries silently, so
+  # an unnamed field is simply absent from the result.
   # The optional interview fields (GH #126). None of them is named by a default:
   # which raw field holds a party size, a site or a circuit is a property of the
   # source API, so the caller names them through api_field_map. Unnamed entries
@@ -363,7 +365,8 @@ fetch_catch.creel_connection_csv <- function(conn, ...) {
     catch_type    = "catch_type_col"
   )
   df <- .rename_to_canonical(df, conn$schema, rename_map, "catch")
-  # Coerce species to character BEFORE validation (AGENCY integer codes)
+  # Coerce species to character BEFORE validation: a source may code species as
+  # integers, and a code is a label rather than a quantity.
   if ("species"     %in% names(df)) df$species     <- as.character(df$species)
   if ("catch_count" %in% names(df)) df$catch_count <- .coerce_numeric(df$catch_count, "catch_count")
   if ("catch_type"  %in% names(df)) df$catch_type  <- as.character(df$catch_type)
@@ -472,7 +475,8 @@ fetch_harvest_lengths.creel_connection_api <- function(conn, ...) {
   }
 
   fm <- conn$con$api_field_map$harvest_lengths
-  # NOTE: AGENCY harvest lengths use "iiUID" (no underscore), unlike "api_UID" in interviews/catch
+  # NOTE: an API may spell the interview UID differently on this endpoint than
+  # on interviews/catch, which is why it is named per endpoint.
   api_rename_map <- c(
     interview_uid = fm$interview_uid,
     species       = fm$species,
@@ -553,8 +557,9 @@ fetch_release_lengths.creel_connection_api <- function(conn, ...) {
   }
 
   fm <- conn$con$api_field_map$release_lengths
-  # NOTE: AGENCY release lengths use "iiUID" (no underscore), same as harvest lengths
-  # api_Count (binned count) is not in the canonical field map; dropped by .rename_api_to_canonical
+  # NOTE: named per endpoint for the same reason as harvest lengths.
+  # A binned-count field, where a source has one, is not part of the canonical
+  # map and is dropped by .rename_api_to_canonical (reported, not silent).
   api_rename_map <- c(
     interview_uid = fm$interview_uid,
     species       = fm$species,

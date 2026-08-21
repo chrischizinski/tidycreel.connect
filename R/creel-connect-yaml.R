@@ -15,6 +15,18 @@
 #' password: !expr Sys.getenv("CREEL_PASS")
 #' ```
 #'
+#' ## API profiles
+#'
+#' With `backend: api`, the profile carries the whole API contract -- `base_url`,
+#' `uid_param`, `creel_uids`, `endpoints` and `field_map` -- because none of it
+#' ships with the package. A commented template with invented names is
+#' installed at
+#' ```r
+#' system.file("extdata", "api-profile-example.yml", package = "tidycreel.connect")
+#' ```
+#' Keeping the profile outside your analysis code is what lets the same script
+#' run against a different organisation's API by pointing at a different file.
+#'
 #' @param path Path to the YAML config file. Must exist.
 #' @param config Environment block to use (default: `"default"`). Passed to
 #'   `config::get(config = ...)`. Common values: `"default"`, `"production"`,
@@ -59,13 +71,14 @@ creel_connect_from_yaml <- function(path, config = "default") {
   if (is.null(cfg$backend)) {
     cli::cli_abort(c(
       "Required key {.field backend} is missing from YAML config: {.file {path}}",
-      "i" = "Add {.code backend: csv} or {.code backend: sqlserver} to your config."
+      "i" = "Add {.code backend: csv}, {.code backend: sqlserver} or \\
+             {.code backend: api} to your config."
     ))
   }
   backend <- cfg$backend
 
   # 2. Validate backend value
-  valid_backends <- c("csv", "sqlserver")
+  valid_backends <- c("csv", "sqlserver", "api")
   if (!backend %in% valid_backends) {
     cli::cli_abort(c(
       "{.field backend} must be one of {.val {valid_backends}}, not {.val {backend}}.",
@@ -104,6 +117,22 @@ creel_connect_from_yaml <- function(path, config = "default") {
           paste0("{.field files.", missing_tables, "}"),
           rep("x", length(missing_tables))
         )
+      ))
+    }
+  } else if (backend == "api") {
+    # The API contract lives in the profile, not in the package: base_url,
+    # uid_param, endpoints and field_map all describe one deployment.
+    required_keys <- c("base_url", "uid_param", "creel_uids", "endpoints", "field_map")
+    missing_keys <- required_keys[vapply(required_keys, function(k) is.null(cfg[[k]]), logical(1))]
+    if (length(missing_keys) > 0L) {
+      template <- "system.file(\"extdata\", \"api-profile-example.yml\", package = \"tidycreel.connect\")" # nolint: object_usage_linter, line_length_linter
+      cli::cli_abort(c(
+        "Required key{?s} missing from api YAML config: {.file {path}}",
+        stats::setNames(
+          paste0("{.field ", missing_keys, "}"),
+          rep("x", length(missing_keys))
+        ),
+        "i" = "Start from the template profile: {.code {template}}"
       ))
     }
   } else if (backend == "sqlserver") {
@@ -166,6 +195,16 @@ creel_connect_from_yaml <- function(path, config = "default") {
   if (backend == "csv") {
     paths <- as.list(cfg$files)
     .creel_connect_csv(paths, schema) # nolint: object_usage_linter
+  } else if (backend == "api") {
+    creel_connect_api( # nolint: object_usage_linter
+      base_url      = cfg$base_url,
+      creel_uids    = as.character(cfg$creel_uids),
+      schema        = schema,
+      uid_param     = cfg$uid_param,
+      endpoints     = as.list(cfg$endpoints),
+      auth          = cfg$auth,
+      api_field_map = lapply(as.list(cfg$field_map), as.list)
+    )
   } else if (backend == "sqlserver") {
     if (!requireNamespace("odbc", quietly = TRUE)) {
       cli::cli_abort(c(

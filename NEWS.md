@@ -1,4 +1,43 @@
-# tidycreel.connect (development version)
+# tidycreel.connect 0.3.0
+
+## Breaking changes
+
+* **The API backend no longer ships any organisation's contract.**
+  `creel_connect_api()` now requires `uid_param`, `endpoints` and
+  `api_field_map`, and aborts without them. Previously all three defaulted to
+  one agency's deployment: its query parameter, its endpoint paths and its raw
+  JSON field names. Those defaults decoded that service's payload and would
+  silently misread any other, and they made the package look as though it were
+  written for a single organisation. Nothing about a particular API belongs in a
+  general-purpose package.
+
+  Existing API calls must supply the three arguments. Keep them in a YAML
+  profile outside your analysis code and load it with
+  `creel_connect_from_yaml()` (see below); pointing at a different profile is
+  what lets the same script run against a different service.
+
+* `list_creels()` reads discovery field names from `api_field_map$discovery`
+  instead of a hardcoded set.
+
+* `summarize_by_zip()` and `summarize_by_county()` (in tidycreel) gain a
+  `zip_col` argument, defaulting to `"zip_code"`, in place of a hardcoded raw
+  field name.
+
+## New features
+
+* `creel_connect_from_yaml()` accepts `backend: api`, reading `base_url`,
+  `uid_param`, `creel_uids`, `endpoints` and `field_map` from the profile.
+
+* A commented template profile ships with the package, with every name
+  invented:
+  ```r
+  system.file("extdata", "api-profile-example.yml", package = "tidycreel.connect")
+  ```
+
+* `fetch_*()` aborts with a clear message when the connection describes no
+  endpoint path, or no field names, for the endpoint being fetched -- rather
+  than fetching and then discarding every column, which surfaced as a
+  "column missing" validation error pointing nowhere near the cause.
 
 ## Statistical correctness
 
@@ -51,7 +90,7 @@
   `as.Date()` coercions on data columns now warn when values cannot be parsed
   rather than silently producing `NA` (via new `.coerce_numeric()` and
   `.coerce_date()` internal helpers).
-* `list_creels()`: missing AGENCY API fields now trigger a warning and are filled
+* `list_creels()`: missing discovery fields now trigger a warning and are filled
   with typed `NA` rather than silently producing a short-column data frame;
   return type unified to tibble across empty and non-empty responses.
 * Validation (`fetch-validators`): `switch()` default now `stop()`s on unknown

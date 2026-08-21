@@ -8,49 +8,66 @@ creel_connect_api(
   base_url,
   creel_uids,
   schema,
-  uid_param = "Creel_UIDs",
-  endpoints = NULL,
+  uid_param,
+  endpoints,
   auth = NULL,
-  api_field_map = NULL
+  api_field_map
 )
 }
 \arguments{
 \item{base_url}{Base URL of the API, with or without a trailing slash.
-Example: \code{"http://api.example.org/api/"}.}
+Example: \code{"https://api.example.org/creel/"}.}
 
 \item{creel_uids}{Character vector of one or more creel UIDs to query.}
 
 \item{schema}{A \code{creel_schema} object created by \code{\link[tidycreel:creel_schema]{tidycreel::creel_schema()}}.}
 
-\item{uid_param}{Query parameter name for the creel UID list.
-Default: \code{"Creel_UIDs"}.}
+\item{uid_param}{Query parameter name for the creel UID list. Example:
+\code{"survey_id"}.}
 
-\item{endpoints}{Named list of endpoint path overrides. Valid names:
-\code{interviews}, \code{counts}, \code{catch}, \code{harvest_lengths}, \code{release_lengths}.
-Unspecified names retain their defaults.}
+\item{endpoints}{Named list of endpoint paths, relative to \code{base_url}.
+\strong{Required.} Valid names: \code{interviews}, \code{counts}, \code{catch},
+\code{harvest_lengths}, \code{release_lengths}, \code{discovery}. Supply the endpoints
+you intend to fetch; the matching \verb{fetch_*()} aborts for any you omit.}
 
 \item{auth}{Authentication spec (see Description). Default: \code{NULL}.}
 
-\item{api_field_map}{Named list of raw JSON field-name overrides, keyed by
-endpoint (\code{interviews}, \code{counts}, \code{catch}, \code{harvest_lengths},
-\code{release_lengths}). Partial: only the fields you name are overridden. Use
-it to name the fields your API returns, including the optional interview
-fields no default covers -- \code{n_anglers}, \code{angler_type}, \code{site}, \code{circuit},
-\code{n_counted}, \code{n_interviewed} (see \code{\link[=fetch_interviews]{fetch_interviews()}}). Default: \code{NULL}.}
+\item{api_field_map}{Named list of raw JSON field names, keyed by endpoint
+(\code{interviews}, \code{counts}, \code{catch}, \code{harvest_lengths}, \code{release_lengths},
+\code{discovery}). \strong{Required.} Within each endpoint, name the raw field that
+holds each canonical quantity, e.g.
+\code{list(interviews = list(date = "SurveyDate", n_anglers = "PartySize"))}.
+The optional interview fields -- \code{n_anglers}, \code{angler_type}, \code{site},
+\code{circuit}, \code{n_counted}, \code{n_interviewed} -- are carried only when named
+here; see \code{\link[=fetch_interviews]{fetch_interviews()}} for what each one is used for.}
 }
 \value{
 A \code{creel_connection} S3 object with subclass \code{creel_connection_api}.
 }
 \description{
 \code{creel_connect_api()} creates a \code{creel_connection} object that fetches data
-from a REST API returning JSON arrays. The default endpoint paths match the
-UNL/AGENCY creel survey API, but every path can be overridden to work with any
-compatible service.
+from a REST API returning JSON arrays.
 
 Requests follow the pattern:
 
 \if{html}{\out{<div class="sourceCode">}}\preformatted{GET \{base_url\}/\{endpoint\}?\{uid_param\}=\{uid1,uid2,...\}
 }\if{html}{\out{</div>}}
+\subsection{No API is assumed}{
+
+The package ships no endpoint paths and no field names for any organisation's
+API: both \code{endpoints} and \code{api_field_map} are required, and the call aborts
+without them. A creel API's paths and JSON keys are properties of that
+deployment, not of this package, and a built-in default would quietly decode
+one agency's payload while misreading everyone else's.
+
+Keep the two together in a YAML profile outside your analysis code and load
+it with \code{\link[=creel_connect_from_yaml]{creel_connect_from_yaml()}}. A commented template ships with the
+package:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{system.file("extdata", "api-profile-example.yml", package = "tidycreel.connect")
+}\if{html}{\out{</div>}}
+}
+
 \subsection{Authentication}{
 
 Three auth modes are supported via the \code{auth} argument:
@@ -72,31 +89,42 @@ as plain strings:
 \dontrun{
 schema <- tidycreel::creel_schema(survey_type = "instantaneous")
 
-# No auth
+# Endpoints and field names both describe YOUR API, so both are required.
 conn <- creel_connect_api(
-  base_url   = "http://api.example.org/api/",
-  creel_uids = "90f5375c-afe0-e511-80bf-0050568372f9",
-  schema     = schema
-)
-
-# Bearer token auth, two surveys
-conn <- creel_connect_api(
-  base_url   = "https://api.example.com/creel/",
-  creel_uids = c("uid-1", "uid-2"),
-  schema     = schema,
-  auth       = list(type = "bearer", token = Sys.getenv("CREEL_TOKEN"))
-)
-
-# Custom endpoint paths (non-AGENCY API)
-conn <- creel_connect_api(
-  base_url  = "https://api.example.com/",
+  base_url   = "https://api.example.org/creel/",
   creel_uids = "survey-001",
-  schema    = schema,
-  uid_param = "survey_id",
-  endpoints = list(
+  schema     = schema,
+  uid_param  = "survey_id",
+  endpoints  = list(
     interviews = "v2/interviews",
     counts     = "v2/counts"
+  ),
+  api_field_map = list(
+    interviews = list(
+      interview_uid = "InterviewID",
+      date          = "SurveyDate",
+      trip_status   = "TripStatus",
+      effort_hours  = "HoursFished",
+      n_anglers     = "PartySize"
+    ),
+    counts = list(
+      date         = "SurveyDate",
+      bank_anglers = "ShoreAnglers"
+    )
   )
+)
+
+# Usual practice: keep both in a YAML profile outside your code.
+conn <- creel_connect_from_yaml("~/.config/tidycreel/my-api.yml")
+
+# Bearer token auth
+conn <- creel_connect_api(
+  base_url      = "https://api.example.org/creel/",
+  creel_uids    = c("uid-1", "uid-2"),
+  schema        = schema,
+  endpoints     = my_endpoints,
+  api_field_map = my_field_map,
+  auth          = list(type = "bearer", token = Sys.getenv("CREEL_TOKEN"))
 )
 }
 }

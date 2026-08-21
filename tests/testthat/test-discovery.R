@@ -1,14 +1,14 @@
 # Tests for list_creels() and search_creels() — API-07, API-08
 
 # --- Shared fixture body ---
-# Use the confirmed AGENCY field names from api_rename_map in creel-discovery.R
-# (Creel_UID, Creel_Title, Creel_Description, Creel_Active, Creel_DataComplete, Creel_Comments)
+# Field names come from the test profile in helper-api.R; all of them invented
+# (SurveyID, SurveyTitle, SurveyDescription, IsActive, IsComplete, Notes)
 discovery_body_two_surveys <- charToRaw(paste0(
   '[',
-  '{"Creel_UID":"S001","Creel_Title":"Calamus 2016","Creel_Description":"Summer survey",',
-  '"Creel_Active":true,"Creel_DataComplete":false,"Creel_Comments":"Pilot"},',
-  '{"Creel_UID":"S002","Creel_Title":"Cedar 2018","Creel_Description":"Fish survey",',
-  '"Creel_Active":true,"Creel_DataComplete":true,"Creel_Comments":""}',
+  '{"SurveyID":"S001","SurveyTitle":"Calamus 2016","SurveyDescription":"Summer survey",',
+  '"IsActive":true,"IsComplete":false,"Notes":"Pilot"},',
+  '{"SurveyID":"S002","SurveyTitle":"Cedar 2018","SurveyDescription":"Fish survey",',
+  '"IsActive":true,"IsComplete":true,"Notes":""}',
   ']'
 ))
 

@@ -164,7 +164,7 @@ make_test_csv_numeric_species <- function() {
     non_ang_boats = c(0L, 0L),
     stringsAsFactors = FALSE
   )
-  # species column uses integer codes to simulate AGENCY SQL Server exports
+  # species column uses integer codes, as many source databases export them
   catch <- data.frame(
     catch_uid = 1L:2L,
     interview_uid = c(1L, 1L),

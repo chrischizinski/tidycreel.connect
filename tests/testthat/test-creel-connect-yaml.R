@@ -155,3 +155,51 @@ test_that("creel_connect_from_yaml() reads credentials from env vars via !expr",
     }
   )
 })
+
+# --- backend: api -------------------------------------------------------------
+#
+# These call the internals directly rather than creel_connect_from_yaml(), so
+# they run without the {config} package: what is under test is the api branch of
+# the validator and the builder, not config's file reading.
+
+test_that("the shipped template profile builds a working api connection", {
+  skip_if_not_installed("yaml")
+  path <- system.file("extdata", "api-profile-example.yml", package = "tidycreel.connect")
+  skip_if(!nzchar(path))
+  cfg <- yaml::read_yaml(path)$default
+
+  expect_silent(tidycreel.connect:::.validate_yaml_config(cfg, path))
+  conn <- tidycreel.connect:::.build_creel_conn(cfg)
+
+  expect_s3_class(conn, "creel_connection_api")
+  expect_equal(conn$con$uid_param, "survey_id")
+  expect_equal(conn$con$endpoints$interviews, "v2/interviews")
+  # The template is what a user copies, so the optional interview fields have to
+  # be in it -- an example that omits the party size teaches the party-hours bug.
+  expect_equal(conn$con$api_field_map$interviews$n_anglers, "PartySize")
+})
+
+test_that("an api profile missing part of the contract is refused", {
+  # The API contract lives in the profile because it lives nowhere else: a
+  # profile without it would produce a connection that decodes nothing.
+  cfg <- list(
+    backend  = "api",
+    base_url = "https://api.example.org/creel/",
+    schema   = list(survey_type = "instantaneous")
+  )
+  expect_error(
+    tidycreel.connect:::.validate_yaml_config(cfg, "test.yml"),
+    "uid_param|creel_uids|endpoints|field_map"
+  )
+})
+
+test_that("the api profile error points at the template", {
+  cfg <- list(
+    backend = "api",
+    schema  = list(survey_type = "instantaneous")
+  )
+  expect_error(
+    tidycreel.connect:::.validate_yaml_config(cfg, "test.yml"),
+    "api-profile-example"
+  )
+})

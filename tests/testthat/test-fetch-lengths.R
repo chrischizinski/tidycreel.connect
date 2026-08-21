@@ -58,7 +58,7 @@ test_that("fetch_harvest_lengths.creel_connection_api() returns canonical column
     httr2::response(
       200,
       headers = "Content-Type: application/json",
-      body    = charToRaw('[{"iiUID":"A1","api_Species":"86","api_Length":350}]')
+      body    = charToRaw('[{"InterviewID":"A1","SpeciesCode":"86","LengthMM":350}]')
     )
   })
   conn   <- make_api_conn()
@@ -94,7 +94,7 @@ test_that("fetch_release_lengths.creel_connection_api() returns canonical column
     httr2::response(
       200,
       headers = "Content-Type: application/json",
-      body    = charToRaw('[{"iiUID":"A1","api_Species":"86","api_LengthBand":300,"api_Count":1}]')
+      body    = charToRaw('[{"InterviewID":"A1","SpeciesCode":"86","LengthMM":300,"FishCount":1}]')
     )
   })
   conn   <- make_api_conn()
