@@ -10,7 +10,8 @@ creel_connect_api(
   schema,
   uid_param = "Creel_UIDs",
   endpoints = NULL,
-  auth = NULL
+  auth = NULL,
+  api_field_map = NULL
 )
 }
 \arguments{
@@ -29,6 +30,13 @@ Default: \code{"Creel_UIDs"}.}
 Unspecified names retain their defaults.}
 
 \item{auth}{Authentication spec (see Description). Default: \code{NULL}.}
+
+\item{api_field_map}{Named list of raw JSON field-name overrides, keyed by
+endpoint (\code{interviews}, \code{counts}, \code{catch}, \code{harvest_lengths},
+\code{release_lengths}). Partial: only the fields you name are overridden. Use
+it to name the fields your API returns, including the optional interview
+fields no default covers -- \code{n_anglers}, \code{angler_type}, \code{site}, \code{circuit},
+\code{n_counted}, \code{n_interviewed} (see \code{\link[=fetch_interviews]{fetch_interviews()}}). Default: \code{NULL}.}
 }
 \value{
 A \code{creel_connection} S3 object with subclass \code{creel_connection_api}.
@@ -47,9 +55,9 @@ Requests follow the pattern:
 
 Three auth modes are supported via the \code{auth} argument:
 \itemize{
-\item \code{NULL} — no authentication (default)
-\item \code{list(type = "bearer", token = "...")} — \code{Authorization: Bearer} header
-\item \code{list(type = "api_key", key = "...", header = "X-API-Key")} — arbitrary
+\item \code{NULL} -- no authentication (default)
+\item \code{list(type = "bearer", token = "...")} -- \code{Authorization: Bearer} header
+\item \code{list(type = "api_key", key = "...", header = "X-API-Key")} -- arbitrary
 header name (defaults to \code{"X-API-Key"} if \code{header} is omitted)
 }
 

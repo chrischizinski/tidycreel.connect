@@ -14,7 +14,19 @@ fetch_interviews(conn, ...)
 \value{
 A data frame with canonical columns: \code{interview_uid}, \code{date}
 (Date), \code{catch_count} (numeric), \code{effort} (numeric),
-\code{trip_status} (character). Extra CSV columns are dropped.
+\code{trip_status} (character).
+
+Six further columns are carried when the schema (CSV) or \code{api_field_map}
+(API) maps them, and omitted otherwise: \code{n_anglers} (numeric),
+\code{angler_type} (character), \code{site} (character), \code{circuit} (character),
+\code{n_counted} (numeric), \code{n_interviewed} (numeric). Map \code{n_anglers} whenever
+the source records party size -- without it \code{\link[tidycreel:add_interviews]{tidycreel::add_interviews()}}
+assumes one angler per interview and party-hours are consumed as
+angler-hours. \code{site} and \code{circuit} are what a bus-route design joins the
+site inclusion probability on.
+
+Source columns outside the map are dropped, and each fetch reports which
+ones by name.
 }
 \description{
 Reads the interviews table from a creel data source, renames columns to

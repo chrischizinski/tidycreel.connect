@@ -37,6 +37,12 @@
 #'   `interviews`, `counts`, `catch`, `harvest_lengths`, `release_lengths`.
 #'   Unspecified names retain their defaults.
 #' @param auth Authentication spec (see Description). Default: `NULL`.
+#' @param api_field_map Named list of raw JSON field-name overrides, keyed by
+#'   endpoint (`interviews`, `counts`, `catch`, `harvest_lengths`,
+#'   `release_lengths`). Partial: only the fields you name are overridden. Use
+#'   it to name the fields your API returns, including the optional interview
+#'   fields no default covers -- `n_anglers`, `angler_type`, `site`, `circuit`,
+#'   `n_counted`, `n_interviewed` (see [fetch_interviews()]). Default: `NULL`.
 #'
 #' @return A `creel_connection` S3 object with subclass `creel_connection_api`.
 #' @export
@@ -106,7 +112,9 @@ creel_connect_api <- function(
       "interview_uid_col", "date_col", "catch_col", "effort_col",
       "trip_status_col", "catch_uid_col", "species_col", "catch_count_col",
       "catch_type_col", "length_uid_col", "length_mm_col", "length_type_col",
-      "bank_anglers_col", "angler_boats_col", "non_ang_boats_col"
+      "bank_anglers_col", "angler_boats_col", "non_ang_boats_col",
+      "n_anglers_col", "angler_type_col", "site_col", "circuit_col",
+      "n_counted_col", "n_interviewed_col"
     )
     has_schema_mappings <- any(
       vapply(schema_mapping_fields, function(f) !is.null(schema[[f]]), logical(1L))
@@ -178,6 +186,10 @@ creel_connect_api <- function(
       trip_status    = "api_TripKind",
       effort_hours   = "api_TimeFishedHours",
       effort_minutes = "api_TimeFishedMinutes"
+      # n_anglers, angler_type, site, circuit, n_counted and n_interviewed are
+      # routed by fetch_interviews() but named by no default: which field holds
+      # a party size is a property of the source API, not of this package.
+      # Supply them through api_field_map (GH #126).
     ),
     counts = list(
       date          = "api_Date",

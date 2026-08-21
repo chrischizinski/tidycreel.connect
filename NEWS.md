@@ -1,3 +1,35 @@
+# tidycreel.connect (development version)
+
+## Statistical correctness
+
+* `fetch_interviews()` carries six further columns when they are mapped:
+  `n_anglers`, `angler_type`, `site`, `circuit`, `n_counted` and
+  `n_interviewed` (#126). None of them had an entry in either rename map, so
+  they were discarded on the way through with nothing said. Two consequences,
+  both silent:
+
+  - Without `n_anglers`, `tidycreel::add_interviews()` falls back to one angler
+    per interview, so party-hours are consumed as angler-hours and every rate
+    denominator is wrong by the mean party size. `mean_party_size()` and
+    `derive_angler_count()` could not be fed from fetched data at all.
+  - Without `site` and `circuit`, a bus-route design aborts at the inclusion
+    probability join — the documented handoff to `add_interviews()` was
+    impossible for the design family the package's own fixture validates.
+
+  CSV sources map them through `creel_schema()`, including its new `site_col`
+  and `circuit_col` arguments. API sources name them through `api_field_map`:
+  which raw field holds a party size, a site or a circuit is a property of the
+  source API, so no default names one.
+
+* Every `fetch_*()` now reports the source columns it did not carry, naming
+  them and the table they came from. The closed-map policy is unchanged — the
+  defect was that a load-bearing column disappearing in transit looked exactly
+  like an extra column nobody wanted.
+
+* Optional columns are type-checked when present rather than accepted
+  unexamined: a character `n_anglers` is now refused at the fetch boundary
+  instead of failing inside the party-size arithmetic several stages later.
+
 # tidycreel.connect 0.2.0
 
 ## Bug fixes and robustness improvements

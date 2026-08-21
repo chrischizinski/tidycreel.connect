@@ -70,6 +70,11 @@ schema <- creel_schema(
   catch_col         = "TotalCatch",
   trip_status_col   = "TripStatus",
   bank_anglers_col  = "BankAnglers",
+  # Party size: map it whenever your source records it. Unmapped, the interview
+  # effort is party-hours and every rate denominator is off by the mean party
+  # size. Bus-route designs additionally need site_col and circuit_col.
+  n_anglers_col     = "NumberAnglers",
+  angler_type_col   = "AnglerType",
   catch_uid_col     = "CatchUID",
   species_col       = "SpeciesCode",
   catch_count_col   = "CatchCount",
@@ -317,13 +322,17 @@ design <- creel_design(
   design_type = "instantaneous"
 )
 
-# Then attach the fetched interview data
+# Then attach the fetched interview data. Pass n_anglers when the schema maps a
+# party-size column: without it add_interviews() assumes one angler per
+# interview and warns, and the effort it carries is party-hours rather than
+# angler-hours.
 design <- add_interviews(
   design,
   interviews  = interviews,
   catch       = catch_count,
   effort      = effort,
-  trip_status = trip_status
+  trip_status = trip_status,
+  n_anglers   = n_anglers
 )
 
 # Now estimate

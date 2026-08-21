@@ -3,14 +3,23 @@
 # Each function collects ALL failures then issues a single cli_abort().
 
 # Internal helper: check one column against expected type
+# "optional" passes whether the column is absent or present, at any type.
+# "optional:<type>" passes when absent, but enforces <type> when present -- an
+# optional column that reaches a downstream calculation still has to be the right
+# type there, and a character n_anglers would otherwise be accepted here and fail
+# far away (GH #126).
 # Returns character(0) on pass, a named "x" bullet on fail
 .check_col <- function(df, col, expected_type, fn_name) {
+  optional <- expected_type == "optional" || startsWith(expected_type, "optional:")
   if (!col %in% names(df)) {
-    if (expected_type == "optional") return(character(0))
+    if (optional) return(character(0))
     return(stats::setNames(
       paste0(col, " (", expected_type, "): column missing"),
       "x"
     ))
+  }
+  if (startsWith(expected_type, "optional:")) {
+    expected_type <- sub("^optional:", "", expected_type)
   }
   if (expected_type %in% c("any", "optional")) {
     return(character(0))
@@ -56,7 +65,16 @@ validate_fetch_interviews <- function(df) {
     date          = "Date",
     catch_count   = "numeric",
     effort        = "numeric",
-    trip_status   = "character"
+    trip_status   = "character",
+    # Optional: carried only when mapped, but type-checked when carried.
+    # n_anglers is the party size; site/circuit/n_counted/n_interviewed are the
+    # bus-route expansion columns (GH #126).
+    n_anglers     = "optional:numeric",
+    angler_type   = "optional:character",
+    site          = "optional:character",
+    circuit       = "optional:character",
+    n_counted     = "optional:numeric",
+    n_interviewed = "optional:numeric"
   )
   .validate_fetch(df, spec, "fetch_interviews")
 }
@@ -70,7 +88,13 @@ validate_fetch_interviews_api <- function(df) {
     interview_uid = "uid",
     date          = "Date",
     effort        = "numeric",
-    trip_status   = "character"
+    trip_status   = "character",
+    n_anglers     = "optional:numeric",
+    angler_type   = "optional:character",
+    site          = "optional:character",
+    circuit       = "optional:character",
+    n_counted     = "optional:numeric",
+    n_interviewed = "optional:numeric"
   )
   .validate_fetch(df, spec, "fetch_interviews")
 }
