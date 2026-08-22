@@ -32,6 +32,36 @@ default:
     # below, not the schema's column mappings.
     survey_type: instantaneous
 
+    # Value maps say what YOUR codes mean. Unlike field_map, which names raw
+    # JSON fields, these describe a column's *values*, so they apply to every
+    # backend. Only three columns have a fixed vocabulary -- see
+    # tidycreel::creel_vocabulary(). Omit the block entirely if your source
+    # already writes the canonical values.
+    #
+    # A value that is neither mapped nor canonical aborts at the fetch rather
+    # than reaching a filter that matches the canonical literals.
+    # value_maps:
+    #   trip_status:
+    #     "1": complete
+    #     "2": incomplete
+    #   catch_type:
+    #     H: harvested
+    #     R: released
+
+    # Stratum columns to carry through from the source. Unlike everything else
+    # here, a stratum has no canonical tidycreel name: add_counts() matches your
+    # own calendar column names, so the mapping is two-sided. Without it a
+    # fetched counts frame arrives with no stratum label and any design built
+    # with `strata =` aborts.
+    #
+    # Use a mapping when the source spells it differently:
+    # strata_cols:
+    #   day_type: "DayTypeCode"
+    #
+    # ...or a sequence when the source already uses the design's name:
+    # strata_cols:
+    #   - day_type
+
   # Endpoint paths, relative to base_url. Supply the ones you intend to fetch;
   # fetch_*() aborts for any you omit rather than guessing a path.
   endpoints:

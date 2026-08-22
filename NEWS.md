@@ -1,5 +1,27 @@
 # tidycreel.connect 0.3.0
 
+## New features
+
+* The fetch layer translates coded source vocabularies into the canonical ones,
+  driven by the new `value_maps` field on `tidycreel::creel_schema()` (#128).
+  A source that writes `"1"`/`"2"` for trip status, or `"H"`/`"R"` for catch
+  type, declares what its codes mean once in the schema; `fetch_interviews()`,
+  `fetch_catch()` and both lengths fetchers then deliver `"complete"`,
+  `"harvested"` and the rest — the literals every downstream filter matches.
+
+  Values already canonical for the column pass through untouched, so a source
+  mid-migration that codes only some of its rows still arrives whole. A value
+  that is neither mapped nor canonical **aborts at the fetch**, naming the
+  offending value. The design layer does refuse an unknown vocabulary
+  (`validate_trip_metadata()`, `add_catch()`), so this is not what stops a wrong
+  number; what it stops is the hand recode that abort otherwise invites, which
+  folds an undeclared third code (`"refused"`, `"unknown"`) into whichever of
+  the two the caller happened to think of, silently.
+
+  Declaring a map is opt-in and backend-independent: a schema without one
+  fetches exactly as before, and the API path reads `value_maps` just as the CSV
+  path does, since it maps a column's *values* rather than its field name.
+
 ## Bug fixes
 
 * `fetch_harvest_lengths()` and `fetch_release_lengths()` now carry a length-bin
@@ -21,6 +43,15 @@
   them, so a source that measures every fish is unaffected. Carrying a bin with
   no count now warns at the fetch, and a lengths table offering neither a
   measurement nor a bin is refused rather than returned empty-handed.
+
+* A YAML profile can now declare `strata_cols` and `value_maps`. The loader
+  built its schema from `survey_type` and table names alone, so neither field
+  survived the profile — the route the docs recommend for configuring a
+  deployment. A profile-configured survey therefore could not be stratified at
+  all: the counts frame arrived with no stratum label and any design built with
+  `strata =` aborted, which is the failure #171 fixed for a hand-built schema
+  and left standing here. Both YAML shapes of `strata_cols` are accepted, the
+  mapping `day_type: DayTypeCode` and the bare sequence `[day_type]`.
 
 * `fetch_counts()` and `fetch_interviews()` now carry stratum columns through
   on both backends, driven by the new `strata_cols` field on

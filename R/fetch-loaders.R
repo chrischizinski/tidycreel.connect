@@ -73,6 +73,56 @@
   invisible(NULL)
 }
 
+# Internal: translate a coded column into the canonical vocabulary (GH #128).
+#
+# Applies to whichever of `trip_status`, `catch_type` and `length_type` the
+# frame carries and the schema declares a map for. Values already canonical for
+# that column pass through untouched, so a source that codes only some of its
+# rows still arrives whole.
+#
+# Anything neither mapped nor canonical aborts here rather than downstream. The
+# design layer does refuse an unknown value (`validate_trip_metadata()`,
+# `add_catch()`), but by then the source is out of view and the fix looks like a
+# hand recode -- and a hand recode is what silently folds an undeclared third
+# code into one of the two the caller happened to think of.
+.apply_value_maps <- function(df, schema, table) {
+  maps <- schema$value_maps
+  if (is.null(maps)) {
+    return(df)
+  }
+  for (col in names(maps)) {
+    if (!col %in% names(df)) {
+      next
+    }
+    map <- maps[[col]]
+    values <- as.character(df[[col]])
+    # The column's whole vocabulary, not merely the targets this map happens to
+    # name: a source mid-migration writes "1" on some rows and "incomplete" on
+    # others, and refusing the already-correct half would be absurd. Read from
+    # tidycreel rather than copied here, so the two cannot drift.
+    canonical <- tidycreel::creel_vocabulary(col)
+
+    known <- is.na(values) | values %in% names(map) | values %in% canonical
+    if (!all(known)) {
+      unknown <- unique(values[!known]) # nolint: object_usage_linter
+      cli::cli_abort(c(
+        "{table}: {.field {col}} holds {length(unknown)} value{?s} the schema does not map.",
+        "x" = "Unmapped: {.val {unknown}}.",
+        "i" = paste0(
+          "Declare {.val {unknown}} in {.code value_maps${col}}, or correct the ",
+          "source. Leaving a code unmapped would hand a literal to filters that ",
+          "match {.val {canonical}}."
+        )
+      ))
+    }
+
+    to_map <- !is.na(values) & values %in% names(map)
+    values[to_map] <- unname(map[values[to_map]])
+    df[[col]] <- values
+  }
+  df
+}
+
 # Internal: as.Date() that warns when parsing introduces NAs
 .coerce_date <- function(x, col_name, formats = c("%Y-%m-%d", "%m/%d/%Y")) {
   result <- suppressWarnings(as.Date(x, tryFormats = formats))
@@ -262,6 +312,8 @@ fetch_interviews.creel_connection_csv <- function(conn, ...) {
   for (nm in c("angler_type", "site", "circuit")) {
     if (nm %in% names(df)) df[[nm]] <- as.character(df[[nm]])
   }
+  df <- .apply_value_maps(df, conn$schema, "interviews")
+
   validate_fetch_interviews(df) # nolint: object_usage_linter
   df
 }
@@ -341,6 +393,8 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
   for (nm in c("angler_type", "site", "circuit")) {
     if (nm %in% names(df)) df[[nm]] <- as.character(df[[nm]])
   }
+
+  df <- .apply_value_maps(df, conn$schema, "interviews")
 
   validate_fetch_interviews_api(df) # nolint: object_usage_linter
   df
@@ -473,6 +527,8 @@ fetch_catch.creel_connection_csv <- function(conn, ...) {
   if ("species"     %in% names(df)) df$species     <- as.character(df$species)
   if ("catch_count" %in% names(df)) df$catch_count <- .coerce_numeric(df$catch_count, "catch_count")
   if ("catch_type"  %in% names(df)) df$catch_type  <- as.character(df$catch_type)
+  df <- .apply_value_maps(df, conn$schema, "catch")
+
   validate_fetch_catch(df) # nolint: object_usage_linter
   df
 }
@@ -517,6 +573,8 @@ fetch_catch.creel_connection_api <- function(conn, ...) {
   if ("catch_count" %in% names(df)) df$catch_count <- .coerce_numeric(df$catch_count, "catch_count")
   if ("catch_type"  %in% names(df)) df$catch_type  <- as.character(df$catch_type)
 
+  df <- .apply_value_maps(df, conn$schema, "catch")
+
   validate_fetch_catch(df) # nolint: object_usage_linter
   df
 }
@@ -555,6 +613,7 @@ fetch_harvest_lengths.creel_connection_csv <- function(conn, ...) {
   )
   df <- .rename_to_canonical(df, conn$schema, rename_map, "harvest_lengths")
   df <- .coerce_length_cols(df)
+  df <- .apply_value_maps(df, conn$schema, "harvest_lengths")
   validate_fetch_harvest_lengths(df) # nolint: object_usage_linter
   df
 }
@@ -596,6 +655,8 @@ fetch_harvest_lengths.creel_connection_api <- function(conn, ...) {
 
   df <- .coerce_length_cols(df)
 
+  df <- .apply_value_maps(df, conn$schema, "harvest_lengths")
+
   validate_fetch_harvest_lengths(df) # nolint: object_usage_linter
   df
 }
@@ -634,6 +695,7 @@ fetch_release_lengths.creel_connection_csv <- function(conn, ...) {
   )
   df <- .rename_to_canonical(df, conn$schema, rename_map, "release_lengths")
   df <- .coerce_length_cols(df)
+  df <- .apply_value_maps(df, conn$schema, "release_lengths")
   validate_fetch_release_lengths(df) # nolint: object_usage_linter
   df
 }
@@ -676,6 +738,8 @@ fetch_release_lengths.creel_connection_api <- function(conn, ...) {
   df$length_type <- "release"
 
   df <- .coerce_length_cols(df)
+
+  df <- .apply_value_maps(df, conn$schema, "release_lengths")
 
   validate_fetch_release_lengths(df) # nolint: object_usage_linter
   df

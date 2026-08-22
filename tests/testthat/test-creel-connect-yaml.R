@@ -203,3 +203,105 @@ test_that("the api profile error points at the template", {
     "api-profile-example"
   )
 })
+
+
+## strata_cols and value_maps through a profile (GH #171, #128) ----------------
+
+test_that("a profile can declare strata_cols and value_maps", {
+  # The loader carried only survey_type and table names, so neither field could
+  # be declared by the route the docs recommend: a profile-configured survey
+  # could not be stratified, and a coded source could not be translated. Both
+  # describe the source rather than one backend, so both belong in the profile
+  # alongside the field map.
+  skip_if_not_installed("config")
+  skip_if_not_installed("withr")
+
+  yaml_path <- withr::local_tempfile(fileext = ".yml")
+  writeLines(c(
+    "default:",
+    "  backend: api",
+    '  base_url: "https://api.example.org/creel/"',
+    '  uid_param: "survey_id"',
+    "  creel_uids:",
+    '    - "s-1"',
+    "  schema:",
+    "    survey_type: instantaneous",
+    "    strata_cols:",
+    '      day_type: "DayTypeCode"',
+    "    value_maps:",
+    "      trip_status:",
+    '        "1": complete',
+    '        "2": incomplete',
+    "  endpoints:",
+    '    interviews: "v2/interviews"',
+    "  field_map:",
+    "    interviews:",
+    '      interview_uid: "InterviewID"',
+    '      date: "SurveyDate"',
+    '      trip_status: "TripStatus"',
+    '      effort_hours: "HoursFished"'
+  ), yaml_path)
+
+  conn <- creel_connect_from_yaml(yaml_path)
+
+  # Reached the schema in the shape creel_schema() stores, not merely present.
+  expect_equal(conn$schema$strata_cols, c(day_type = "DayTypeCode"))
+  expect_equal(
+    conn$schema$value_maps$trip_status,
+    c("1" = "complete", "2" = "incomplete")
+  )
+})
+
+test_that("a profile's declarations actually reach a fetch", {
+  # The point is the fetched frame, not the schema object: a field that is
+  # stored but never read looks identical at this seam.
+  skip_if_not_installed("config")
+  skip_if_not_installed("withr")
+
+  yaml_path <- withr::local_tempfile(fileext = ".yml")
+  writeLines(c(
+    "default:",
+    "  backend: api",
+    '  base_url: "https://api.example.org/creel/"',
+    '  uid_param: "survey_id"',
+    "  creel_uids:",
+    '    - "s-1"',
+    "  schema:",
+    "    survey_type: instantaneous",
+    "    strata_cols:",
+    '      day_type: "DayTypeCode"',
+    "    value_maps:",
+    "      trip_status:",
+    '        "1": complete',
+    '        "2": incomplete',
+    "  endpoints:",
+    '    interviews: "v2/interviews"',
+    "  field_map:",
+    "    interviews:",
+    '      interview_uid: "InterviewID"',
+    '      date: "SurveyDate"',
+    '      trip_status: "TripStatus"',
+    '      effort_hours: "HoursFished"',
+    "      day_type: \"DayTypeCode\""
+  ), yaml_path)
+
+  conn <- creel_connect_from_yaml(yaml_path)
+  httr2::local_mocked_responses(function(req) {
+    httr2::response(
+      200,
+      headers = "Content-Type: application/json",
+      body = charToRaw(paste0(
+        '[{"InterviewID":1,"SurveyDate":"2024-06-01","TripStatus":"1",',
+        '"HoursFished":2.5,"DayTypeCode":"weekday"},',
+        '{"InterviewID":2,"SurveyDate":"2024-06-02","TripStatus":"2",',
+        '"HoursFished":1.0,"DayTypeCode":"weekend"}]'
+      ))
+    )
+  })
+
+  iv <- suppressMessages(fetch_interviews(conn))
+
+  # Codes translated, stratum carried under the design-facing name.
+  expect_equal(iv$trip_status, c("complete", "incomplete"))
+  expect_equal(iv$day_type, c("weekday", "weekend"))
+})

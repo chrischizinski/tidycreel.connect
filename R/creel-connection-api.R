@@ -157,6 +157,10 @@ creel_connect_api <- function(
   # matches on, while the raw field each comes from is looked up in
   # `api_field_map` as usual (GH #171). Adding it here would warn that a
   # working, required declaration is ignored.
+  #
+  # `value_maps` is out for the same reason: it maps a column's *values*, not
+  # its field name, so it is backend-independent and the API path reads it
+  # exactly as the CSV path does (GH #128).
   schema_mapping_fields <- c(
     "interview_uid_col", "date_col", "catch_col", "effort_col",
     "trip_status_col", "catch_uid_col", "species_col", "catch_count_col",
