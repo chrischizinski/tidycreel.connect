@@ -131,26 +131,50 @@ validate_fetch_catch <- function(df) {
 #' @noRd
 #' @keywords internal
 validate_fetch_harvest_lengths <- function(df) {
-  spec <- list(
-    length_uid    = "uid",
-    interview_uid = "uid",
-    species       = "character",
-    length_mm     = "numeric",
-    length_type   = "character"
-  )
+  spec <- .lengths_spec()
   .validate_fetch(df, spec, "fetch_harvest_lengths")
+  .validate_has_a_length(df, "fetch_harvest_lengths")
 }
 
 
 #' @noRd
 #' @keywords internal
 validate_fetch_release_lengths <- function(df) {
-  spec <- list(
+  spec <- .lengths_spec()
+  .validate_fetch(df, spec, "fetch_release_lengths")
+  .validate_has_a_length(df, "fetch_release_lengths")
+}
+
+# Internal: the shared column contract for both lengths tables.
+#
+# `length_mm` is no longer unconditionally required: a source that reports
+# binned release lengths has no per-fish measurement to give, and demanding one
+# is what pushed a bin label into a column named `_mm` (GH #127). Exactly one of
+# the two must arrive, which .validate_has_a_length() enforces.
+.lengths_spec <- function() {
+  list(
     length_uid    = "uid",
     interview_uid = "uid",
     species       = "character",
-    length_mm     = "numeric",
+    length_mm     = "optional:numeric",
+    length_bin    = "optional:character",
+    count         = "optional:numeric",
     length_type   = "character"
   )
-  .validate_fetch(df, spec, "fetch_release_lengths")
+}
+
+# Internal: a lengths table with neither a measurement nor a bin carries no
+# length at all, which the per-column spec cannot say on its own.
+.validate_has_a_length <- function(df, fn_name) {
+  if (!any(c("length_mm", "length_bin") %in% names(df))) {
+    cli::cli_abort(c(
+      paste0(fn_name, "() validation failed:"),
+      "x" = "neither {.field length_mm} nor {.field length_bin} is present.",
+      "i" = paste0(
+        "Map {.field length_mm_col} for measured fish, or {.field length_bin_col} ",
+        "plus {.field length_count_col} for binned rows."
+      )
+    ))
+  }
+  invisible(df)
 }

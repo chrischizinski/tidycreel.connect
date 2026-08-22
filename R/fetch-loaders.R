@@ -16,6 +16,63 @@
   result
 }
 
+# Internal: coerce the canonical length columns, shared by the harvest and
+# release loaders so the two tables cannot drift apart in what they carry.
+#
+# A bin label becomes character and is never routed through `length_mm`:
+# `.coerce_numeric()` turns "300-350" into NA, and a column named `_mm` holding
+# a label asserts a unit the source never gave (GH #127).
+.coerce_length_cols <- function(df) {
+  if ("species" %in% names(df)) df$species <- as.character(df$species)
+  if ("length_mm" %in% names(df)) df$length_mm <- .coerce_numeric(df$length_mm, "length_mm")
+  if ("length_bin" %in% names(df)) df$length_bin <- as.character(df$length_bin)
+  if ("count" %in% names(df)) df$count <- .coerce_numeric(df$count, "count")
+  if ("length_type" %in% names(df)) df$length_type <- as.character(df$length_type)
+  .warn_binned_without_count(df)
+  df
+}
+
+# Internal: the zero-row frame an empty lengths endpoint returns.
+#
+# The binned pair is included only when the connection names it, so the empty
+# frame has the same columns the populated one would: a caller whose source is
+# binned still selects `length_bin`/`count` on a quiet day (GH #127).
+.empty_lengths_frame <- function(fm) {
+  df <- data.frame(
+    length_uid       = integer(0),
+    interview_uid    = character(0),
+    species          = character(0),
+    length_mm        = numeric(0),
+    length_type      = character(0),
+    stringsAsFactors = FALSE
+  )
+  named <- function(field) !is.null(field) && !is.na(field) && nzchar(field)
+  if (named(fm$length_bin)) df$length_bin <- character(0)
+  if (named(fm$count)) df$count <- numeric(0)
+  df
+}
+
+# Internal: a bin without a count is the GH #127 defect in the making, so say so
+# where it happens rather than leaving add_lengths() to abort later or, worse,
+# leaving a distribution weighted by rows.
+.warn_binned_without_count <- function(df) {
+  if ("length_bin" %in% names(df) && !"count" %in% names(df)) {
+    cli::cli_warn(c(
+      "Length bins carried without a fish count.",
+      "i" = paste0(
+        "A binned row stands for however many fish fell in the bin, so a ",
+        "distribution built from these rows is weighted by row multiplicity ",
+        "instead of by fish (GH #127)."
+      ),
+      "i" = paste0(
+        "Map {.field length_count_col} (CSV/SQL) or the {.field count} field ",
+        "(API field map) where the source records one."
+      )
+    ))
+  }
+  invisible(NULL)
+}
+
 # Internal: as.Date() that warns when parsing introduces NAs
 .coerce_date <- function(x, col_name, formats = c("%Y-%m-%d", "%m/%d/%Y")) {
   result <- suppressWarnings(as.Date(x, tryFormats = formats))
@@ -476,8 +533,11 @@ fetch_catch.creel_connection_api <- function(conn, ...) {
 #' @param ... Reserved for future arguments.
 #'
 #' @return A data frame with canonical columns: `length_uid`, `interview_uid`,
-#'   `species` (character), `length_mm` (numeric), `length_type` (character).
-#'   Extra CSV columns are dropped.
+#'   `species` (character), `length_type` (character), and a length: `length_mm`
+#'   (numeric) for measured fish, or `length_bin` (character) with `count`
+#'   (numeric) for binned rows. At least one of the two must be mapped; the
+#'   binned pair is carried only when the source names it (GH #127). Extra CSV
+#'   columns are dropped.
 #' @export
 fetch_harvest_lengths <- function(conn, ...) UseMethod("fetch_harvest_lengths")
 
@@ -489,12 +549,12 @@ fetch_harvest_lengths.creel_connection_csv <- function(conn, ...) {
     interview_uid = "interview_uid_col",
     species       = "species_col",
     length_mm     = "length_mm_col",
+    length_bin    = "length_bin_col",
+    count         = "length_count_col",
     length_type   = "length_type_col"
   )
   df <- .rename_to_canonical(df, conn$schema, rename_map, "harvest_lengths")
-  if ("species"     %in% names(df)) df$species     <- as.character(df$species)
-  if ("length_mm"   %in% names(df)) df$length_mm   <- .coerce_numeric(df$length_mm, "length_mm")
-  if ("length_type" %in% names(df)) df$length_type <- as.character(df$length_type)
+  df <- .coerce_length_cols(df)
   validate_fetch_harvest_lengths(df) # nolint: object_usage_linter
   df
 }
@@ -507,26 +567,21 @@ fetch_harvest_lengths.creel_connection_sqlserver <- function(conn, ...) {
 #' @export
 fetch_harvest_lengths.creel_connection_api <- function(conn, ...) {
   raw_df <- .api_fetch(conn$con, "harvest_lengths")
+  fm <- conn$con$api_field_map$harvest_lengths
 
   # Early return for empty API response
   if (nrow(raw_df) == 0L) {
-    return(data.frame(
-      length_uid       = integer(0),
-      interview_uid    = character(0),
-      species          = character(0),
-      length_mm        = numeric(0),
-      length_type      = character(0),
-      stringsAsFactors = FALSE
-    ))
+    return(.empty_lengths_frame(fm))
   }
 
-  fm <- conn$con$api_field_map$harvest_lengths
   # NOTE: an API may spell the interview UID differently on this endpoint than
   # on interviews/catch, which is why it is named per endpoint.
   api_rename_map <- c(
     interview_uid = fm$interview_uid,
     species       = fm$species,
-    length_mm     = fm$length_mm
+    length_mm     = fm$length_mm,
+    length_bin    = fm$length_bin,
+    count         = fm$count
   )
   api_rename_map <- api_rename_map[!is.na(api_rename_map) & nzchar(api_rename_map)]
   df <- .rename_api_to_canonical(raw_df, api_rename_map, "harvest_lengths")
@@ -539,8 +594,7 @@ fetch_harvest_lengths.creel_connection_api <- function(conn, ...) {
   # Constant injection: API returns no length_type flag for harvest endpoint (CONTEXT.md D-07)
   df$length_type <- "harvest"
 
-  if ("species"   %in% names(df)) df$species   <- as.character(df$species)
-  if ("length_mm" %in% names(df)) df$length_mm <- .coerce_numeric(df$length_mm, "length_mm")
+  df <- .coerce_length_cols(df)
 
   validate_fetch_harvest_lengths(df) # nolint: object_usage_linter
   df
@@ -558,8 +612,11 @@ fetch_harvest_lengths.creel_connection_api <- function(conn, ...) {
 #' @param ... Reserved for future arguments.
 #'
 #' @return A data frame with canonical columns: `length_uid`, `interview_uid`,
-#'   `species` (character), `length_mm` (numeric), `length_type` (character).
-#'   Extra CSV columns are dropped.
+#'   `species` (character), `length_type` (character), and a length: `length_mm`
+#'   (numeric) for measured fish, or `length_bin` (character) with `count`
+#'   (numeric) for binned rows. At least one of the two must be mapped; the
+#'   binned pair is carried only when the source names it (GH #127). Extra CSV
+#'   columns are dropped.
 #' @export
 fetch_release_lengths <- function(conn, ...) UseMethod("fetch_release_lengths")
 
@@ -571,12 +628,12 @@ fetch_release_lengths.creel_connection_csv <- function(conn, ...) {
     interview_uid = "interview_uid_col",
     species       = "species_col",
     length_mm     = "length_mm_col",
+    length_bin    = "length_bin_col",
+    count         = "length_count_col",
     length_type   = "length_type_col"
   )
   df <- .rename_to_canonical(df, conn$schema, rename_map, "release_lengths")
-  if ("species"     %in% names(df)) df$species     <- as.character(df$species)
-  if ("length_mm"   %in% names(df)) df$length_mm   <- .coerce_numeric(df$length_mm, "length_mm")
-  if ("length_type" %in% names(df)) df$length_type <- as.character(df$length_type)
+  df <- .coerce_length_cols(df)
   validate_fetch_release_lengths(df) # nolint: object_usage_linter
   df
 }
@@ -589,27 +646,23 @@ fetch_release_lengths.creel_connection_sqlserver <- function(conn, ...) {
 #' @export
 fetch_release_lengths.creel_connection_api <- function(conn, ...) {
   raw_df <- .api_fetch(conn$con, "release_lengths")
+  fm <- conn$con$api_field_map$release_lengths
 
   # Early return for empty API response
   if (nrow(raw_df) == 0L) {
-    return(data.frame(
-      length_uid       = integer(0),
-      interview_uid    = character(0),
-      species          = character(0),
-      length_mm        = numeric(0),
-      length_type      = character(0),
-      stringsAsFactors = FALSE
-    ))
+    return(.empty_lengths_frame(fm))
   }
 
-  fm <- conn$con$api_field_map$release_lengths
   # NOTE: named per endpoint for the same reason as harvest lengths.
-  # A binned-count field, where a source has one, is not part of the canonical
-  # map and is dropped by .rename_api_to_canonical (reported, not silent).
+  # `length_bin` and `count` are the binned-release pair: a source that reports
+  # a bin label and a number of fish per bin names both here, and both reach
+  # add_lengths() (GH #127). A source that measures every fish names neither.
   api_rename_map <- c(
     interview_uid = fm$interview_uid,
     species       = fm$species,
-    length_mm     = fm$length_mm
+    length_mm     = fm$length_mm,
+    length_bin    = fm$length_bin,
+    count         = fm$count
   )
   api_rename_map <- api_rename_map[!is.na(api_rename_map) & nzchar(api_rename_map)]
   df <- .rename_api_to_canonical(raw_df, api_rename_map, "release_lengths")
@@ -622,8 +675,7 @@ fetch_release_lengths.creel_connection_api <- function(conn, ...) {
   # Constant injection: API returns no length_type flag for release endpoint (CONTEXT.md D-07)
   df$length_type <- "release"
 
-  if ("species"   %in% names(df)) df$species   <- as.character(df$species)
-  if ("length_mm" %in% names(df)) df$length_mm <- .coerce_numeric(df$length_mm, "length_mm")
+  df <- .coerce_length_cols(df)
 
   validate_fetch_release_lengths(df) # nolint: object_usage_linter
   df

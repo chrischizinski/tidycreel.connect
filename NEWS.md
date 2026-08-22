@@ -2,6 +2,26 @@
 
 ## Bug fixes
 
+* `fetch_harvest_lengths()` and `fetch_release_lengths()` now carry a length-bin
+  label and its fish count (#127). A source that reports released fish as length
+  groups has two quantities per row — the bin and the number of fish in it — and
+  the fetch layer carried neither: there was no canonical count column anywhere
+  in the package, and the only place to put a label was `length_mm`, where
+  `as.numeric()` turned "300-350" into `NA`. A distribution built from a fetched
+  binned frame was therefore weighted by **row multiplicity rather than by
+  fish**, biasing released length frequencies, mean length, and the biomass of
+  released fish toward the bins a crew happened to record most often. Nothing
+  errored and nothing warned; the numbers looked ordinary. Bins holding 1 and 5
+  fish now total 6, where they previously totalled 2.
+
+  Map `length_bin_col` and `length_count_col` on `tidycreel::creel_schema()` for
+  CSV and SQL sources, or `length_bin` and `count` in `api_field_map` for the
+  API backend, then pass the fetched `length_bin` as `add_lengths()`'s `length`
+  with `release_format = "binned"`. Both are optional and both tables accept
+  them, so a source that measures every fish is unaffected. Carrying a bin with
+  no count now warns at the fetch, and a lengths table offering neither a
+  measurement nor a bin is refused rather than returned empty-handed.
+
 * `fetch_counts()` and `fetch_interviews()` now carry stratum columns through
   on both backends, driven by the new `strata_cols` field on
   `tidycreel::creel_schema()` (#171). The rename maps previously had no entry

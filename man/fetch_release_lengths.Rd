@@ -13,8 +13,11 @@ fetch_release_lengths(conn, ...)
 }
 \value{
 A data frame with canonical columns: \code{length_uid}, \code{interview_uid},
-\code{species} (character), \code{length_mm} (numeric), \code{length_type} (character).
-Extra CSV columns are dropped.
+\code{species} (character), \code{length_type} (character), and a length: \code{length_mm}
+(numeric) for measured fish, or \code{length_bin} (character) with \code{count}
+(numeric) for binned rows. At least one of the two must be mapped; the
+binned pair is carried only when the source names it (GH #127). Extra CSV
+columns are dropped.
 }
 \description{
 Reads the release lengths table from a creel data source, renames columns

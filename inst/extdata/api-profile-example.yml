@@ -98,6 +98,13 @@ default:
       interview_uid: "InterviewID"
       species: "SpeciesCode"
       length_mm: "LengthMM"
+      # Where an API reports released fish as length groups rather than
+      # measurements, name the label and the number of fish it stands for
+      # instead of length_mm, and pass length_bin as add_lengths()' `length`
+      # with release_format = "binned". A bin carried without its count makes
+      # the length distribution weight bins by row, not by fish (GH #127).
+      # length_bin: "LengthBand"
+      # count: "GroupCount"
 
     discovery:
       creel_uid: "SurveyID"
