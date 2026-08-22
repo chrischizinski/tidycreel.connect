@@ -22,6 +22,36 @@
   fetches exactly as before, and the API path reads `value_maps` just as the CSV
   path does, since it maps a column's *values* rather than its field name.
 
+* The ingestion seam is now covered end to end (#130). `test-composition-calamus.R`
+  composes the whole path — CSV → `fetch_*()` → `creel_design()` →
+  `add_counts()`/`add_interviews()` → estimators — and asserts the result against
+  `inst/extdata/calamus-2016/reference-outputs.csv` in tidycreel. Every previous
+  test in this package checked a fetched frame's columns, types and values and
+  stopped there, which is why #126 through #129 all shipped undetected: each was
+  a column that existed upstream and never reached the calculation, and a
+  column-level test cannot see that. Standard errors are asserted alongside the
+  point estimates, because that is where a dropped component hides.
+
+  Two of the three estimands and two of the three standard errors reproduce
+  bit-for-bit. `catch_total`'s SE does not (52.9963 computed against 55.7239
+  recorded) with its point estimate identical; that is filed as #178 and left as
+  an explicit skip rather than absorbed into a tolerance, and the reference file
+  has deliberately not been regenerated to match current output.
+
+* A synthetic boat-count fixture makes the boat→angler seam reachable (#130).
+  Every real fixture in the repo is a bank-only fishery, so
+  `derive_angler_count()`'s reconstruction path could not be exercised end to
+  end. `inst/extdata/synthetic-boat-counts/` is fabricated and says so; it is
+  used to assert the seam only — that boat counts survive the fetch and change
+  the estimate by exactly `sum(angler_boats) × party_size` — never against a
+  reference value, because invented counts validate nothing.
+
+  Exercised on an instantaneous design deliberately: on a bus-route design
+  effort comes from the interview-side Horvitz–Thompson estimator, so the counts
+  table never enters `estimate_effort()` and bank-only and reconstructed counts
+  return the identical total — a seam test built there would pass whatever the
+  fetch layer did.
+
 ## Bug fixes
 
 * `fetch_counts()` now carries the time of a count, and says so when it cannot
