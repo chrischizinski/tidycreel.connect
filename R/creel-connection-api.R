@@ -166,6 +166,7 @@ creel_connect_api <- function(
     "trip_status_col", "catch_uid_col", "species_col", "catch_count_col",
     "catch_type_col", "length_uid_col", "length_mm_col", "length_bin_col",
     "length_count_col", "length_type_col",
+    "count_time_col",
     "bank_anglers_col", "angler_boats_col", "non_ang_boats_col",
     "n_anglers_col", "angler_type_col", "site_col", "circuit_col",
     "n_counted_col", "n_interviewed_col"

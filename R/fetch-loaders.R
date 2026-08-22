@@ -2,11 +2,31 @@
 # Phase 68: FETCH-01 through FETCH-06, BACKEND-01, BACKEND-04
 
 # Internal: load CSV with native BOM stripping (no locale argument needed)
-.read_csv_safe <- function(path) {
-  readr::read_csv(path, show_col_types = FALSE, progress = FALSE)
+.read_csv_safe <- function(path, as_character = character(0)) {
+  # `as_character` forces columns readr would otherwise guess a type for. A
+  # count time is the case it exists for: readr reads "16:30" as a time and
+  # hands back "16:30:00", so the label the source wrote is not the label that
+  # arrives. Reinterpreting a label is the thing this column must not do
+  # (GH #129).
+  col_types <- NULL
+  if (length(as_character) > 0L) {
+    col_types <- do.call(
+      readr::cols,
+      stats::setNames(rep(list(readr::col_character()), length(as_character)), as_character)
+    )
+  }
+  readr::read_csv(path, show_col_types = FALSE, progress = FALSE, col_types = col_types)
 }
 
 # Internal: as.numeric() that warns when coercion introduces NAs
+# Internal: is an api_field_map entry actually a field name?
+#
+# Shared by the empty-frame builders, which include an optional column only when
+# the connection names it, so a quiet day returns the same shape a busy one does.
+.field_named <- function(field) {
+  !is.null(field) && !is.na(field) && nzchar(field)
+}
+
 .coerce_numeric <- function(x, col_name) {
   result <- suppressWarnings(as.numeric(x))
   na_new <- is.na(result) & !is.na(x)
@@ -46,9 +66,8 @@
     length_type      = character(0),
     stringsAsFactors = FALSE
   )
-  named <- function(field) !is.null(field) && !is.na(field) && nzchar(field)
-  if (named(fm$length_bin)) df$length_bin <- character(0)
-  if (named(fm$count)) df$count <- numeric(0)
+  if (.field_named(fm$length_bin)) df$length_bin <- character(0)
+  if (.field_named(fm$count)) df$count <- numeric(0)
   df
 }
 
@@ -121,6 +140,62 @@
     df[[col]] <- values
   }
   df
+}
+
+# Internal: carry a count time as the label it is (GH #129).
+#
+# Deliberately character rather than parsed. `add_counts(count_time_col = )`
+# groups on this column; it needs values that distinguish one observation from
+# another, not a time of day it can do arithmetic on. Sources write clock times
+# in whatever format they please -- "16:30", "16:30:00:000", "am"/"pm" -- and
+# choosing a parse here would bake one deployment's format into the package and
+# turn every other one into NA.
+.coerce_count_time <- function(df) {
+  if ("count_time" %in% names(df)) df$count_time <- as.character(df$count_time)
+  df
+}
+
+# Internal: repeat counts on a date, with no time to tell them apart (GH #129).
+#
+# Warned here rather than left to add_counts()'s CNT-06, which tells the caller
+# to supply `count_time_col` -- a column the fetch layer has just dropped, so
+# the advice cannot be followed from a fetched frame. This names the schema
+# field that makes it reachable.
+#
+# The cost of ignoring it is not a warning: two instantaneous counts on one day
+# reach the design as two sampled days, so the day's effort is summed instead of
+# averaged and the within-day variance component is never computed.
+.warn_repeat_counts_no_time <- function(df, schema) {
+  if ("count_time" %in% names(df) || !"date" %in% names(df)) {
+    return(invisible(NULL))
+  }
+  # Keyed on date plus whatever strata came through, which is how add_counts()
+  # keys its own sampling unit. Two rows on one date in different strata are two
+  # units, not a repeat, and warning about those would be noise.
+  key_cols <- c("date", intersect(names(schema$strata_cols), names(df)))
+  n_repeat <- sum(duplicated(df[, key_cols, drop = FALSE]))
+  if (n_repeat == 0L) {
+    return(invisible(NULL))
+  }
+  cli::cli_warn(c(
+    "{n_repeat} count row{?s} repeat{?s/} a date already counted, with no count time to tell them apart.",
+    "i" = paste0(
+      "Two counts on one day are two looks at that day, not two sampled days. ",
+      "Without a time, {.fn add_counts} reads them as separate sampling units: ",
+      "the day's effort is summed rather than averaged, and the within-day ",
+      "variance component is never computed (GH #129)."
+    ),
+    "i" = paste0(
+      "Map {.field count_time_col} (CSV/SQL) or the {.field count_time} field ",
+      "(API field map) where the source records one, then pass it to ",
+      "{.code add_counts(count_time_col = count_time)}."
+    ),
+    "i" = paste0(
+      "If the rows really are distinct sampling units, name what separates ",
+      "them in {.code add_counts(unit_cols = )}."
+    )
+  ))
+  invisible(NULL)
 }
 
 # Internal: as.Date() that warns when parsing introduces NAs
@@ -410,32 +485,63 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
 #'
 #' The result carries up to three numeric count columns, so
 #' [tidycreel::add_counts()] cannot infer which one to expand into effort and
-#' will abort unless you name it:
+#' will abort unless you name it. `bank_anglers` counts anglers on shore;
+#' `angler_boats` and `non_ang_boats` count boats, not anglers. Summing the
+#' three is therefore not a total angler count -- converting boats to anglers
+#' needs a mean party size from the interviews, which is what
+#' [tidycreel::derive_angler_count()] applies:
 #'
 #' ```r
 #' counts <- fetch_counts(conn)
-#' design <- tidycreel::add_counts(design, counts, count_col = bank_anglers)
+#' counts <- tidycreel::derive_angler_count(
+#'   counts,
+#'   bank       = bank_anglers,
+#'   boat_count = angler_boats,
+#'   party_size = mean_party_size   # from your interviews
+#' )
+#' design <- tidycreel::add_counts(design, counts, count_col = angler_count)
 #' ```
 #'
-#' `bank_anglers` counts anglers on shore; `angler_boats` and `non_ang_boats`
-#' count boats, not anglers. Converting boats to anglers needs a mean party
-#' size from the interviews, so summing the three columns is not a total angler
-#' count -- build the column you want before calling `add_counts()`.
+#' Naming `count_col = bank_anglers` instead is correct only on a fishery with
+#' no boat anglers; anywhere else it drops that component of effort silently.
+#'
+#' # The grain of a count row
+#'
+#' One row is one count observation, not a day's total. Sources commonly record
+#' several counts on a sampled day, and it is the count time that tells them
+#' apart. Map `count_time_col` (CSV/SQL) or the `count_time` field (API field
+#' map) whenever the source records one, and pass the fetched column to
+#' [tidycreel::add_counts()]:
+#'
+#' ```r
+#' design <- tidycreel::add_counts(
+#'   design, counts,
+#'   count_col      = angler_count,
+#'   count_time_col = count_time
+#' )
+#' ```
+#'
+#' Without it, repeat rows on a date reach the design as separate sampled days:
+#' the day's effort is summed rather than averaged to a daily mean, and the
+#' within-day variance component is never computed (GH #129). `fetch_counts()`
+#' warns when it returns repeat rows and no count time was mapped.
 #'
 #' @param conn A `creel_connection` object created by [creel_connect()].
 #' @param ... Reserved for future arguments.
 #'
 #' @return A data frame with canonical columns: `date` (Date),
 #'   `bank_anglers` (numeric), `angler_boats` (numeric), `non_ang_boats`
-#'   (numeric). Extra CSV columns are dropped.
+#'   (numeric), plus `count_time` (character) and any stratum columns the
+#'   schema maps. Unmapped source columns are dropped.
 #' @export
 fetch_counts <- function(conn, ...) UseMethod("fetch_counts")
 
 #' @export
 fetch_counts.creel_connection_csv <- function(conn, ...) {
-  df <- .read_csv_safe(conn$con$counts)
+  df <- .read_csv_safe(conn$con$counts, as_character = conn$schema$count_time_col)
   rename_map <- c(
     date          = "date_col",
+    count_time    = "count_time_col",
     bank_anglers  = "bank_anglers_col",
     angler_boats  = "angler_boats_col",
     non_ang_boats = "non_ang_boats_col"
@@ -448,6 +554,8 @@ fetch_counts.creel_connection_csv <- function(conn, ...) {
   if ("bank_anglers"  %in% names(df)) df$bank_anglers  <- .coerce_numeric(df$bank_anglers, "bank_anglers")
   if ("angler_boats"  %in% names(df)) df$angler_boats  <- .coerce_numeric(df$angler_boats, "angler_boats")
   if ("non_ang_boats" %in% names(df)) df$non_ang_boats <- .coerce_numeric(df$non_ang_boats, "non_ang_boats")
+  df <- .coerce_count_time(df)
+  .warn_repeat_counts_no_time(df, conn$schema)
   validate_fetch_counts(df) # nolint: object_usage_linter
   df
 }
@@ -463,13 +571,19 @@ fetch_counts.creel_connection_api <- function(conn, ...) {
 
   # Early return for empty API response
   if (nrow(raw_df) == 0L) {
-    return(data.frame(
+    empty <- data.frame(
       date             = as.Date(character(0)),
       bank_anglers     = numeric(0),
       angler_boats     = numeric(0),
       non_ang_boats    = numeric(0),
       stringsAsFactors = FALSE
-    ))
+    )
+    # Same reasoning as the lengths frames: a caller whose source records a
+    # count time still selects `count_time` on a quiet day, so an empty
+    # response must not change the frame's shape (GH #129).
+    fm_empty <- conn$con$api_field_map$counts
+    if (.field_named(fm_empty$count_time)) empty$count_time <- character(0)
+    return(empty)
   }
 
   fm <- conn$con$api_field_map$counts
@@ -477,6 +591,7 @@ fetch_counts.creel_connection_api <- function(conn, ...) {
   # boat angler count derived from angler_boats * mean(anglers/boat) from interviews -- not a raw field
   api_rename_map <- c(
     date          = fm$date,
+    count_time    = fm$count_time,
     bank_anglers  = fm$bank_anglers,
     angler_boats  = fm$angler_boats,
     non_ang_boats = fm$non_ang_boats
@@ -489,6 +604,8 @@ fetch_counts.creel_connection_api <- function(conn, ...) {
   if ("bank_anglers"  %in% names(df)) df$bank_anglers  <- .coerce_numeric(df$bank_anglers, "bank_anglers")
   if ("angler_boats"  %in% names(df)) df$angler_boats  <- .coerce_numeric(df$angler_boats, "angler_boats")
   if ("non_ang_boats" %in% names(df)) df$non_ang_boats <- .coerce_numeric(df$non_ang_boats, "non_ang_boats")
+  df <- .coerce_count_time(df)
+  .warn_repeat_counts_no_time(df, conn$schema)
 
   validate_fetch_counts(df) # nolint: object_usage_linter
   df

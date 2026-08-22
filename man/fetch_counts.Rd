@@ -14,7 +14,8 @@ fetch_counts(conn, ...)
 \value{
 A data frame with canonical columns: \code{date} (Date),
 \code{bank_anglers} (numeric), \code{angler_boats} (numeric), \code{non_ang_boats}
-(numeric). Extra CSV columns are dropped.
+(numeric), plus \code{count_time} (character) and any stratum columns the
+schema maps. Unmapped source columns are dropped.
 }
 \description{
 Reads the counts table from a creel data source, renames columns to
@@ -23,14 +24,41 @@ data frame ready for \code{\link[tidycreel:add_counts]{tidycreel::add_counts()}}
 
 The result carries up to three numeric count columns, so
 \code{\link[tidycreel:add_counts]{tidycreel::add_counts()}} cannot infer which one to expand into effort and
-will abort unless you name it:
+will abort unless you name it. \code{bank_anglers} counts anglers on shore;
+\code{angler_boats} and \code{non_ang_boats} count boats, not anglers. Summing the
+three is therefore not a total angler count -- converting boats to anglers
+needs a mean party size from the interviews, which is what
+\code{\link[tidycreel:derive_angler_count]{tidycreel::derive_angler_count()}} applies:
 
 \if{html}{\out{<div class="sourceCode r">}}\preformatted{counts <- fetch_counts(conn)
-design <- tidycreel::add_counts(design, counts, count_col = bank_anglers)
+counts <- tidycreel::derive_angler_count(
+  counts,
+  bank       = bank_anglers,
+  boat_count = angler_boats,
+  party_size = mean_party_size   # from your interviews
+)
+design <- tidycreel::add_counts(design, counts, count_col = angler_count)
 }\if{html}{\out{</div>}}
 
-\code{bank_anglers} counts anglers on shore; \code{angler_boats} and \code{non_ang_boats}
-count boats, not anglers. Converting boats to anglers needs a mean party
-size from the interviews, so summing the three columns is not a total angler
-count -- build the column you want before calling \code{add_counts()}.
+Naming \code{count_col = bank_anglers} instead is correct only on a fishery with
+no boat anglers; anywhere else it drops that component of effort silently.
+}
+\section{The grain of a count row}{
+One row is one count observation, not a day's total. Sources commonly record
+several counts on a sampled day, and it is the count time that tells them
+apart. Map \code{count_time_col} (CSV/SQL) or the \code{count_time} field (API field
+map) whenever the source records one, and pass the fetched column to
+\code{\link[tidycreel:add_counts]{tidycreel::add_counts()}}:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{design <- tidycreel::add_counts(
+  design, counts,
+  count_col      = angler_count,
+  count_time_col = count_time
+)
+}\if{html}{\out{</div>}}
+
+Without it, repeat rows on a date reach the design as separate sampled days:
+the day's effort is summed rather than averaged to a daily mean, and the
+within-day variance component is never computed (GH #129). \code{fetch_counts()}
+warns when it returns repeat rows and no count time was mapped.
 }

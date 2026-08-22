@@ -106,6 +106,9 @@ validate_fetch_interviews_api <- function(df) {
 validate_fetch_counts <- function(df) {
   spec <- list(
     date          = "Date",
+    # A label distinguishing counts within a day, carried as character rather
+    # than parsed: the package must not assume one source's time format (#129).
+    count_time    = "optional",
     bank_anglers  = "numeric",
     angler_boats  = "optional",  # absent where a source counts no boats; numeric when present
     non_ang_boats = "optional"   # absent where a source counts no boats; numeric when present

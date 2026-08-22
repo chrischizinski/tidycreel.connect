@@ -104,6 +104,12 @@ default:
 
     counts:
       date: "SurveyDate"
+      # A count row is one observation, not a day's total. Name the time field
+      # if your source records several counts per sampled day: without it those
+      # rows reach add_counts() as separate sampled days, which sums the day's
+      # effort instead of averaging it (GH #129). Carried through as a label --
+      # any format your source writes is fine.
+      # count_time: "CountTime"
       # bank_anglers counts people; angler_boats and non_ang_boats count hulls.
       # Converting boats to anglers needs a party size, so summing the three is
       # not an angler total.

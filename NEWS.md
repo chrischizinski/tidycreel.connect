@@ -24,6 +24,36 @@
 
 ## Bug fixes
 
+* `fetch_counts()` now carries the time of a count, and says so when it cannot
+  (#129). A count row is one observation at one moment, not a day's total, and
+  a source that records several counts per sampled day distinguishes them by
+  time alone. No schema field could name that time and neither counts rename
+  map carried it, so the rows arrived indistinguishable: `add_counts()` read
+  them as separate sampled days, summing the day's effort instead of averaging
+  it to a daily mean, and the within-day variance component was never computed.
+  On a two-counts-per-day fixture the effort estimate came out at twice its
+  value, with `se_within` reported as `0` where the component had simply never
+  been calculated.
+
+  `add_counts()` did warn (CNT-06) and told the caller to supply
+  `count_time_col` — a column the fetch layer had just dropped, so the advice
+  could not be followed from a fetched frame. Map `count_time_col` (CSV/SQL) or
+  the `count_time` field (API field map), and `fetch_counts()` now warns when it
+  returns repeat rows on a date and no count time was mapped, keyed on date plus
+  strata the way `add_counts()` keys its own sampling unit — two sections
+  counted on one day are two units, not a repeat.
+
+  The column is carried as written. `readr` reads `"16:30"` as a time and hands
+  back `"16:30:00"`, so a mapped count time is now read as character: the fetch
+  must not reinterpret a label whose format belongs to the source.
+
+* `fetch_counts()` documentation no longer recommends `count_col = bank_anglers`
+  as the runnable example (#129). On any fishery with boat anglers that silently
+  omits an entire component of effort. The example now uses
+  `tidycreel::derive_angler_count()`, which #126 made available, and the
+  documented return value lists the stratum columns `fetch_counts()` has carried
+  since #171.
+
 * `fetch_harvest_lengths()` and `fetch_release_lengths()` now carry a length-bin
   label and its fish count (#127). A source that reports released fish as length
   groups has two quantities per row — the bin and the number of fish in it — and
