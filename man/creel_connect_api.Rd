@@ -68,6 +68,13 @@ package:
 }\if{html}{\out{</div>}}
 }
 
+\subsection{Requests are read-only}{
+
+Every request this connection makes is a \code{GET}. Nothing is posted, patched
+or deleted, and no file is written locally, so pointing it at a production
+service cannot modify anything there.
+}
+
 \subsection{Authentication}{
 
 Three auth modes are supported via the \code{auth} argument:

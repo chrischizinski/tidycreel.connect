@@ -6,7 +6,7 @@
 \alias{tidycreel.connect-package}
 \title{tidycreel.connect: Database and File Connections for Tidycreel}
 \description{
-Provides connection objects and data loaders for the tidycreel creel survey analysis package. Supports SQL Server (via ODBC), DBI-compliant databases, flat CSV files, and REST APIs described by a caller-supplied profile.
+Provides connection objects and data loaders for the tidycreel creel survey analysis package. Loads data from flat CSV files and from REST APIs described by a caller-supplied profile. Connections to SQL Server (via ODBC) and other DBI-compliant databases can be constructed, but their data loaders are not implemented yet.
 }
 \author{
 \strong{Maintainer}: Christopher Chizinski \email{cchizinski2@unl.edu}

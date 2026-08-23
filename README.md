@@ -4,10 +4,14 @@
 [tidycreel](https://github.com/chrischizinski/tidycreel) creel survey package.**
 
 tidycreel.connect provides a unified connection layer that loads interview,
-count, catch, and length data from flat CSV files or a SQL Server database,
-renames columns to the canonical names expected by tidycreel, and coerces
-types consistently — so the rest of your analysis code doesn't care where
-the data came from.
+count, catch, and length data from flat CSV files or a REST API, renames
+columns to the canonical names expected by tidycreel, and coerces types
+consistently — so the rest of your analysis code doesn't care where the data
+came from.
+
+A SQL Server backend builds a connection and is configurable, but its
+`fetch_*()` methods are **not implemented yet** and abort when called. Use the
+CSV or API backend for data you need to load today.
 
 ---
 
@@ -20,7 +24,10 @@ remotes::install_github("chrischizinski/tidycreel")
 remotes::install_github("chrischizinski/tidycreel", subdir = "tidycreel.connect")
 ```
 
-### ODBC prerequisites (SQL Server backend only)
+### ODBC prerequisites (SQL Server connections only)
+
+These are needed to open a SQL Server connection. Fetching from one is not
+implemented yet — see the note above.
 
 You need both the **R `odbc` package** and a **native ODBC driver** for your OS.
 
@@ -103,30 +110,11 @@ sudo dnf install -y unixODBC-devel
 ```r
 library(tidycreel)
 library(tidycreel.connect)
-library(config)
 
-# 1. Define a column-mapping schema
-schema <- creel_schema(
-  survey_type       = "instantaneous",
-  interview_uid_col = "InterviewID",
-  date_col          = "SurveyDate",
-  effort_col        = "EffortHours",
-  catch_col         = "TotalCatch",
-  trip_status_col   = "TripStatus",
-  count_col         = "AnglerCount",
-  catch_uid_col     = "CatchUID",
-  species_col       = "SpeciesCode",
-  catch_count_col   = "CatchCount",
-  catch_type_col    = "CatchCategory",
-  length_uid_col    = "LengthUID",
-  length_mm_col     = "LengthMM",
-  length_type_col   = "LengthType"
-)
-
-# 2. Connect via YAML config
+# 1. Connect via YAML config — the profile carries the column mapping
 conn <- creel_connect_from_yaml("creel-config.yml")
 
-# 3. Fetch data
+# 2. Fetch data
 interviews      <- fetch_interviews(conn)
 counts          <- fetch_counts(conn)
 catch_data      <- fetch_catch(conn)
@@ -147,9 +135,38 @@ default:
     release_lengths: data/release_lengths.csv
   schema:
     survey_type: instantaneous
+    # What your columns are called. Keys are tidycreel's canonical names, with
+    # no `_col` suffix; an unmapped column is dropped on the way in.
+    columns:
+      interview_uid: InterviewID
+      date:          SurveyDate
+      effort:        EffortHours
+      catch:         TotalCatch
+      trip_status:   TripStatus
+      bank_anglers:  BankAnglers
+      angler_boats:  AnglerBoats
+      catch_uid:     CatchUID
+      species:       SpeciesCode
+      catch_count:   CatchCount
+      catch_type:    CatchCategory
+      length_uid:    LengthUID
+      length_mm:     LengthMM
+      length_type:   LengthType
+```
+
+A full commented template is installed with the package:
+
+```r
+system.file("extdata", "csv-profile-example.yml", package = "tidycreel.connect")
 ```
 
 ### SQL Server backend
+
+> **Not implemented yet.** `creel_connect_from_yaml()` opens the connection, but
+> `fetch_interviews()`, `fetch_counts()`, `fetch_catch()` and both lengths
+> fetchers abort with "not yet implemented" for a SQL Server connection, as do
+> `list_creels()` and `search_creels()`. The profile shape below is what will
+> configure it.
 
 **creel-config.yml** (SQL Server with password auth):
 
@@ -162,24 +179,25 @@ default:
   username:  !expr Sys.getenv("CREEL_USER")
   password:  !expr Sys.getenv("CREEL_PASS")
   schema:
-    survey_type:       instantaneous
-    interviews_table:  vwInterviews
-    counts_table:      vwCounts
-    catch_table:       vwCatch
-    lengths_table:     vwLengths
-    interview_uid_col: InterviewID
-    date_col:          SurveyDate
-    effort_col:        EffortHours
-    catch_col:         TotalCatch
-    trip_status_col:   TripStatus
-    count_col:         AnglerCount
-    catch_uid_col:     CatchUID
-    species_col:       SpeciesCode
-    catch_count_col:   CatchCount
-    catch_type_col:    CatchCategory
-    length_uid_col:    LengthUID
-    length_mm_col:     LengthMM
-    length_type_col:   LengthType
+    survey_type:      instantaneous
+    interviews_table: vwInterviews
+    counts_table:     vwCounts
+    catch_table:      vwCatch
+    lengths_table:    vwLengths
+    columns:
+      interview_uid: InterviewID
+      date:          SurveyDate
+      effort:        EffortHours
+      catch:         TotalCatch
+      trip_status:   TripStatus
+      count:         AnglerCount
+      catch_uid:     CatchUID
+      species:       SpeciesCode
+      catch_count:   CatchCount
+      catch_type:    CatchCategory
+      length_uid:    LengthUID
+      length_mm:     LengthMM
+      length_type:   LengthType
 ```
 
 Set credentials before connecting — never store them as plain text:

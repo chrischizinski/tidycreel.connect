@@ -27,6 +27,27 @@
   Every column name in it is invented; the package ships none for any
   organisation's export.
 
+## Documentation
+
+* The docs said connections are read-only nowhere, so a user pointed at an
+  agency's production database had to read the source to establish it (#169).
+  `?creel_connect`, `?creel_connect_api` and the getting-started vignette now
+  state it: no table is created, altered, dropped or written to, no row is
+  inserted or updated, and no file is written — including the CSV files a
+  connection reads. The API backend issues `GET` requests only.
+
+* **The SQL Server backend was described as working, and is not.** All five of
+  its `fetch_*()` methods are stubs that abort with "not yet implemented", as do
+  `list_creels()` and `search_creels()`, while `DESCRIPTION`, the README and the
+  vignette all listed it as a supported source of data. Those now say plainly
+  that a SQL Server connection can be constructed but not fetched from. New
+  tests pin the five stubs so implementing them fails the tests that describe
+  them as missing.
+
+* The README's CSV example built a `creel_schema()` object that it then never
+  passed to anything — the #176 gap in miniature. It now shows the mapping
+  where it belongs, in the profile's `columns:` block.
+
 ## Bug fixes
 
 * A fetch that mapped no columns at all reached its `validate_fetch_*()` abort

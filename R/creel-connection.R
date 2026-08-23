@@ -25,6 +25,17 @@ new_creel_connection <- function(backend, con, schema, status, subclass = NULL) 
 #'   `catch`, `harvest_lengths`, `release_lengths` pointing to CSV file paths.
 #'   File existence is checked immediately at connection creation.
 #'
+#' A DBI connection can be constructed, but the `fetch_*()` methods for it are
+#' not implemented yet and abort when called; the CSV backend loads data today.
+#'
+#' ## Connections are read-only
+#'
+#' Nothing in this package writes. A connection only ever reads: no table is
+#' created, altered, dropped or written to, no row is inserted or updated, and
+#' no file is written — including the CSV files a connection reads. Pointing a
+#' connection at a production database or an agency's live export cannot modify
+#' it.
+#'
 #' @param con A `DBIConnection` object (DBI backend) or a named list of CSV
 #'   file paths (CSV backend). For the CSV backend the list must contain keys:
 #'   `interviews`, `counts`, `catch`, `harvest_lengths`, `release_lengths`.

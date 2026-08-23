@@ -41,10 +41,10 @@ Keeping the profile outside your analysis code is what lets the same script
 run against a different organisation's API by pointing at a different file.
 }
 
-\subsection{CSV and SQL Server profiles}{
+\subsection{CSV profiles}{
 
-Both of these backends resolve every canonical column through the schema, so
-the profile has to say what your columns are called. Name them under
+The CSV backend resolves every canonical column through the schema, so the
+profile has to say what your columns are called. Name them under
 \verb{schema: columns:}, keyed by tidycreel's canonical name with no \verb{_col}
 suffix:
 
@@ -64,6 +64,10 @@ reports as a missing required column. A commented template is installed at
 
 \code{backend: api} ignores column mappings and reads raw JSON keys from
 \code{field_map}, so a \verb{columns:} block there is an error rather than a no-op.
+
+\code{backend: sqlserver} builds a connection, but its \verb{fetch_*()} methods are not
+implemented yet and abort when called, so a \verb{columns:} block is accepted and
+currently has nothing to act on.
 }
 }
 \examples{

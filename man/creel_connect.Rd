@@ -27,6 +27,17 @@ A \code{creel_connection} S3 object.
 \code{catch}, \code{harvest_lengths}, \code{release_lengths} pointing to CSV file paths.
 File existence is checked immediately at connection creation.
 }
+
+A DBI connection can be constructed, but the \verb{fetch_*()} methods for it are
+not implemented yet and abort when called; the CSV backend loads data today.
+\subsection{Connections are read-only}{
+
+Nothing in this package writes. A connection only ever reads: no table is
+created, altered, dropped or written to, no row is inserted or updated, and
+no file is written — including the CSV files a connection reads. Pointing a
+connection at a production database or an agency's live export cannot modify
+it.
+}
 }
 \examples{
 \dontrun{

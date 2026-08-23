@@ -26,6 +26,12 @@
 #' system.file("extdata", "api-profile-example.yml", package = "tidycreel.connect")
 #' ```
 #'
+#' ## Requests are read-only
+#'
+#' Every request this connection makes is a `GET`. Nothing is posted, patched
+#' or deleted, and no file is written locally, so pointing it at a production
+#' service cannot modify anything there.
+#'
 #' ## Authentication
 #'
 #' Three auth modes are supported via the `auth` argument:

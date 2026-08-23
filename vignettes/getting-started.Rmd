@@ -18,16 +18,27 @@ knitr::opts_chunk$set(
 
 **tidycreel.connect** provides a unified connection layer for the
 [tidycreel](https://github.com/chrischizinski/tidycreel) creel survey package.
-It lets you load interview, count, catch, and length data from two backends:
+It lets you load interview, count, catch, and length data from three backends:
 
-| Backend | When to use |
-|---------|-------------|
-| **CSV** | Flat files from a data export or field laptop |
-| **SQL Server** | An agency production database |
-| **REST API** | A service returning JSON, described by a profile you supply |
+| Backend | When to use | Status |
+|---------|-------------|--------|
+| **CSV** | Flat files from a data export or field laptop | Loads data |
+| **REST API** | A service returning JSON, described by a profile you supply | Loads data |
+| **SQL Server** | An agency production database | Connects only — see below |
 
-The same `creel_connection` object is accepted by all `fetch_*()` functions
-and passes cleanly into `tidycreel::add_interviews()`.
+A CSV or API `creel_connection` is accepted by every `fetch_*()` function and
+passes cleanly into `tidycreel::add_interviews()`. A SQL Server connection can
+be constructed and printed, but its `fetch_*()` methods are **not implemented
+yet** and abort when called, as do `list_creels()` and `search_creels()`.
+
+### Connections are read-only
+
+No backend writes anything. The CSV backend only reads the files named in the
+schema; the API backend issues `GET` requests only; a SQL Server connection is
+opened and never issues a statement. No table is created, altered, dropped or
+written to, no row is inserted or updated, and no file is written — including
+the files a CSV connection reads. Pointing a connection at a production
+database or an agency's live export cannot modify it.
 
 ## Installation prerequisites
 

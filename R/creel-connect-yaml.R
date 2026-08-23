@@ -27,10 +27,10 @@
 #' Keeping the profile outside your analysis code is what lets the same script
 #' run against a different organisation's API by pointing at a different file.
 #'
-#' ## CSV and SQL Server profiles
+#' ## CSV profiles
 #'
-#' Both of these backends resolve every canonical column through the schema, so
-#' the profile has to say what your columns are called. Name them under
+#' The CSV backend resolves every canonical column through the schema, so the
+#' profile has to say what your columns are called. Name them under
 #' `schema: columns:`, keyed by tidycreel's canonical name with no `_col`
 #' suffix:
 #' ```yaml
@@ -48,6 +48,10 @@
 #' ```
 #' `backend: api` ignores column mappings and reads raw JSON keys from
 #' `field_map`, so a `columns:` block there is an error rather than a no-op.
+#'
+#' `backend: sqlserver` builds a connection, but its `fetch_*()` methods are not
+#' implemented yet and abort when called, so a `columns:` block is accepted and
+#' currently has nothing to act on.
 #'
 #' @param path Path to the YAML config file. Must exist.
 #' @param config Environment block to use (default: `"default"`). Passed to
