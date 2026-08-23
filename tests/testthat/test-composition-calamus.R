@@ -161,25 +161,41 @@ test_that("a fetched Calamus design reproduces the reference catch total", {
   got <- suppressWarnings(tidycreel::estimate_total_catch(design))
 
   expect_equal(got$estimates$estimate, want$estimate, tolerance = 1e-6)
+  # The SE too. This row's SE was re-baselined at v3.0.0 and the reason is
+  # recorded in the fixture README; asserting only the point estimate is what
+  # let the stale value sit unnoticed from v1.7.0 to v4.0.0 (GH #178).
+  expect_equal(got$estimates$se, want$se, tolerance = 1e-6)
 })
 
-test_that("the reference catch SE is not reproducible and is not asserted here", {
-  # Deliberately not asserted, and deliberately not quietly dropped either.
+test_that("the catch total drops incomplete trips, moving the SE but not the estimate", {
+  # Why the reference catch SE moved between v1.7.0 and v3.0.0, asserted rather
+  # than described: v3.0.0 (58e0424b, PR #114) routed the bus-route catch total
+  # through br_complete_trips_only(), which the harvest total had always applied.
   #
-  # reference-outputs.csv was generated at v1.7.0 and never regenerated. Two of
-  # its three point estimates reproduce bit-for-bit above, as do the effort and
-  # harvest standard errors -- but catch_total's SE computes as 52.9963 against
-  # a recorded 55.7239, with the point estimate identical. A moved SE under a
-  # fixed point estimate is this package's most dangerous shape, so it is left
-  # visible rather than absorbed into a tolerance or papered over by rewriting
-  # the reference to match current output (which would assert the package
-  # against itself).
-  #
-  # #144 is not the explanation: it moves affected SEs *upward*, and this one is
-  # lower. The trip filter is not either -- the point estimate is invariant to
-  # it on this fixture. Filed as GH #178, with the two candidate explanations
-  # (stale reference vs live variance regression) and how to tell them apart.
-  skip("catch_total SE diverges from the v1.7.0 reference (52.9963 vs 55.7239) -- GH #178")
+  # The two incomplete rows on this fixture (interview_uid 5) both carry
+  # catch_count = 0, so the filter cannot move the Horvitz-Thompson sum -- only
+  # the interview count behind the variance, 24 -> 22. That is why the earlier
+  # reading of this divergence was wrong: "the point estimate is invariant to the
+  # trip filter" is what zero-catch rows guarantee, not evidence the filter is
+  # unrelated to the SE.
+  design <- build_calamus_design(calamus_conn())
+  ref    <- reference_outputs()
+  want   <- ref[ref$estimand == "catch_total", ]
+
+  got <- suppressWarnings(tidycreel::estimate_total_catch(design))
+  expect_equal(got$estimates$n, 22)
+
+  # Relabelling the two incomplete rows defeats the filter and must recover the
+  # pre-v3.0.0 SE exactly -- the point estimate staying put while the SE moves is
+  # the whole finding.
+  unfiltered <- build_calamus_design(calamus_conn())
+  unfiltered$interviews[[unfiltered$trip_status_col]] <- "complete"
+  got_all <- suppressWarnings(tidycreel::estimate_total_catch(unfiltered))
+
+  expect_equal(got_all$estimates$n, 24)
+  expect_equal(got_all$estimates$estimate, got$estimates$estimate, tolerance = 1e-9)
+  expect_equal(got_all$estimates$se, 55.7238941653612, tolerance = 1e-6)
+  expect_false(isTRUE(all.equal(got_all$estimates$se, want$se, tolerance = 1e-6)))
 })
 
 test_that("a fetched Calamus design reproduces the reference harvest total", {

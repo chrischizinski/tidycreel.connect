@@ -32,11 +32,15 @@
   column-level test cannot see that. Standard errors are asserted alongside the
   point estimates, because that is where a dropped component hides.
 
-  Two of the three estimands and two of the three standard errors reproduce
-  bit-for-bit. `catch_total`'s SE does not (52.9963 computed against 55.7239
-  recorded) with its point estimate identical; that is filed as #178 and left as
-  an explicit skip rather than absorbed into a tolerance, and the reference file
-  has deliberately not been regenerated to match current output.
+  All three estimands and all three standard errors now reproduce. `catch_total`'s
+  SE at first did not (52.9963 computed against 55.7239 recorded) with its point
+  estimate identical, and was held as an explicit skip rather than absorbed into
+  a tolerance while #178 established why. It was the reference that was stale:
+  v3.0.0 put the bus-route catch total behind `br_complete_trips_only()` and the
+  v1.7.0 file predates that. The reference row is re-baselined in tidycreel and
+  the skip is replaced by a test that asserts the mechanism — that relabelling
+  the fixture's two zero-catch incomplete rows recovers the pre-v3.0.0 SE exactly
+  while leaving the point estimate where it was.
 
 * A synthetic boat-count fixture makes the boat→angler seam reachable (#130).
   Every real fixture in the repo is a bank-only fishery, so
