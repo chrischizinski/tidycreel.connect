@@ -258,7 +258,13 @@
     }
   }
   result <- df[, keep, drop = FALSE]
-  names(result) <- names(keep)
+  # names(keep) is NULL when nothing mapped, which tibble deprecates rather than
+  # reading as "no columns" -- this path reads CSVs through readr, so the result
+  # is a tibble. The caller still aborts at validate_fetch_*(); this only keeps
+  # that abort from arriving behind two deprecation warnings. The API twin above
+  # builds a base data.frame, which takes NULL names silently, so it is left as
+  # it was.
+  names(result) <- if (length(keep) > 0L) names(keep) else character(0)
   .report_dropped_cols(names(df), keep, table, "creel_schema")
   result
 }

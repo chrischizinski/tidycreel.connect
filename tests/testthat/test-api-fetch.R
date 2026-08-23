@@ -49,3 +49,23 @@ test_that(".api_fetch() aborts after exhausting 3 retries on 429 (API-06)", {
   conn <- make_api_conn()
   expect_error(fetch_interviews(conn), "API request failed")
 })
+
+test_that("a payload matching no mapped field aborts without deprecation noise", {
+  # The API twin of the CSV empty-rename case, which turns out NOT to share its
+  # defect: .api_fetch() builds a base data.frame, and base takes NULL names
+  # silently where a tibble deprecates. The guard the CSV path needed is a no-op
+  # here, so this pins the behaviour rather than a fix -- and would catch it if
+  # the API loader ever returns a tibble. What must hold either way is that an
+  # unmapped payload aborts naming the required columns, and nothing else.
+  httr2::local_mocked_responses(function(req) {
+    httr2::response(
+      200,
+      headers = "Content-Type: application/json",
+      body    = charToRaw('[{"Wingspan":1,"Plumage":"blue"}]')
+    )
+  })
+  conn <- make_api_conn()
+  expect_no_warning(
+    expect_error(suppressMessages(fetch_interviews(conn)), "interview_uid|column missing")
+  )
+})

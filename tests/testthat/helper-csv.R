@@ -206,3 +206,66 @@ make_test_csv_numeric_species <- function() {
 
   paths
 }
+
+# Helper: the same fixture written with a source's own column headers, so a
+# test can tell a profile that declares column mappings apart from one that
+# only works because the CSV was already canonical (GH #176).
+make_agency_csv <- function() {
+  dir <- withr::local_tempdir(.local_envir = parent.frame())
+
+  interviews <- data.frame(
+    InterviewID = 1L:2L,
+    SurveyDate = as.Date(c("2024-06-01", "2024-06-02")),
+    TotalCatch = c(3L, 0L),
+    HoursFished = c(2.5, 1.0),
+    TripStatus = c("complete", "incomplete"),
+    stringsAsFactors = FALSE
+  )
+  counts <- data.frame(
+    SurveyDate = as.Date(c("2024-06-01", "2024-06-02")),
+    BankAnglers = c(12L, 8L),
+    AnglerBoats = c(0L, 0L),
+    NonAnglerBoats = c(0L, 0L),
+    stringsAsFactors = FALSE
+  )
+  catch <- data.frame(
+    CatchUID = 1L:2L,
+    InterviewID = c(1L, 1L),
+    SpeciesCode = c("walleye", "walleye"),
+    CatchCount = c(2L, 1L),
+    CatchCategory = c("harvest", "release"),
+    stringsAsFactors = FALSE
+  )
+  harvest_lengths <- data.frame(
+    LengthUID = 1L,
+    InterviewID = 1L,
+    SpeciesCode = "walleye",
+    LengthMM = 450.0,
+    LengthType = "harvest",
+    stringsAsFactors = FALSE
+  )
+  release_lengths <- data.frame(
+    LengthUID = 2L,
+    InterviewID = 1L,
+    SpeciesCode = "walleye",
+    LengthMM = 380.5,
+    LengthType = "release",
+    stringsAsFactors = FALSE
+  )
+
+  paths <- list(
+    interviews      = file.path(dir, "interviews.csv"),
+    counts          = file.path(dir, "counts.csv"),
+    catch           = file.path(dir, "catch.csv"),
+    harvest_lengths = file.path(dir, "harvest_lengths.csv"),
+    release_lengths = file.path(dir, "release_lengths.csv")
+  )
+
+  utils::write.csv(interviews, paths$interviews, row.names = FALSE)
+  utils::write.csv(counts, paths$counts, row.names = FALSE)
+  utils::write.csv(catch, paths$catch, row.names = FALSE)
+  utils::write.csv(harvest_lengths, paths$harvest_lengths, row.names = FALSE)
+  utils::write.csv(release_lengths, paths$release_lengths, row.names = FALSE)
+
+  paths
+}

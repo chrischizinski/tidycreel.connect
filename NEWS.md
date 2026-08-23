@@ -1,3 +1,39 @@
+# tidycreel.connect 0.4.0
+
+## New features
+
+* A YAML profile can declare what the source's columns are called, under a new
+  `columns:` block inside `schema:` (#176). The CSV and SQL Server backends
+  resolve every canonical column through the schema, so before this a profile
+  only worked against a source whose columns already carried tidycreel's
+  names — the one case where a schema is not needed at all. Keys are canonical
+  names with no `_col` suffix, matching the way `value_maps` is keyed:
+
+  ```yaml
+  schema:
+    survey_type: instantaneous
+    columns:
+      interview_uid: InterviewID
+      date: SurveyDate
+  ```
+
+  A key that is not a canonical column name aborts and names itself, as does
+  one written with the `_col` suffix. `backend: api` reads raw JSON keys from
+  `field_map` and ignores column mappings, so a `columns:` block there is an
+  error rather than a silent no-op.
+
+* A commented CSV profile template ships alongside the API one, at
+  `system.file("extdata", "csv-profile-example.yml", package = "tidycreel.connect")`.
+  Every column name in it is invented; the package ships none for any
+  organisation's export.
+
+## Bug fixes
+
+* A fetch that mapped no columns at all reached its `validate_fetch_*()` abort
+  behind two tibble deprecation warnings, because the empty rename set names to
+  `NULL`. The abort is unchanged — it is the one that names every required
+  column — and now arrives on its own.
+
 # tidycreel.connect 0.3.0
 
 ## New features

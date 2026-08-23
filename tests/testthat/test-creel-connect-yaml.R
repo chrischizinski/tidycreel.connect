@@ -305,3 +305,144 @@ test_that("a profile's declarations actually reach a fetch", {
   expect_equal(iv$trip_status, c("complete", "incomplete"))
   expect_equal(iv$day_type, c("weekday", "weekend"))
 })
+
+# GH #176: a profile has to be able to say what the source's columns are called.
+# Without a columns block the CSV backend only works against an already-canonical
+# export, which is the one case that needs no schema at all.
+make_agency_yaml <- function(paths, columns_block) {
+  yaml_path <- withr::local_tempfile(fileext = ".yml", .local_envir = parent.frame())
+  writeLines(c(
+    "default:",
+    "  backend: csv",
+    "  files:",
+    paste0("    interviews: ", paths$interviews),
+    paste0("    counts: ", paths$counts),
+    paste0("    catch: ", paths$catch),
+    paste0("    harvest_lengths: ", paths$harvest_lengths),
+    paste0("    release_lengths: ", paths$release_lengths),
+    "  schema:",
+    "    survey_type: instantaneous",
+    columns_block
+  ), yaml_path)
+  yaml_path
+}
+
+agency_columns_block <- c(
+  "    columns:",
+  "      interview_uid: InterviewID",
+  "      date: SurveyDate",
+  "      catch: TotalCatch",
+  "      effort: HoursFished",
+  "      trip_status: TripStatus",
+  "      bank_anglers: BankAnglers",
+  "      angler_boats: AnglerBoats",
+  "      non_ang_boats: NonAnglerBoats",
+  "      catch_uid: CatchUID",
+  "      species: SpeciesCode",
+  "      catch_count: CatchCount",
+  "      catch_type: CatchCategory",
+  "      length_uid: LengthUID",
+  "      length_mm: LengthMM",
+  "      length_type: LengthType"
+)
+
+test_that("a YAML columns block carries source column names into the schema", {
+  skip_if_not_installed("config")
+  skip_if_not_installed("withr")
+  paths <- make_agency_csv()
+  conn <- creel_connect_from_yaml(make_agency_yaml(paths, agency_columns_block))
+  expect_equal(conn$schema$date_col, "SurveyDate")
+  expect_equal(conn$schema$interview_uid_col, "InterviewID")
+})
+
+test_that("a profile-configured CSV source is fetched under canonical names", {
+  skip_if_not_installed("config")
+  skip_if_not_installed("withr")
+  paths <- make_agency_csv()
+  conn <- creel_connect_from_yaml(make_agency_yaml(paths, agency_columns_block))
+  interviews <- suppressMessages(fetch_interviews(conn))
+  # The values, not just the names: a rename that dropped a column would leave
+  # the canonical name present but empty.
+  expect_true(all(c("interview_uid", "date", "catch_count") %in% names(interviews)))
+  expect_equal(nrow(interviews), 2L)
+  expect_equal(interviews$catch_count, c(3L, 0L))
+  expect_equal(as.character(interviews$date), c("2024-06-01", "2024-06-02"))
+})
+
+test_that("an agency-named CSV without a columns block still fails loudly", {
+  skip_if_not_installed("config")
+  skip_if_not_installed("withr")
+  paths <- make_agency_csv()
+  conn <- creel_connect_from_yaml(make_agency_yaml(paths, character(0)))
+  # Named required columns, and nothing else: an unmapped table used to reach
+  # the abort behind two tibble deprecation warnings from an empty rename.
+  expect_no_warning(
+    expect_error(suppressMessages(fetch_interviews(conn)), "column missing|missing")
+  )
+})
+
+test_that("an unknown columns key names itself rather than dropping silently", {
+  skip_if_not_installed("config")
+  skip_if_not_installed("withr")
+  paths <- make_agency_csv()
+  expect_error(
+    creel_connect_from_yaml(
+      make_agency_yaml(paths, c("    columns:", "      date: SurveyDate", "      wingspan: Wingspan"))
+    ),
+    "wingspan"
+  )
+})
+
+test_that("a _col suffix in a columns key is named as the mistake it is", {
+  skip_if_not_installed("config")
+  skip_if_not_installed("withr")
+  paths <- make_agency_csv()
+  expect_error(
+    creel_connect_from_yaml(
+      make_agency_yaml(paths, c("    columns:", "      date_col: SurveyDate"))
+    ),
+    "_col"
+  )
+})
+
+test_that("a columns block under backend: api is an error, not a no-op", {
+  skip_if_not_installed("config")
+  skip_if_not_installed("withr")
+  yaml_path <- withr::local_tempfile(fileext = ".yml")
+  writeLines(c(
+    "default:",
+    "  backend: api",
+    "  base_url: \"https://api.example.org/creel/\"",
+    "  uid_param: \"survey_id\"",
+    "  creel_uids:",
+    "    - \"survey-2016-001\"",
+    "  endpoints:",
+    "    interviews: \"interviews\"",
+    "  field_map:",
+    "    interviews:",
+    "      interview_uid: \"InterviewId\"",
+    "  schema:",
+    "    survey_type: instantaneous",
+    "    columns:",
+    "      date: SurveyDate"
+  ), yaml_path)
+  expect_error(creel_connect_from_yaml(yaml_path), "field_map")
+})
+
+test_that("the shipped CSV template declares columns creel_schema() accepts", {
+  skip_if_not_installed("yaml")
+  path <- system.file("extdata", "csv-profile-example.yml", package = "tidycreel.connect")
+  skip_if(!nzchar(path))
+  cfg <- yaml::read_yaml(path)$default
+
+  expect_silent(tidycreel.connect:::.validate_yaml_config(cfg, path))
+  args <- tidycreel.connect:::.yaml_schema_columns(cfg$schema$columns)
+  # Every key resolves to a real creel_schema() argument: a template that names
+  # a column the schema does not have teaches a mapping that silently drops.
+  expect_true(all(names(args) %in% names(formals(tidycreel::creel_schema))))
+  expect_equal(args$date_col, "SurveyDate")
+  # The template is what a user copies, so the count components have to be in
+  # it -- an example that omits them teaches a counts table with no anglers.
+  expect_equal(args$bank_anglers_col, "BankAnglers")
+  expect_equal(args$angler_boats_col, "AnglerBoats")
+})

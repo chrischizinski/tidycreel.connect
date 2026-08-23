@@ -40,6 +40,31 @@ installed at
 Keeping the profile outside your analysis code is what lets the same script
 run against a different organisation's API by pointing at a different file.
 }
+
+\subsection{CSV and SQL Server profiles}{
+
+Both of these backends resolve every canonical column through the schema, so
+the profile has to say what your columns are called. Name them under
+\verb{schema: columns:}, keyed by tidycreel's canonical name with no \verb{_col}
+suffix:
+
+\if{html}{\out{<div class="sourceCode yaml">}}\preformatted{schema:
+  survey_type: instantaneous
+  columns:
+    interview_uid: InterviewID
+    date: SurveyDate
+    effort: HoursFished
+}\if{html}{\out{</div>}}
+
+Omit a column and it is dropped on the way in, which \code{fetch_interviews()}
+reports as a missing required column. A commented template is installed at
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{system.file("extdata", "csv-profile-example.yml", package = "tidycreel.connect")
+}\if{html}{\out{</div>}}
+
+\code{backend: api} ignores column mappings and reads raw JSON keys from
+\code{field_map}, so a \verb{columns:} block there is an error rather than a no-op.
+}
 }
 \examples{
 \dontrun{

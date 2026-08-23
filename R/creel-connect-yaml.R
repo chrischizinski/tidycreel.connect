@@ -27,6 +27,28 @@
 #' Keeping the profile outside your analysis code is what lets the same script
 #' run against a different organisation's API by pointing at a different file.
 #'
+#' ## CSV and SQL Server profiles
+#'
+#' Both of these backends resolve every canonical column through the schema, so
+#' the profile has to say what your columns are called. Name them under
+#' `schema: columns:`, keyed by tidycreel's canonical name with no `_col`
+#' suffix:
+#' ```yaml
+#' schema:
+#'   survey_type: instantaneous
+#'   columns:
+#'     interview_uid: InterviewID
+#'     date: SurveyDate
+#'     effort: HoursFished
+#' ```
+#' Omit a column and it is dropped on the way in, which `fetch_interviews()`
+#' reports as a missing required column. A commented template is installed at
+#' ```r
+#' system.file("extdata", "csv-profile-example.yml", package = "tidycreel.connect")
+#' ```
+#' `backend: api` ignores column mappings and reads raw JSON keys from
+#' `field_map`, so a `columns:` block there is an error rather than a no-op.
+#'
 #' @param path Path to the YAML config file. Must exist.
 #' @param config Environment block to use (default: `"default"`). Passed to
 #'   `config::get(config = ...)`. Common values: `"default"`, `"production"`,
@@ -124,6 +146,13 @@ creel_connect_from_yaml <- function(path, config = "default") {
     # uid_param, endpoints and field_map all describe one deployment.
     required_keys <- c("base_url", "uid_param", "creel_uids", "endpoints", "field_map")
     missing_keys <- required_keys[vapply(required_keys, function(k) is.null(cfg[[k]]), logical(1))]
+    if (!is.null(cfg$schema$columns)) {
+      cli::cli_abort(c(
+        "{.field schema.columns} does not apply to {.code backend: api}: {.file {path}}",
+        "x" = "Column mappings name CSV and SQL Server columns, not JSON fields.",
+        "i" = "Name the raw JSON keys in {.field field_map} instead."
+      ))
+    }
     if (length(missing_keys) > 0L) {
       template <- "system.file(\"extdata\", \"api-profile-example.yml\", package = \"tidycreel.connect\")" # nolint: object_usage_linter, line_length_linter
       cli::cli_abort(c(
@@ -205,6 +234,12 @@ creel_connect_from_yaml <- function(path, config = "default") {
   # `strata =` aborts -- exactly what GH #171 fixed for a hand-built schema.
   if (!is.null(cfg$schema$strata_cols)) {
     schema_args$strata_cols <- .yaml_strata_cols(cfg$schema$strata_cols)
+  }
+  # The CSV and SQL Server backends resolve every canonical column through the
+  # schema, so without these a profile only works against a source that already
+  # uses tidycreel's names -- the one case needing no schema at all (GH #176).
+  if (!is.null(cfg$schema$columns)) {
+    schema_args <- c(schema_args, .yaml_schema_columns(cfg$schema$columns))
   }
   schema <- do.call(tidycreel::creel_schema, schema_args)
 
@@ -300,4 +335,47 @@ creel_connect_from_yaml <- function(path, config = "default") {
     names(flat) <- names(unlist(block, use.names = TRUE))
   }
   flat
+}
+
+# Internal: turn the YAML `columns` block into the `<canonical>_col` arguments
+# creel_schema() expects.
+#
+# Keys are canonical tidycreel names without the `_col` suffix, matching the way
+# `value_maps` is keyed by canonical column: `date: SurveyDate` rather than
+# `date_col: SurveyDate`. The accepted set is read off creel_schema() itself so
+# the two cannot drift apart.
+#' @noRd
+.yaml_schema_columns <- function(block) {
+  if (!is.list(block) && !is.character(block)) {
+    cli::cli_abort(c(
+      "{.field schema.columns} must be a mapping of canonical name to source column.",
+      "i" = "For example {.code columns: {{date: SurveyDate}}}."
+    ))
+  }
+  flat <- unlist(block, use.names = TRUE)
+  if (length(flat) == 0L || is.null(names(flat)) || !all(nzchar(names(flat)))) {
+    cli::cli_abort(c(
+      "Every {.field schema.columns} entry must name the canonical column it maps.",
+      "i" = "For example {.code columns: {{date: SurveyDate}}}."
+    ))
+  }
+  flat <- stats::setNames(as.character(flat), names(flat))
+
+  known <- sub("_col$", "", grep("_col$", names(formals(tidycreel::creel_schema)), value = TRUE))
+  suffixed <- names(flat)[sub("_col$", "", names(flat)) %in% known & grepl("_col$", names(flat))]
+  if (length(suffixed) > 0L) {
+    cli::cli_abort(c(
+      "{.field schema.columns} key{?s} carr{?ies/y} a {.code _col} suffix: {.field {suffixed}}",
+      "i" = "Drop the suffix -- the block is keyed by canonical name, as in \\
+             {.code columns: {{date: SurveyDate}}}."
+    ))
+  }
+  unknown <- setdiff(names(flat), known)
+  if (length(unknown) > 0L) {
+    cli::cli_abort(c(
+      "Unknown {.field schema.columns} key{?s}: {.field {unknown}}",
+      "i" = "Keys are canonical tidycreel column names: {.val {known}}"
+    ))
+  }
+  stats::setNames(as.list(flat), paste0(names(flat), "_col"))
 }
