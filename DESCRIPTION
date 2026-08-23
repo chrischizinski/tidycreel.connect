@@ -20,7 +20,7 @@ Imports:
     httr2 (>= 1.0.0),
     readr,
     tibble,
-    tidycreel
+    tidycreel (>= 5.0.0)
 Suggests:
     config,
     duckdb,
