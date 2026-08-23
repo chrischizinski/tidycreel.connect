@@ -56,8 +56,14 @@ suffix:
     effort: HoursFished
 }\if{html}{\out{</div>}}
 
-Omit a column and it is dropped on the way in, which \code{fetch_interviews()}
-reports as a missing required column. A commented template is installed at
+A column the source already names the way tidycreel does needs no entry: the
+fetch takes it by its canonical name and says which columns it took that way.
+Declare it anyway to state the mapping explicitly. A column that is neither
+mapped nor canonically named is dropped on the way in, which
+\code{fetch_interviews()} reports as a missing required column. Note that an entry
+naming a column the source does not have stays a drop — it is not rescued by
+a canonically-named column, because a mapping that does not match is a
+configuration error worth seeing. A commented template is installed at
 
 \if{html}{\out{<div class="sourceCode r">}}\preformatted{system.file("extdata", "csv-profile-example.yml", package = "tidycreel.connect")
 }\if{html}{\out{</div>}}

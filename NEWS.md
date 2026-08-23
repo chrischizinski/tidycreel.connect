@@ -27,6 +27,33 @@
   Every column name in it is invented; the package ships none for any
   organisation's export.
 
+* A source that already uses tidycreel's canonical column names no longer needs
+  a schema entry for each of them (#168). `fetch_*()` falls back to the
+  canonical name when nothing is mapped — the same fallback the strata columns
+  already used on the API path — so an already-canonical export loads with
+  `creel_schema(survey_type = ...)` alone. Before this, loading a column named
+  `date` required writing `date_col = "date"`, which made the one case that
+  needs no schema the case that still needed one.
+
+  The columns taken that way are named in a message, because an undeclared
+  column is one the caller has not asserted the meaning of. Declaring it
+  silences that.
+
+  An entry naming a column the source does not have is **not** rescued by a
+  canonically-named one. It stays a drop and is reported as such: a mapping that
+  does not match the source is a configuration error, and substituting a
+  different column would hide it.
+
+  This narrows the guarantee added in #126, deliberately. That change made an
+  unmapped optional column absent rather than `NA`, so that absence could mean
+  "this source does not record party size". Absence still means that — but a
+  source that records party size in a column called `n_anglers` now has it
+  carried through instead of dropped, because dropping a column sitting in plain
+  sight under its own canonical name is the failure #126 existed to prevent:
+  without `n_anglers`, `add_interviews()` falls back to one angler per interview
+  and party-hours are consumed as angler-hours. A column recorded under the
+  source's own name is still never guessed at.
+
 ## Documentation
 
 * The docs said connections are read-only nowhere, so a user pointed at an

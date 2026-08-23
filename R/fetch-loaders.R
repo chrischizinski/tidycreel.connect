@@ -242,11 +242,22 @@
 # Returns a plain data.frame with only canonical columns.
 .rename_to_canonical <- function(df, schema, rename_map, table, direct_map = character(0)) {
   keep <- character(0)
+  adopted <- character(0)
   for (canonical in names(rename_map)) {
     field <- rename_map[[canonical]]
     csv_col <- schema[[field]]
-    if (!is.null(csv_col) && csv_col %in% names(df)) {
-      keep[[canonical]] <- csv_col
+    if (!is.null(csv_col)) {
+      # An explicit mapping that finds nothing stays a drop, and is reported as
+      # one: a name that does not match the source is a configuration error, and
+      # quietly substituting a differently-named column would hide it (GH #168).
+      if (csv_col %in% names(df)) keep[[canonical]] <- csv_col
+    } else if (canonical %in% names(df)) {
+      # Unmapped, but the source already calls it what tidycreel calls it. Take
+      # it, the way .strata_direct_map() already does on the API path. Requiring
+      # `date_col = "date"` to load a column named `date` made the one case that
+      # needs no schema the case that still needed one (GH #168).
+      keep[[canonical]] <- canonical
+      adopted[[length(adopted) + 1L]] <- canonical
     }
   }
   # Already-resolved source names, for fields whose target name the caller
@@ -265,6 +276,19 @@
   # builds a base data.frame, which takes NULL names silently, so it is left as
   # it was.
   names(result) <- if (length(keep) > 0L) names(keep) else character(0)
+  if (length(adopted) > 0L) {
+    # Say so. The column was not declared, so the caller has not asserted what
+    # it means -- naming them is what separates "my export is already canonical"
+    # from "something in my export happens to share a canonical name".
+    # One quantity per string: cli aborts on two, and says only "Cannot
+    # pluralize without a quantity" when it happens.
+    cli::cli_inform(c(
+      "i" = "{table}: taking {length(adopted)} column{?s} by canonical name, with no schema entry.",
+      "i" = "Columns: {.field {adopted}}.",
+      "i" = "Declaring them in {.fn tidycreel::creel_schema} states the mapping \
+             explicitly and silences this."
+    ))
+  }
   .report_dropped_cols(names(df), keep, table, "creel_schema")
   result
 }

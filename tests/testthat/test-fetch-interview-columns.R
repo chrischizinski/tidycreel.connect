@@ -151,16 +151,60 @@ test_that("a fetch that carries everything reports nothing (GH #126)", {
   expect_no_message(fetch_interviews(conn))
 })
 
-test_that("unmapped optional columns are simply absent, not NA (GH #126)", {
+test_that("optional columns a source does not record are absent, not NA (GH #126)", {
   # Absence means "this source does not record party size"; an NA column would
   # claim it does and that every value is missing.
-  paths  <- make_optional_cols_csv()
-  schema <- make_test_schema() # maps none of the optional columns
-  conn   <- creel_connect(paths, schema)
+  #
+  # The source has to genuinely lack the column for that to be the question.
+  # Since GH #168 a column the source names the way tidycreel names it is taken
+  # without a schema entry, so a fixture that writes a literal `n_anglers` and
+  # expects it dropped is asking whether the fallback fires, not whether an
+  # unrecorded column stays absent.
+  dir <- withr::local_tempdir()
+  interviews <- data.frame(
+    interview_uid = 1L:2L,
+    date          = as.Date(c("2024-06-01", "2024-06-02")),
+    effort_hours  = c(2.5, 1.0),
+    catch_count   = c(3L, 0L),
+    trip_status   = rep("complete", 2L),
+    stringsAsFactors = FALSE
+  )
+  paths <- make_optional_cols_csv()
+  paths$interviews <- file.path(dir, "interviews.csv")
+  utils::write.csv(interviews, paths$interviews, row.names = FALSE)
+
+  conn   <- creel_connect(paths, make_test_schema())
   result <- suppressMessages(fetch_interviews(conn))
 
   expect_false("n_anglers" %in% names(result))
   expect_false("site" %in% names(result))
+})
+
+test_that("an optional column the source names its own way stays opt-in (GH #126)", {
+  # The other half of the same guarantee, and the half GH #168 does not touch:
+  # a column recorded under the source's own name is not guessed at. Nothing
+  # maps `PartySize`, so party size does not reach the frame and
+  # add_interviews() is left to say so, rather than a column named for one
+  # thing carrying another.
+  dir <- withr::local_tempdir()
+  interviews <- data.frame(
+    interview_uid = 1L:2L,
+    date          = as.Date(c("2024-06-01", "2024-06-02")),
+    effort_hours  = c(2.5, 1.0),
+    catch_count   = c(3L, 0L),
+    trip_status   = rep("complete", 2L),
+    PartySize     = c(2L, 3L),
+    stringsAsFactors = FALSE
+  )
+  paths <- make_optional_cols_csv()
+  paths$interviews <- file.path(dir, "interviews.csv")
+  utils::write.csv(interviews, paths$interviews, row.names = FALSE)
+
+  conn   <- creel_connect(paths, make_test_schema())
+  result <- suppressMessages(fetch_interviews(conn))
+
+  expect_false("n_anglers" %in% names(result))
+  expect_false("PartySize" %in% names(result))
 })
 
 # --- validation ---

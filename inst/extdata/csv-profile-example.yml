@@ -31,8 +31,13 @@ default:
   schema:
     survey_type: instantaneous
 
-    # What your columns are called. Map only the ones your export has: an
-    # unmapped column is dropped, and fetch_*() then reports it as missing.
+    # What your columns are called. Map only the ones your export has: a
+    # column that is neither mapped nor already named the way tidycreel names
+    # it is dropped, and fetch_*() then reports it as missing. Columns your
+    # export already calls by their canonical name need no entry -- the fetch
+    # takes them and says so -- but declaring them states the mapping outright.
+    # An entry naming a column you do not have is NOT rescued that way; it
+    # stays a drop, so a typo here surfaces instead of hiding.
     # Run tidycreel::creel_schema() with no arguments to see every canonical
     # name this block accepts.
     columns:
