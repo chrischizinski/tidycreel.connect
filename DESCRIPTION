@@ -1,6 +1,6 @@
 Package: tidycreel.connect
 Title: Database and File Connections for Tidycreel
-Version: 0.3.0
+Version: 0.4.0
 Authors@R:
     person("Christopher", "Chizinski", role = c("aut", "cre"),
            email = "cchizinski2@unl.edu")

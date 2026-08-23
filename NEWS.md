@@ -3,11 +3,11 @@
 ## New features
 
 * A YAML profile can declare what the source's columns are called, under a new
-  `columns:` block inside `schema:` (#176). The CSV and SQL Server backends
-  resolve every canonical column through the schema, so before this a profile
-  only worked against a source whose columns already carried tidycreel's
-  names — the one case where a schema is not needed at all. Keys are canonical
-  names with no `_col` suffix, matching the way `value_maps` is keyed:
+  `columns:` block inside `schema:` (#176). The CSV backend resolves every
+  canonical column through the schema, so before this a profile only worked
+  against a source whose columns already carried tidycreel's names — the one
+  case where a schema is not needed at all. Keys are canonical names with no
+  `_col` suffix, matching the way `value_maps` is keyed:
 
   ```yaml
   schema:
@@ -20,7 +20,8 @@
   A key that is not a canonical column name aborts and names itself, as does
   one written with the `_col` suffix. `backend: api` reads raw JSON keys from
   `field_map` and ignores column mappings, so a `columns:` block there is an
-  error rather than a silent no-op.
+  error rather than a silent no-op. `backend: sqlserver` accepts the block, but
+  its loaders are not implemented (see below), so nothing reads it yet.
 
 * A commented CSV profile template ships alongside the API one, at
   `system.file("extdata", "csv-profile-example.yml", package = "tidycreel.connect")`.
