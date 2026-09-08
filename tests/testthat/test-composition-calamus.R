@@ -167,17 +167,23 @@ test_that("a fetched Calamus design reproduces the reference catch total", {
   expect_equal(got$estimates$se, want$se, tolerance = 1e-6)
 })
 
-test_that("the catch total drops incomplete trips, moving the SE but not the estimate", {
-  # Why the reference catch SE moved between v1.7.0 and v3.0.0, asserted rather
-  # than described: v3.0.0 (58e0424b, PR #114) routed the bus-route catch total
-  # through br_complete_trips_only(), which the harvest total had always applied.
+test_that("the catch total drops incomplete trips, moving neither estimate nor SE", {
+  # v3.0.0 (58e0424b, PR #114) routed the bus-route catch total through
+  # br_complete_trips_only(), which the harvest total had always applied. The
+  # two incomplete rows on this fixture both carry catch_count = 0 and fall on
+  # the same date, so the filter cannot move the Horvitz-Thompson sum.
   #
-  # The two incomplete rows on this fixture (interview_uid 5) both carry
-  # catch_count = 0, so the filter cannot move the Horvitz-Thompson sum -- only
-  # the interview count behind the variance, 24 -> 22. That is why the earlier
-  # reading of this divergence was wrong: "the point estimate is invariant to the
-  # trip filter" is what zero-catch rows guarantee, not evidence the filter is
-  # unrelated to the SE.
+  # Until #198 it did move the SE, because the variance was taken over
+  # interviews and the count behind it went 24 -> 22. #198 (5e524e9d) clusters
+  # bus-route variance on the day PSU, and two zero-catch rows cannot change
+  # any day's total, so after it the SE does not move either. This test
+  # asserted the old divergence (an SE of 55.7239 when unfiltered) and had been
+  # failing since; the reference-outputs.csv row was re-baselined in #198 and
+  # this assertion was missed.
+  #
+  # "Nothing changed" is a weak thing to assert, so the second half below
+  # changes something that DOES move a day total. Without it this test would
+  # keep passing if the variance stopped responding to the data entirely.
   design <- build_calamus_design(calamus_conn())
   ref    <- reference_outputs()
   want   <- ref[ref$estimand == "catch_total", ]
@@ -185,17 +191,29 @@ test_that("the catch total drops incomplete trips, moving the SE but not the est
   got <- suppressWarnings(tidycreel::estimate_total_catch(design))
   expect_equal(got$estimates$n, 22)
 
-  # Relabelling the two incomplete rows defeats the filter and must recover the
-  # pre-v3.0.0 SE exactly -- the point estimate staying put while the SE moves is
-  # the whole finding.
   unfiltered <- build_calamus_design(calamus_conn())
+  incomplete <- unfiltered$interviews[[unfiltered$trip_status_col]] == "incomplete"
+  # The premise the rest of this test rests on. If a future fixture edit gives
+  # these rows a catch, the invariance below stops being expected and this says
+  # so first.
+  expect_equal(sum(incomplete), 2L)
+  expect_true(all(unfiltered$interviews[[unfiltered$catch_col]][incomplete] == 0))
+
   unfiltered$interviews[[unfiltered$trip_status_col]] <- "complete"
   got_all <- suppressWarnings(tidycreel::estimate_total_catch(unfiltered))
 
   expect_equal(got_all$estimates$n, 24)
   expect_equal(got_all$estimates$estimate, got$estimates$estimate, tolerance = 1e-9)
-  expect_equal(got_all$estimates$se, 55.7238941653612, tolerance = 1e-6)
-  expect_false(isTRUE(all.equal(got_all$estimates$se, want$se, tolerance = 1e-6)))
+  # Clustered on the day, so admitting two zero-catch rows changes no day total.
+  expect_equal(got_all$estimates$se, want$se, tolerance = 1e-6)
+
+  # ... and the variance is not simply inert: give those same two rows a catch
+  # and the day total moves, so the SE must too.
+  moved <- build_calamus_design(calamus_conn())
+  moved$interviews[[moved$catch_col]][incomplete] <- 40
+  moved$interviews[[moved$trip_status_col]] <- "complete"
+  got_moved <- suppressWarnings(tidycreel::estimate_total_catch(moved))
+  expect_gt(got_moved$estimates$se, got$estimates$se * 10)
 })
 
 test_that("a fetched Calamus design reproduces the reference harvest total", {

@@ -18,5 +18,7 @@ A data frame with columns:
 }
 \description{
 Returns a data frame of all surveys available on the connected REST API.
-Not supported for CSV or SQL Server connections.
+Not supported for CSV connections, and inapplicable to database
+connections: those address one set of tables rather than a catalogue of
+surveys, and abort with class \code{creel_error_discovery_unavailable}.
 }

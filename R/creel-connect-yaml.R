@@ -55,9 +55,12 @@
 #' `backend: api` ignores column mappings and reads raw JSON keys from
 #' `field_map`, so a `columns:` block there is an error rather than a no-op.
 #'
-#' `backend: sqlserver` builds a connection, but its `fetch_*()` methods are not
-#' implemented yet and abort when called, so a `columns:` block is accepted and
-#' currently has nothing to act on.
+#' `backend: sqlserver` resolves a `columns:` block exactly as `csv` does: both
+#' read a whole table and rename it through the schema. It additionally needs
+#' the table names, which the same `schema:` block carries as
+#' `interviews_table`, `counts_table`, `catch_table` and
+#' `harvest_lengths_table` / `release_lengths_table` (both falling back to
+#' `lengths_table`).
 #'
 #' @param path Path to the YAML config file. Must exist.
 #' @param config Environment block to use (default: `"default"`). Passed to

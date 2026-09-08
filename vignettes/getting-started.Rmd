@@ -24,18 +24,24 @@ It lets you load interview, count, catch, and length data from three backends:
 |---------|-------------|--------|
 | **CSV** | Flat files from a data export or field laptop | Loads data |
 | **REST API** | A service returning JSON, described by a profile you supply | Loads data |
-| **SQL Server** | An agency production database | Connects only — see below |
+| **Database (DBI)** | An agency production database — SQL Server via ODBC, or any DBI driver | Loads data |
 
-A CSV or API `creel_connection` is accepted by every `fetch_*()` function and
-passes cleanly into `tidycreel::add_interviews()`. A SQL Server connection can
-be constructed and printed, but its `fetch_*()` methods are **not implemented
-yet** and abort when called, as do `list_creels()` and `search_creels()`.
+Every `creel_connection` is accepted by every `fetch_*()` function and passes
+cleanly into `tidycreel::add_interviews()`. A database connection reads each
+table by the name the schema gives it, then puts the rows through the same
+rename, coercion and validation as the other backends, so which backend the
+frame came from does not change what comes out.
+
+`list_creels()` and `search_creels()` are the exception: discovery asks a
+source which surveys it holds, and a database connection addresses one set of
+tables rather than a catalogue. They abort on a database connection, saying
+that, and are available on the API backend where the service defines them.
 
 ### Connections are read-only
 
 No backend writes anything. The CSV backend only reads the files named in the
-schema; the API backend issues `GET` requests only; a SQL Server connection is
-opened and never issues a statement. No table is created, altered, dropped or
+schema; the API backend issues `GET` requests only; a database connection only
+ever reads the tables the schema names. No table is created, altered, dropped or
 written to, no row is inserted or updated, and no file is written — including
 the files a CSV connection reads. Pointing a connection at a production
 database or an agency's live export cannot modify it.
@@ -70,7 +76,9 @@ library(tidycreel.connect)
 
 schema <- creel_schema(
   survey_type       = "instantaneous",
-  # Table names (used by SQL Server backend; ignored for CSV backend)
+  # Table names: required by the database backend, ignored for CSV.
+  # harvest_lengths_table / release_lengths_table both fall back to
+  # lengths_table, so a source keeping one lengths table needs only this.
   interviews_table  = "vwInterviews",
   counts_table      = "vwCounts",
   catch_table       = "vwCatch",

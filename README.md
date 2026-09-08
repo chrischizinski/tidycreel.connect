@@ -9,9 +9,12 @@ columns to the canonical names expected by tidycreel, and coerces types
 consistently — so the rest of your analysis code doesn't care where the data
 came from.
 
-A SQL Server backend builds a connection and is configurable, but its
-`fetch_*()` methods are **not implemented yet** and abort when called. Use the
-CSV or API backend for data you need to load today.
+A database backend loads through DBI, so SQL Server via ODBC works, and so
+does anything else with a DBI driver. It reads each table by the name the
+schema gives it and puts the rows through the same rename, coercion and
+validation the CSV backend uses. Survey *discovery* — `list_creels()` and
+`search_creels()` — does not apply to a database connection, which addresses
+one set of tables rather than a catalogue.
 
 ---
 
@@ -26,8 +29,8 @@ remotes::install_github("chrischizinski/tidycreel", subdir = "tidycreel.connect"
 
 ### ODBC prerequisites (SQL Server connections only)
 
-These are needed to open a SQL Server connection. Fetching from one is not
-implemented yet — see the note above.
+These are needed to open a SQL Server connection. Other DBI drivers (duckdb,
+Postgres, SQLite) need no ODBC setup.
 
 You need both the **R `odbc` package** and a **native ODBC driver** for your OS.
 
@@ -162,11 +165,16 @@ system.file("extdata", "csv-profile-example.yml", package = "tidycreel.connect")
 
 ### SQL Server backend
 
-> **Not implemented yet.** `creel_connect_from_yaml()` opens the connection, but
-> `fetch_interviews()`, `fetch_counts()`, `fetch_catch()` and both lengths
-> fetchers abort with "not yet implemented" for a SQL Server connection, as do
-> `list_creels()` and `search_creels()`. The profile shape below is what will
-> configure it.
+> The `schema:` block must name the tables as well as the columns:
+> `interviews_table`, `counts_table`, `catch_table`, and
+> `harvest_lengths_table` / `release_lengths_table` (both falling back to
+> `lengths_table` when the source keeps one). A table the schema does not name
+> cannot be fetched — there is no canonical table name to fall back on the way
+> there is for a column.
+>
+> `list_creels()` and `search_creels()` do not apply to a database connection
+> and say so; use the API backend for a source whose service defines
+> discovery.
 
 **creel-config.yml** (SQL Server with password auth):
 

@@ -28,8 +28,15 @@ A \code{creel_connection} S3 object.
 File existence is checked immediately at connection creation.
 }
 
-A DBI connection can be constructed, but the \verb{fetch_*()} methods for it are
-not implemented yet and abort when called; the CSV backend loads data today.
+Both backends load data. A DBI connection reads each table by the name the
+schema gives it (\code{interviews_table}, \code{counts_table}, \code{catch_table}, and
+\code{harvest_lengths_table} / \code{release_lengths_table}, which fall back to
+\code{lengths_table}); a table with no name in the schema cannot be fetched.
+
+A table name may be a string or a \code{\link[DBI:Id]{DBI::Id()}}. Use \code{Id()} for a
+schema-qualified table — \code{DBI::Id(schema = "dbo", table = "vwInterviews")} —
+because the string \code{"dbo.vwInterviews"} is treated as one literal name and
+will not be found.
 \subsection{Connections are read-only}{
 
 Nothing in this package writes. A connection only ever reads: no table is

@@ -67,10 +67,19 @@ test_that("list_creels.creel_connection_csv() aborts with not-supported error (A
   expect_error(list_creels(conn_csv), "creel_connection_csv")
 })
 
-test_that("list_creels.creel_connection_sqlserver() aborts with not-supported error (API-07)", {
+test_that("list_creels() on a DBI connection refuses as inapplicable (API-07)", {
+  # Reworded with GH #185: the refusal is a statement about the backend, not a
+  # stub. A database connection addresses one set of tables and has no survey
+  # catalogue to enumerate, so "not supported" -- which reads as "not yet" --
+  # was inviting an implementation that cannot exist without inventing an
+  # agency-specific convention for how surveys are named or partitioned.
+  conn_dbi <- structure(list(), class = c("creel_connection_dbi", "creel_connection"))
+  expect_error(list_creels(conn_dbi), class = "creel_error_discovery_unavailable")
+  expect_error(list_creels(conn_dbi), "does not apply")
+
+  # The pre-#185 class name still dispatches.
   conn_sql <- structure(list(), class = c("creel_connection_sqlserver", "creel_connection"))
-  expect_error(list_creels(conn_sql), "not supported")
-  expect_error(list_creels(conn_sql), "creel_connection_sqlserver")
+  expect_error(list_creels(conn_sql), class = "creel_error_discovery_unavailable")
 })
 
 # --- search_creels() tests (API-08) ---
@@ -120,7 +129,10 @@ test_that("search_creels.creel_connection_csv() aborts with not-supported error 
   expect_error(search_creels(conn_csv, "test"), "not supported")
 })
 
-test_that("search_creels.creel_connection_sqlserver() aborts with not-supported error (API-08)", {
+test_that("search_creels() on a DBI connection refuses as inapplicable (API-08)", {
+  conn_dbi <- structure(list(), class = c("creel_connection_dbi", "creel_connection"))
+  expect_error(search_creels(conn_dbi, "test"), class = "creel_error_discovery_unavailable")
+
   conn_sql <- structure(list(), class = c("creel_connection_sqlserver", "creel_connection"))
-  expect_error(search_creels(conn_sql, "test"), "not supported")
+  expect_error(search_creels(conn_sql, "test"), class = "creel_error_discovery_unavailable")
 })

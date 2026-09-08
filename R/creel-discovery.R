@@ -5,7 +5,9 @@
 #'
 #' @description
 #' Returns a data frame of all surveys available on the connected REST API.
-#' Not supported for CSV or SQL Server connections.
+#' Not supported for CSV connections, and inapplicable to database
+#' connections: those address one set of tables rather than a catalogue of
+#' surveys, and abort with class `creel_error_discovery_unavailable`.
 #'
 #' @param conn A `creel_connection` object created by [creel_connect_api()].
 #' @param ... Reserved for future arguments.
@@ -89,11 +91,18 @@ list_creels.creel_connection_csv <- function(conn, ...) {
 
 
 #' @export
-list_creels.creel_connection_sqlserver <- function(conn, ...) {
+list_creels.creel_connection_dbi <- function(conn, ...) {
+  # Not a stub. Discovery asks a source which surveys it holds; a database
+  # connection is already pointed at one set of tables, and there is no
+  # catalogue to enumerate without inventing a convention for how an agency
+  # names or partitions surveys -- which is exactly the organisation-specific
+  # knowledge this package does not carry. The REST API has an endpoint for
+  # this because the service defines it (GH #185).
   cli::cli_abort(c(
-    "{.fn list_creels} is not supported for {.cls creel_connection_sqlserver} connections.",
-    "i" = "Use {.fn creel_connect_api} to connect to a REST API that supports discovery."
-  ))
+    "{.fn list_creels} does not apply to a {.cls creel_connection_dbi} connection.",
+    "x" = "A database connection addresses one set of tables; it has no survey catalogue to list.",
+    "i" = "Use {.fn creel_connect_api} for a source whose service defines discovery."
+  ), class = "creel_error_discovery_unavailable")
 }
 
 #' Search available creel surveys by keyword
@@ -145,9 +154,24 @@ search_creels.creel_connection_csv <- function(conn, keyword, ...) {
 
 
 #' @export
-search_creels.creel_connection_sqlserver <- function(conn, keyword, ...) {
+search_creels.creel_connection_dbi <- function(conn, keyword, ...) {
+  # Not a stub. Discovery asks a source which surveys it holds; a database
+  # connection is already pointed at one set of tables, and there is no
+  # catalogue to enumerate without inventing a convention for how an agency
+  # names or partitions surveys -- which is exactly the organisation-specific
+  # knowledge this package does not carry. The REST API has an endpoint for
+  # this because the service defines it (GH #185).
   cli::cli_abort(c(
-    "{.fn search_creels} is not supported for {.cls creel_connection_sqlserver} connections.",
-    "i" = "Use {.fn creel_connect_api} to connect to a REST API that supports discovery."
-  ))
+    "{.fn search_creels} does not apply to a {.cls creel_connection_dbi} connection.",
+    "x" = "A database connection addresses one set of tables; it has no survey catalogue to list.",
+    "i" = "Use {.fn creel_connect_api} for a source whose service defines discovery."
+  ), class = "creel_error_discovery_unavailable")
 }
+
+# Same back-compatible dispatch as the fetchers; see fetch-loaders.R.
+
+#' @export
+list_creels.creel_connection_sqlserver <- list_creels.creel_connection_dbi
+
+#' @export
+search_creels.creel_connection_sqlserver <- search_creels.creel_connection_dbi

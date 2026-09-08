@@ -71,9 +71,12 @@ configuration error worth seeing. A commented template is installed at
 \code{backend: api} ignores column mappings and reads raw JSON keys from
 \code{field_map}, so a \verb{columns:} block there is an error rather than a no-op.
 
-\code{backend: sqlserver} builds a connection, but its \verb{fetch_*()} methods are not
-implemented yet and abort when called, so a \verb{columns:} block is accepted and
-currently has nothing to act on.
+\code{backend: sqlserver} resolves a \verb{columns:} block exactly as \code{csv} does: both
+read a whole table and rename it through the schema. It additionally needs
+the table names, which the same \verb{schema:} block carries as
+\code{interviews_table}, \code{counts_table}, \code{catch_table} and
+\code{harvest_lengths_table} / \code{release_lengths_table} (both falling back to
+\code{lengths_table}).
 }
 }
 \examples{

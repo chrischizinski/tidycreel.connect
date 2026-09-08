@@ -25,8 +25,15 @@ new_creel_connection <- function(backend, con, schema, status, subclass = NULL) 
 #'   `catch`, `harvest_lengths`, `release_lengths` pointing to CSV file paths.
 #'   File existence is checked immediately at connection creation.
 #'
-#' A DBI connection can be constructed, but the `fetch_*()` methods for it are
-#' not implemented yet and abort when called; the CSV backend loads data today.
+#' Both backends load data. A DBI connection reads each table by the name the
+#' schema gives it (`interviews_table`, `counts_table`, `catch_table`, and
+#' `harvest_lengths_table` / `release_lengths_table`, which fall back to
+#' `lengths_table`); a table with no name in the schema cannot be fetched.
+#'
+#' A table name may be a string or a [DBI::Id()]. Use `Id()` for a
+#' schema-qualified table — `DBI::Id(schema = "dbo", table = "vwInterviews")` —
+#' because the string `"dbo.vwInterviews"` is treated as one literal name and
+#' will not be found.
 #'
 #' ## Connections are read-only
 #'
@@ -87,7 +94,12 @@ creel_connect <- function(con, schema) {
     con      = con,
     schema   = schema,
     status   = "open", # dynamic: print method re-checks via DBI::dbIsValid()
-    subclass = "creel_connection_sqlserver"
+    # Two classes, most specific first. Nothing here is SQL Server specific --
+    # the reads are plain DBI and the test suite runs them on duckdb -- so the
+    # methods live on `creel_connection_dbi` and the older, narrower name is
+    # kept in the class vector so any method or test written against it still
+    # dispatches (GH #185).
+    subclass = c("creel_connection_dbi", "creel_connection_sqlserver")
   )
 }
 
