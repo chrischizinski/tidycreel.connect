@@ -27,6 +27,26 @@ default:
   #   type: bearer
   #   token: !expr Sys.getenv("CREEL_API_TOKEN")
 
+  # How this API pages its responses. Omit the block for an API that returns
+  # every record in one response -- nothing is assumed either way, and a
+  # response that proves it is only part of the data (a `Link` header offering a
+  # next page, or an `X-Total-Count` bigger than the rows returned) aborts
+  # rather than being read as the complete dataset.
+  #
+  # style: page    -- a page number in the query string; needs page_param
+  # style: offset  -- a row offset in the query string; needs offset_param
+  # style: link    -- an RFC 8288 `Link` header with rel="next"; needs nothing else
+  # style: none    -- says outright that this API is not paginated
+  #
+  # page_size is optional and doubles as the stop rule: a page shorter than it
+  # is the last one. Pair it with page_size_param to send it; give it alone for
+  # an API whose page size is fixed and not settable.
+  # pagination:
+  #   style: page
+  #   page_param: "page"
+  #   page_size: 500
+  #   page_size_param: "per_page"
+
   schema:
     # Only the survey type is needed here: the API backend reads field_map
     # below, not the schema's column mappings.

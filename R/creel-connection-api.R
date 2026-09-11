@@ -65,6 +65,31 @@
 #'   The optional interview fields -- `n_anglers`, `angler_type`, `site`,
 #'   `circuit`, `n_counted`, `n_interviewed` -- are carried only when named
 #'   here; see [fetch_interviews()] for what each one is used for.
+#' @param pagination How this API paginates, or `NULL` (default) for an API that
+#'   returns every record in one response. A named list whose `style` is one of:
+#'   - `"page"` -- a page number in the query string. Requires `page_param`;
+#'     `start_page` defaults to `1`.
+#'   - `"offset"` -- a row offset in the query string. Requires `offset_param`;
+#'     `start_offset` defaults to `0`. The offset advances by the number of rows
+#'     actually received, not by an assumed page size.
+#'   - `"link"` -- an RFC 8288 `Link` header carrying `rel="next"`. Needs no
+#'     other setting.
+#'   - `"none"` -- this API is not paginated. Declaring it is the same as
+#'     leaving `pagination` `NULL`, but says so on purpose.
+#'
+#'   Optional for `"page"` and `"offset"`: `page_size` (rows per request) and
+#'   `page_size_param` (the query parameter to send it as). `page_size` is also
+#'   the stop rule -- a page shorter than it is the last one. Supplying it
+#'   without `page_size_param` is allowed, for an API with a fixed page size it
+#'   does not let you set. `max_pages` (default `1000`) bounds the loop; hitting
+#'   it aborts rather than returning what was collected so far.
+#'
+#'   Like `endpoints` and `api_field_map`, pagination describes one deployment,
+#'   so nothing is assumed. What is *not* left to the caller is a truncated
+#'   result: with no style declared, a response the connection can prove is
+#'   incomplete -- a `Link` header offering a next page, or an `X-Total-Count`
+#'   larger than the rows returned -- aborts instead of being returned as the
+#'   whole dataset.
 #'
 #' @return A `creel_connection` S3 object with subclass `creel_connection_api`.
 #' @export
@@ -117,7 +142,8 @@ creel_connect_api <- function(
     uid_param,
     endpoints,
     auth          = NULL,
-    api_field_map
+    api_field_map,
+    pagination    = NULL
 ) {
   if (!inherits(schema, "creel_schema")) {
     cli::cli_abort(c(
@@ -152,6 +178,11 @@ creel_connect_api <- function(
   }
   if (!is.null(auth)) {
     .validate_api_auth(auth)
+  }
+  resolved_pagination <- if (is.null(pagination)) {
+    NULL
+  } else {
+    .validate_api_pagination(pagination, uid_param)
   }
 
   # Schema col-mappings configure CSV/SQL column names, not API JSON field
@@ -200,7 +231,8 @@ creel_connect_api <- function(
       uid_param     = uid_param,
       endpoints     = resolved_endpoints,
       auth          = auth,
-      api_field_map = resolved_field_map
+      api_field_map = resolved_field_map,
+      pagination    = resolved_pagination
     ),
     schema   = schema,
     status   = "ready",
@@ -321,7 +353,164 @@ creel_connect_api <- function(
   invisible(auth)
 }
 
-# Perform a single authenticated API GET and return a plain data.frame.
+# The pagination styles this backend can follow.
+#
+# `cursor` is deliberately absent. A cursor arrives in the response *body*,
+# which means the body is an envelope (`{"items": [...], "next": "..."}`) rather
+# than the bare JSON array this backend reads. Envelope support is a separate
+# capability and is tracked as its own half of GH #330; refusing the style by
+# name is honest, where accepting it and reading page 1 would not be.
+#' @noRd
+.api_pagination_styles <- function() {
+  c("page", "offset", "link", "none")
+}
+
+# Settings each style accepts, beyond `style` itself. A name outside its style's
+# list is refused rather than ignored: a pagination setting that is silently
+# dropped leaves the caller believing the API is being paged when it is not,
+# which is the failure this whole feature exists to prevent.
+#' @noRd
+.api_pagination_keys <- function(style) {
+  common <- c("style", "page_size", "page_size_param", "max_pages")
+  switch(style,
+    page   = c(common, "page_param", "start_page"),
+    offset = c(common, "offset_param", "start_offset"),
+    link   = c("style", "max_pages"),
+    none   = "style"
+  )
+}
+
+# Validate a pagination declaration and fill in its defaults.
+#' @noRd
+.validate_api_pagination <- function(pagination, uid_param = NULL) {
+  styles <- .api_pagination_styles()
+  if (!is.list(pagination) || is.null(pagination$style)) {
+    cli::cli_abort(c(
+      "{.arg pagination} must be a named list with a {.field style} entry.",
+      "i" = "Valid styles: {.val {styles}}.",
+      "i" = "Omit {.arg pagination} entirely for an API that returns every record at once."
+    ))
+  }
+  style <- pagination$style
+  if (!is.character(style) || length(style) != 1L || !style %in% styles) {
+    cli::cli_abort(c(
+      "{.field pagination$style} must be one of {.val {styles}}.",
+      "x" = "Got: {.val {style}}",
+      "i" = "{.val cursor} is not supported: it needs a response envelope, which \\
+             this backend does not read."
+    ))
+  }
+
+  allowed  <- .api_pagination_keys(style)
+  supplied <- names(pagination)
+  if (is.null(supplied) || any(!nzchar(supplied))) {
+    cli::cli_abort("Every entry in {.arg pagination} must be named.")
+  }
+  unknown <- setdiff(supplied, allowed)
+  if (length(unknown) > 0L) {
+    cli::cli_abort(c(
+      "Unknown {.field pagination} {cli::qty(unknown)}setting{?s} for style \\
+       {.val {style}}: {.field {unknown}}",
+      "i" = "Settings accepted by this style: {.field {allowed}}",
+      "i" = "Refused rather than ignored -- a dropped setting would read as pagination \\
+             that is not happening."
+    ))
+  }
+
+  .pag_string <- function(name, required) {
+    val <- pagination[[name]]
+    if (is.null(val)) {
+      if (required) {
+        cli::cli_abort(c(
+          "{.field pagination${name}} is required for style {.val {style}}.",
+          "i" = "Name the query parameter your API expects."
+        ))
+      }
+      return(NULL)
+    }
+    if (!is.character(val) || length(val) != 1L || !nzchar(val)) {
+      cli::cli_abort("{.field pagination${name}} must be a non-empty single string.")
+    }
+    val
+  }
+  .pag_count <- function(name, default, min_value) {
+    val <- pagination[[name]]
+    if (is.null(val)) {
+      return(default)
+    }
+    # is.finite() and the upper bound are not pedantry: Inf and 1e12 both pass
+    # a trunc() test and then become NA at as.integer(), and the stored NA only
+    # surfaces mid-fetch as base R's "missing value where TRUE/FALSE needed".
+    if (!is.numeric(val) || length(val) != 1L || !is.finite(val) ||
+          val != trunc(val) || val < min_value || val > .Machine$integer.max) {
+      cli::cli_abort(c(
+        "{.field pagination${name}} must be a single whole number >= {min_value}.",
+        "i" = "It must also be finite and within R's integer range."
+      ))
+    }
+    as.integer(val)
+  }
+
+  out <- list(style = style)
+  if (style %in% c("page", "offset")) {
+    # Held as locals, not read back off `out`: `$` partial-matches, so
+    # `out$page_size` would return `page_size_param`'s value whenever the size
+    # itself is absent -- which is exactly the case being checked for.
+    size_param <- .pag_string("page_size_param", required = FALSE)
+    size       <- .pag_count("page_size", NULL, 1L)
+    if (!is.null(size_param) && is.null(size)) {
+      cli::cli_abort(c(
+        "{.field pagination$page_size_param} was given with no {.field page_size}.",
+        "i" = "Name the parameter and the number of rows together, or neither."
+      ))
+    }
+    out$page_size_param <- size_param
+    out$page_size       <- size
+  }
+  if (style == "page") {
+    out$page_param <- .pag_string("page_param", required = TRUE)
+    out$start_page <- .pag_count("start_page", 1L, 0L)
+  } else if (style == "offset") {
+    out$offset_param  <- .pag_string("offset_param", required = TRUE)
+    out$start_offset  <- .pag_count("start_offset", 0L, 0L)
+  }
+  out$max_pages <- .pag_count("max_pages", 1000L, 1L)
+
+  # Two settings naming the same query parameter do not combine: req_url_query()
+  # replaces, so `uid_param = "page"` alongside `page_param = "page"` turns
+  # `?page=<uid>` into `?page=1` and the survey filter is gone. An API that
+  # reads a missing filter as "every survey" then returns other surveys' rows,
+  # which is a wrong dataset carrying no sign that it is wrong.
+  param_names <- unlist(out[c("page_param", "offset_param", "page_size_param")], use.names = TRUE)
+  param_names <- param_names[!is.na(param_names)]
+  if (!is.null(uid_param)) {
+    clash <- names(param_names)[param_names == uid_param]
+    if (length(clash) > 0L) {
+      cli::cli_abort(c(
+        "{.field pagination${clash}} names the same query parameter as \
+         {.arg uid_param}: {.val {uid_param}}.",
+        "x" = "The paging value would replace the survey filter rather than join it.",
+        "i" = "Give the paging parameter the name your API actually uses for it."
+      ))
+    }
+  }
+  if (anyDuplicated(param_names) > 0L) {
+    dup <- param_names[duplicated(param_names)][1L] # nolint: object_usage_linter
+    cli::cli_abort(c(
+      "Two {.field pagination} settings name the same query parameter: {.val {dup}}.",
+      "x" = "One would replace the other rather than both being sent.",
+      "i" = "Settings given: {.field {names(param_names)}} = {.val {param_names}}"
+    ))
+  }
+  out
+}
+
+# Perform an authenticated API GET and return a plain data.frame.
+#
+# Follows the connection's declared pagination style to exhaustion. With no
+# style declared, one request is made and the response is checked for proof
+# that it is only part of the data -- see .api_assert_untruncated().
+#
 # Returns a 0-row data.frame if the API returns an empty array.
 #' @noRd
 .api_fetch <- function(con_info, endpoint_key, no_uid_filter = FALSE) {
@@ -344,61 +533,157 @@ creel_connect_api <- function(
              the raw JSON fields this endpoint returns."
     ))
   }
-  url      <- paste0(con_info$base_url, endpoint)
+  url <- paste0(con_info$base_url, endpoint)
 
-  req <- httr2::request(url)
+  base_req <- httr2::request(url)
   if (!no_uid_filter) {
     uid_str    <- paste(con_info$creel_uids, collapse = ",")
     query_args <- stats::setNames(list(uid_str), con_info$uid_param)
-    req        <- do.call(httr2::req_url_query, c(list(req), query_args))
+    base_req   <- do.call(httr2::req_url_query, c(list(base_req), query_args))
   }
 
-  auth <- con_info$auth
-  # WARNING: Do NOT print auth or req objects after this point -- auth$token will
-  # leak to logs. Use httr2::req_dry_run() for debugging; httr2 redacts auth headers.
-  if (!is.null(auth)) {
-    if (auth$type == "bearer") {
-      req <- httr2::req_auth_bearer_token(req, auth$token)
-    } else if (auth$type == "api_key") {
-      hdr      <- if (!is.null(auth$header) && nzchar(auth$header)) auth$header else "X-API-Key"
-      hdr_args <- stats::setNames(list(auth$key), hdr)
-      req      <- do.call(httr2::req_headers, c(list(req), hdr_args))
+  pag   <- con_info$pagination
+  style <- if (is.null(pag)) "none" else pag$style
+
+  pages    <- list()
+  page_no  <- 1L
+  n_so_far <- 0L
+  next_url <- NULL
+
+  repeat {
+    req <- if (is.null(next_url)) {
+      .api_page_request(base_req, pag, page_no, n_so_far)
+    } else {
+      # A next link is an absolute URL the API built, filter included, so the
+      # uid query is not re-applied -- only the credentials are.
+      httr2::request(next_url)
+    }
+    req  <- .api_apply_auth(req, con_info$auth)
+    req  <- .api_apply_retry(req)
+    resp <- httr2::req_perform(req)
+    .api_check_status(resp, endpoint)
+    df <- .api_page_to_df(resp, endpoint_key)
+
+    if (style == "none") {
+      # No style declared: one request, and refuse anything provably partial.
+      .api_assert_untruncated(resp, endpoint, nrow(df))
+      return(df)
+    }
+
+    pages[[page_no]] <- df
+    n_so_far <- n_so_far + nrow(df)
+
+    # An empty page is the end of the data on every style.
+    if (nrow(df) == 0L) break
+    # A page shorter than the declared size is the last one. Without a declared
+    # size the only safe stop is an empty page -- guessing from a round row
+    # count would drop a final page whose length happened to look full.
+    if (!is.null(pag[["page_size"]]) && nrow(df) < pag[["page_size"]]) break
+
+    # The same rows twice means the request did not advance. Binding them would
+    # duplicate every record and inflate every total, so stop and say which
+    # setting did not take effect rather than return the result. Checked for
+    # every style: a `Link` chain that points back at the page it came from
+    # repeats just as silently as a paging parameter the API ignores, and if
+    # such a chain then ends, the duplicates are bound with nothing said.
+    if (page_no > 1L && identical(df, pages[[page_no - 1L]])) {
+      cause <- if (style == "link") {
+        cli::format_inline("Its {.field Link} header points back at the same page.")
+      } else {
+        param <- if (style == "page") pag[["page_param"]] else pag[["offset_param"]] # nolint: object_usage_linter, line_length_linter
+        cli::format_inline("It appears to ignore the {.field {param}} parameter.")
+      }
+      cli::cli_abort(c(
+        "The API returned identical rows for two consecutive pages of {.val {endpoint_key}}.",
+        "x" = cause,
+        "i" = "Check the setting against your API, or set \\
+               {.code pagination = list(style = \"none\")} if it does not paginate."
+      ))
+    }
+
+    if (style == "link") {
+      next_url <- .api_next_link(resp)
+      if (is.null(next_url)) break
+    }
+
+    page_no <- page_no + 1L
+    if (page_no > pag[["max_pages"]]) {
+      cli::cli_abort(c(
+        "Stopped after {pag[[\"max_pages\"]]} pages of the {.val {endpoint_key}} endpoint.",
+        "i" = "Raise {.field pagination$max_pages} if the dataset really is this large.",
+        "x" = "The rows fetched so far are not returned: a partial dataset would \\
+               understate every total without saying so."
+      ))
     }
   }
 
+  .api_rbind_pages(pages, endpoint_key)
+}
+
+# Apply the connection's credentials to a request.
+#
+# WARNING: Do NOT print auth or req objects after this point -- auth$token will
+# leak to logs. Use httr2::req_dry_run() for debugging; httr2 redacts auth headers.
+#' @noRd
+.api_apply_auth <- function(req, auth) {
+  if (is.null(auth)) {
+    return(req)
+  }
+  if (auth$type == "bearer") {
+    req <- httr2::req_auth_bearer_token(req, auth$token)
+  } else if (auth$type == "api_key") {
+    hdr      <- if (!is.null(auth$header) && nzchar(auth$header)) auth$header else "X-API-Key"
+    hdr_args <- stats::setNames(list(auth$key), hdr)
+    req      <- do.call(httr2::req_headers, c(list(req), hdr_args))
+  }
+  req
+}
+
+# Apply the retry and error policy. Order matters and is the project's httr2
+# convention: req_retry() first, req_error() after.
+#' @noRd
+.api_apply_retry <- function(req) {
   # D-10, D-11: retry on 429/503, max 3 tries; explicit is_transient so retry
   # fires regardless of the req_error policy applied below (httr2 1.2.2 behaviour)
-  req  <- httr2::req_retry(
+  req <- httr2::req_retry(
     req,
     max_tries    = 3L,
     is_transient = \(resp) httr2::resp_status(resp) %in% c(429L, 503L)
   )
   # D-13: disable httr2 auto-error AFTER retry is wired; manual cli_abort() controls format
-  req  <- httr2::req_error(req, is_error = \(resp) FALSE)
-  resp <- httr2::req_perform(req)
+  httr2::req_error(req, is_error = \(resp) FALSE)
+}
 
+# Abort with a human-readable message on any HTTP error status.
+#' @noRd
+.api_check_status <- function(resp, endpoint) {
   status <- httr2::resp_status(resp)
-  if (status >= 400L) {
-    # D-12: human-readable error with status, endpoint path, and body
-    body_text <- tryCatch(
-      {
-        raw <- httr2::resp_body_raw(resp)
-        if (length(raw) == 0L) {
-          ""
-        } else {
-          b <- httr2::resp_body_json(resp, simplifyVector = FALSE)
-          paste(utils::capture.output(utils::str(b)), collapse = "\n")
-        }
-      },
-      error = function(e) tryCatch(httr2::resp_body_string(resp), error = function(e2) "")
-    )
-    cli::cli_abort(c(
-      "API request failed [{status}]",
-      "i" = "Endpoint: {endpoint}",
-      "x" = body_text
-    ))
+  if (status < 400L) {
+    return(invisible(NULL))
   }
+  # D-12: human-readable error with status, endpoint path, and body
+  body_text <- tryCatch(
+    {
+      raw <- httr2::resp_body_raw(resp)
+      if (length(raw) == 0L) {
+        ""
+      } else {
+        b <- httr2::resp_body_json(resp, simplifyVector = FALSE)
+        paste(utils::capture.output(utils::str(b)), collapse = "\n")
+      }
+    },
+    error = function(e) tryCatch(httr2::resp_body_string(resp), error = function(e2) "")
+  )
+  cli::cli_abort(c(
+    "API request failed [{status}]",
+    "i" = "Endpoint: {endpoint}",
+    "x" = body_text
+  ))
+}
 
+# Parse one response body into a plain data.frame.
+#' @noRd
+.api_page_to_df <- function(resp, endpoint_key) {
   result <- httr2::resp_body_json(resp, simplifyVector = TRUE)
 
   if (is.null(result) || (is.list(result) && length(result) == 0L)) {
@@ -416,6 +701,129 @@ creel_connect_api <- function(
   )
   names(df) <- trimws(names(df))
   df
+}
+
+# The `rel="next"` URL from an RFC 8288 Link header, or NULL.
+#
+# Split on a comma only where the next link element starts, because a creel
+# request's own query string joins uids with commas and a plain split would cut
+# the URL in half.
+#' @noRd
+.api_next_link <- function(resp) {
+  link <- tryCatch(httr2::resp_header(resp, "Link"), error = function(e) NULL)
+  if (is.null(link) || !nzchar(link)) {
+    return(NULL)
+  }
+  parts <- strsplit(link, ",(?=\\s*<)", perl = TRUE)[[1]]
+  for (part in parts) {
+    if (grepl("rel\\s*=\\s*[\"']?next[\"']?", part, perl = TRUE)) {
+      target <- regmatches(part, regexpr("<[^>]*>", part))
+      if (length(target) == 1L) {
+        return(substr(target, 2L, nchar(target) - 1L))
+      }
+    }
+  }
+  NULL
+}
+
+# The record count the API reported for the whole query, or NULL.
+#' @noRd
+.api_reported_total <- function(resp) {
+  val <- tryCatch(httr2::resp_header(resp, "X-Total-Count"), error = function(e) NULL)
+  if (is.null(val) || !nzchar(val)) {
+    return(NULL)
+  }
+  n <- suppressWarnings(as.numeric(val))
+  if (is.na(n)) NULL else n
+}
+
+# Refuse a response that can be PROVEN to be one page of several.
+#
+# This runs only when no pagination style is declared, and it is the half of GH
+# #330 that does not need the caller to configure anything. It cannot detect an
+# API that paginates while advertising nothing -- no header, no count -- and
+# does not pretend to: what it removes is the case where the response says it is
+# incomplete and the connection returns it as the whole dataset anyway.
+#' @noRd
+.api_assert_untruncated <- function(resp, endpoint, n_rows) {
+  advice <- "Declare how this API paginates in {.arg pagination}, e.g. \\
+             {.code pagination = list(style = \"link\")}."
+  if (!is.null(.api_next_link(resp))) {
+    cli::cli_abort(c(
+      "The API offered another page and no pagination style is configured.",
+      "x" = "Endpoint {endpoint} returned a {.field Link} header with {.code rel=\"next\"}.",
+      "i" = "Returning this would treat page 1 as the complete dataset and understate \\
+             every total that depends on it.",
+      "i" = advice
+    ))
+  }
+  total <- .api_reported_total(resp)
+  if (!is.null(total) && total > n_rows) {
+    cli::cli_abort(c(
+      "The API reported a total of {total} records but returned {n_rows}.",
+      "x" = "Endpoint {endpoint} sent an {.field X-Total-Count} larger than the response.",
+      "i" = "Returning this would treat a partial response as the complete dataset.",
+      "i" = advice
+    ))
+  }
+  invisible(NULL)
+}
+
+# Bind the fetched pages into one frame.
+#
+# Pages must describe the same fields. A page carrying a different set is
+# refused rather than filled, because rbind() on mismatched names either errors
+# or -- worse, when the counts happen to match -- aligns values under the wrong
+# column. Order alone is not a mismatch: JSON object key order is free to vary
+# between pages, so the pages are reordered to the first page's layout.
+#' @noRd
+.api_rbind_pages <- function(pages, endpoint_key) {
+  filled <- Filter(function(d) nrow(d) > 0L, pages)
+  if (length(filled) == 0L) {
+    return(data.frame())
+  }
+  first <- names(filled[[1L]])
+  same  <- vapply(filled, function(d) setequal(names(d), first), logical(1L))
+  if (!all(same)) {
+    bad <- which(!same)[1L] # nolint: object_usage_linter
+    cli::cli_abort(c(
+      "Pages of the {.val {endpoint_key}} response do not describe the same fields.",
+      "x" = "Page {bad} returned: {.field {names(filled[[bad]])}}",
+      "i" = "Page 1 returned: {.field {first}}",
+      "i" = "Binding them would align values under the wrong names."
+    ))
+  }
+  aligned <- lapply(filled, function(d) d[, first, drop = FALSE])
+  out <- do.call(rbind, aligned)
+  row.names(out) <- NULL
+  out
+}
+
+# Build the request for one page under the declared style.
+#
+# Settings are read with `[[` throughout: `$` partial-matches, and `page_size`
+# is a prefix of `page_size_param`, so `pag$page_size` silently returns a
+# parameter NAME when no size was declared.
+#' @noRd
+.api_page_request <- function(req, pag, page_no, n_so_far) {
+  if (is.null(pag)) {
+    return(req)
+  }
+  args <- list()
+  if (pag$style == "page") {
+    args[[pag[["page_param"]]]] <- pag[["start_page"]] + (page_no - 1L)
+  } else if (pag$style == "offset") {
+    # Advance by the rows actually received rather than by an assumed page size,
+    # so a short page cannot shift every later offset past real records.
+    args[[pag[["offset_param"]]]] <- pag[["start_offset"]] + n_so_far
+  }
+  if (!is.null(pag[["page_size"]]) && !is.null(pag[["page_size_param"]])) {
+    args[[pag[["page_size_param"]]]] <- pag[["page_size"]]
+  }
+  if (length(args) == 0L) {
+    return(req)
+  }
+  do.call(httr2::req_url_query, c(list(req), args))
 }
 
 # Parse a date column that may arrive as "YYYY-MM-DD", "YYYY-MM-DDTHH:MM:SS",

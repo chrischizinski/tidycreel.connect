@@ -60,15 +60,43 @@ test_api_field_map <- function() {
   )
 }
 
-make_api_conn <- function(field_map = test_api_field_map(),
-                          endpoints = test_api_endpoints(),
-                          schema    = tidycreel::creel_schema(survey_type = "instantaneous")) {
+make_api_conn <- function(field_map  = test_api_field_map(),
+                          endpoints  = test_api_endpoints(),
+                          schema     = tidycreel::creel_schema(survey_type = "instantaneous"),
+                          pagination = NULL) {
   tidycreel.connect::creel_connect_api(
     base_url      = "http://test.example.com/api/",
     creel_uids    = "test-uid-001",
     schema        = schema,
     uid_param     = "survey_id",
     endpoints     = endpoints,
-    api_field_map = field_map
+    api_field_map = field_map,
+    pagination    = pagination
+  )
+}
+
+# One interview row, as the invented API returns it. Pagination tests care about
+# how many rows arrive and in what order, not what is in them, so the rows are
+# generated rather than written out -- and the id is what each test asserts on.
+test_api_interview_json <- function(ids) {
+  rows <- vapply(ids, function(id) {
+    sprintf(
+      paste0(
+        '{"InterviewID":"%s","SurveyDate":"2016-03-28","TripStatus":"complete",',
+        '"HoursFished":2,"MinutesFished":30}'
+      ),
+      id
+    )
+  }, character(1L))
+  paste0("[", paste(rows, collapse = ","), "]")
+}
+
+# A mocked 200 carrying a page of interviews, plus any extra headers the test
+# needs (a Link header, an X-Total-Count).
+test_api_page <- function(ids, headers = character()) {
+  httr2::response(
+    200,
+    headers = c("Content-Type: application/json", headers),
+    body    = charToRaw(test_api_interview_json(ids))
   )
 }

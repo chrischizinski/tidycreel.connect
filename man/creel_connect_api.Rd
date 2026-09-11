@@ -11,7 +11,8 @@ creel_connect_api(
   uid_param,
   endpoints,
   auth = NULL,
-  api_field_map
+  api_field_map,
+  pagination = NULL
 )
 }
 \arguments{
@@ -40,6 +41,34 @@ holds each canonical quantity, e.g.
 The optional interview fields -- \code{n_anglers}, \code{angler_type}, \code{site},
 \code{circuit}, \code{n_counted}, \code{n_interviewed} -- are carried only when named
 here; see \code{\link[=fetch_interviews]{fetch_interviews()}} for what each one is used for.}
+
+\item{pagination}{How this API paginates, or \code{NULL} (default) for an API that
+returns every record in one response. A named list whose \code{style} is one of:
+\itemize{
+\item \code{"page"} -- a page number in the query string. Requires \code{page_param};
+\code{start_page} defaults to \code{1}.
+\item \code{"offset"} -- a row offset in the query string. Requires \code{offset_param};
+\code{start_offset} defaults to \code{0}. The offset advances by the number of rows
+actually received, not by an assumed page size.
+\item \code{"link"} -- an RFC 8288 \code{Link} header carrying \code{rel="next"}. Needs no
+other setting.
+\item \code{"none"} -- this API is not paginated. Declaring it is the same as
+leaving \code{pagination} \code{NULL}, but says so on purpose.
+}
+
+Optional for \code{"page"} and \code{"offset"}: \code{page_size} (rows per request) and
+\code{page_size_param} (the query parameter to send it as). \code{page_size} is also
+the stop rule -- a page shorter than it is the last one. Supplying it
+without \code{page_size_param} is allowed, for an API with a fixed page size it
+does not let you set. \code{max_pages} (default \code{1000}) bounds the loop; hitting
+it aborts rather than returning what was collected so far.
+
+Like \code{endpoints} and \code{api_field_map}, pagination describes one deployment,
+so nothing is assumed. What is \emph{not} left to the caller is a truncated
+result: with no style declared, a response the connection can prove is
+incomplete -- a \code{Link} header offering a next page, or an \code{X-Total-Count}
+larger than the rows returned -- aborts instead of being returned as the
+whole dataset.}
 }
 \value{
 A \code{creel_connection} S3 object with subclass \code{creel_connection_api}.

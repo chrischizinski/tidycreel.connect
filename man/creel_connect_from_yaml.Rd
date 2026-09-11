@@ -39,6 +39,11 @@ installed at
 
 Keeping the profile outside your analysis code is what lets the same script
 run against a different organisation's API by pointing at a different file.
+
+An optional \verb{pagination:} block says how the API pages its responses and is
+passed straight to \code{\link[=creel_connect_api]{creel_connect_api()}}, which documents the styles. Leave
+it out for an API that returns every record at once -- a response that proves
+otherwise then aborts rather than being read as the complete dataset.
 }
 
 \subsection{CSV profiles}{

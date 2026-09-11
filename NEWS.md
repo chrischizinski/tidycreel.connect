@@ -1,5 +1,50 @@
 # tidycreel.connect (development version)
 
+## Bug fixes
+
+* The API backend follows pagination, and refuses a response it can prove is
+  only part of the data (#330).
+
+  `.api_fetch()` performed one request and returned its body as the complete
+  dataset. Against a paginated endpoint that meant page 1 and nothing else:
+  fewer interviews and fewer counts reached the design, every total was
+  understated in proportion to what was dropped, and nothing errored or warned.
+  Measured on a mocked three-page endpoint holding five interviews, the fetch
+  returned **two** of them and **4 of 10 effort-hours** — 60% of the effort
+  missing, with a believable number in its place.
+
+  `creel_connect_api()` takes a new optional `pagination` argument, also
+  settable as a `pagination:` block in a YAML profile. Its `style` is one of
+  `"page"` (a page number in the query string), `"offset"` (a row offset, which
+  advances by the rows actually received rather than an assumed page size),
+  `"link"` (an RFC 8288 `Link` header with `rel="next"`), or `"none"`. A
+  declared style is followed to exhaustion.
+
+  Like `endpoints` and `api_field_map`, pagination describes one deployment, so
+  nothing is assumed. What is no longer left to the caller is a truncated
+  result: with no style declared, a response carrying a `Link` header offering
+  a next page, or an `X-Total-Count` larger than the rows returned, now aborts
+  rather than being read as the whole dataset. A connection against an
+  unpaginated API is unaffected.
+
+  Three ways a paging loop can go wrong also abort rather than return a wrong
+  number: two consecutive pages of identical rows (the API is ignoring the
+  paging parameter, and binding them would duplicate every record), pages
+  describing different fields (binding would align values under the wrong
+  names), and `max_pages` being reached (the pages collected so far are *not*
+  returned, because a partial dataset understates every total without saying
+  so).
+
+  Two settings that would silently disagree are also refused at connection
+  time: a paging parameter named the same as `uid_param` (httr2 replaces rather
+  than appends, so the paging value would overwrite the survey filter and an
+  API reading a missing filter as "every survey" would return other surveys'
+  rows), and two paging settings naming the same parameter.
+
+  A cursor style is deliberately not supported: a cursor arrives in a response
+  envelope, which this backend does not read. It is refused by name rather than
+  accepted and silently reduced to page 1.
+
 ## New features
 
 * The DBI backend loads data (#185). SQL Server via ODBC works, and so does any

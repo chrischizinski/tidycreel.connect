@@ -33,6 +33,13 @@ format.creel_connection <- function(x, ...) {
       cli::cli_text("  base_url:   {x$con$base_url}")
       cli::cli_text("  creel_uids: {length(x$con$creel_uids)} UID(s)")
       cli::cli_text("  auth:       {if (!is.null(x$con$auth)) x$con$auth$type else 'none'}")
+      # Worth printing: a connection that pages and one that does not fetch
+      # different amounts of data from the same endpoint, and "none" is a real
+      # statement here -- it is the setting under which a provably partial
+      # response aborts.
+      cli::cli_text(
+        "  pagination: {if (!is.null(x$con$pagination)) x$con$pagination$style else 'none'}"
+      )
     } else {
       cli::cli_text("Backend: DBI")
     }

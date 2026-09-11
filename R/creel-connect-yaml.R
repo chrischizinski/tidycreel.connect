@@ -27,6 +27,11 @@
 #' Keeping the profile outside your analysis code is what lets the same script
 #' run against a different organisation's API by pointing at a different file.
 #'
+#' An optional `pagination:` block says how the API pages its responses and is
+#' passed straight to [creel_connect_api()], which documents the styles. Leave
+#' it out for an API that returns every record at once -- a response that proves
+#' otherwise then aborts rather than being read as the complete dataset.
+#'
 #' ## CSV profiles
 #'
 #' The CSV backend resolves every canonical column through the schema, so the
@@ -267,7 +272,10 @@ creel_connect_from_yaml <- function(path, config = "default") {
       uid_param     = cfg$uid_param,
       endpoints     = as.list(cfg$endpoints),
       auth          = cfg$auth,
-      api_field_map = lapply(as.list(cfg$field_map), as.list)
+      api_field_map = lapply(as.list(cfg$field_map), as.list),
+      # Optional: how this deployment paginates. Absent means "returns every
+      # record at once", which the fetch then verifies rather than assumes.
+      pagination    = if (is.null(cfg$pagination)) NULL else as.list(cfg$pagination)
     )
   } else if (backend == "sqlserver") {
     if (!requireNamespace("odbc", quietly = TRUE)) {
