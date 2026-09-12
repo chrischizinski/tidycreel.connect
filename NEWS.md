@@ -1,6 +1,46 @@
 # tidycreel.connect (development version)
 
+## New features
+
+* The test suite now runs against a real HTTP server (#330 item 2, transport
+  half).
+
+  Every other API test here uses `httr2::local_mocked_responses()`, which
+  intercepts **below** `req_perform()` — so until now nothing in this package
+  had ever performed a request. The field mapping and validators were well
+  covered; the transport was not covered at all. The retry and error policies,
+  the JSON deserialisation, the `Link` header parser, the pagination loop and
+  the auth header had only ever been asserted against responses this package
+  constructed for itself.
+
+  `test-live-http.R` stands up a `webfakes` server that serves the
+  `calamus-2016` fixture as JSON over a real socket, and asserts the whole
+  chain: request, parse, rename, coercion. The payload is real survey data, and
+  one test asserts that the same rows fetched over HTTP and off disk are
+  identical once canonical — so anything the transport could corrupt shows up
+  as a difference.
+
+  `webfakes` is a `Suggests`; the file skips cleanly without it.
+
+  This does **not** close #330 item 2. A local server cannot tell you that a
+  real deployment named a field something you did not expect. What it closes is
+  the transport half, which is most of what "nothing has ever run against a
+  real endpoint" was costing.
+
 ## Bug fixes
+
+* A relative `Link` target is resolved against the request URL before being
+  followed (#330 item 2 work).
+
+  RFC 8288 permits a relative target and servers emit one. Left as-is it
+  reached `httr2::request()` as `"/v2/interviews?page=2"` and died inside curl
+  with no host — so `pagination = list(style = "link")` worked only against
+  servers that happened to return absolute URLs.
+
+  **No mocked test could have caught this**, and none did: a mocked response is
+  never actually requested, so a target that cannot be turned into a request
+  looks perfectly healthy. It was found within minutes of pointing the package
+  at a real server. Guarded now in both suites.
 
 * `test-composition-calamus.R` runs. All eight of its tests had been skipping on
   every run, CI included, because the fixture they need lived under tidycreel's

@@ -28,6 +28,7 @@ Suggests:
     odbc,
     rmarkdown,
     testthat (>= 3.0.0),
+    webfakes,
     withr,
     yaml
 VignetteBuilder: knitr

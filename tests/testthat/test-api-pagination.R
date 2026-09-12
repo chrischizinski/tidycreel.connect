@@ -405,3 +405,49 @@ test_that("a Link chain that repeats a page aborts instead of binding it twice (
   conn <- make_api_conn(pagination = list(style = "link"))
   expect_error(fetch_interviews(conn), "identical rows for two consecutive pages")
 })
+
+# --- a relative Link target — PAG-23 ------------------------------------------
+
+test_that("a relative Link target is resolved against the request URL (PAG-23)", {
+  # Found by the live-HTTP suite, which is the only place it COULD be found: a
+  # mocked response is never actually requested, so a `Link` target that cannot
+  # be turned into a request looks perfectly healthy. RFC 8288 permits a
+  # relative target and servers emit one; unresolved it reached
+  # httr2::request() as "/v2/interviews?page=2" and died in curl with no host.
+  #
+  # Kept here as well as in test-live-http.R so the regression is guarded even
+  # where webfakes is not installed.
+  n <- 0L
+  seen <- character()
+  httr2::local_mocked_responses(function(req) {
+    n <<- n + 1L
+    seen <<- c(seen, req$url)
+    # `url` is set explicitly: a mocked response defaults to
+    # https://example.com, and resolving a relative target against THAT would
+    # still look like success while pointing at the wrong host.
+    if (n == 1L) {
+      httr2::response(
+        200,
+        url = req$url,
+        headers = c(
+          "Content-Type: application/json",
+          'Link: </api/v2/interviews?page=2>; rel="next"'
+        ),
+        body = charToRaw(test_api_interview_json(c("A1", "A2")))
+      )
+    } else {
+      httr2::response(
+        200,
+        url = req$url,
+        headers = "Content-Type: application/json",
+        body = charToRaw(test_api_interview_json("A3"))
+      )
+    }
+  })
+  conn <- make_api_conn(pagination = list(style = "link"))
+  result <- fetch_interviews(conn)
+
+  expect_equal(nrow(result), 3L)
+  # The second request went to an absolute URL carrying the original host.
+  expect_match(seen[2], "^http://test\\.example\\.com/api/v2/interviews\\?page=2$")
+})

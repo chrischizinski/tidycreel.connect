@@ -604,6 +604,12 @@ creel_connect_api <- function(
     if (style == "link") {
       next_url <- .api_next_link(resp)
       if (is.null(next_url)) break
+      # RFC 8288 permits a relative target, and servers do emit one. Left as-is
+      # it reaches httr2::request() as "/v2/interviews?page=2" and dies in curl
+      # with no host -- which no mocked response could ever show, because a mock
+      # never performs the follow-up request. Resolving against the URL the page
+      # actually came from is a no-op for an absolute target.
+      next_url <- httr2::url_modify_relative(httr2::resp_url(resp), next_url)
     }
 
     page_no <- page_no + 1L
@@ -708,6 +714,13 @@ creel_connect_api <- function(
 # Split on a comma only where the next link element starts, because a creel
 # request's own query string joins uids with commas and a plain split would cut
 # the URL in half.
+#
+# Not httr2::resp_link_url(), which exists and parses the same header: it fails
+# on exactly that shape. Given
+#   Link: <...?survey_id=u-1,u-2&page=1>; rel="prev", <...&page=2>; rel="next"
+# it aborts with "values must be length 1, but FUN(X[[1]]) result is length 0".
+# A comma-joined uid list is this package's normal request, so the general
+# parser is the wrong one here. Do not simplify this away.
 #' @noRd
 .api_next_link <- function(resp) {
   link <- tryCatch(httr2::resp_header(resp, "Link"), error = function(e) NULL)
