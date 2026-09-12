@@ -12,7 +12,7 @@
 #   CSV -> fetch_*() -> creel_design() -> add_counts()/add_interviews()
 #       -> estimate_effort() / estimate_total_catch() / estimate_total_harvest()
 #
-# and asserts the results against inst/extdata/calamus-2016/reference-outputs.csv
+# and asserts the results against inst/calamus-2016/reference-outputs.csv
 # in the tidycreel package. Standard errors are asserted too, not just point
 # estimates: an SE is where a dropped component hides, and every uncertainty
 # defect this package has shipped left the point estimate untouched.
@@ -24,8 +24,14 @@
 # nolint start: object_usage_linter, commented_code_linter.
 
 calamus_dir <- function() {
-  d <- system.file("extdata", "calamus-2016", package = "tidycreel")
+  d <- system.file("calamus-2016", package = "tidycreel")
   if (!nzchar(d) || !file.exists(file.path(d, "reference-outputs.csv"))) {
+    # This skipped on EVERY run, here and in CI, for as long as the fixture
+    # lived under inst/extdata/ -- which tidycreel .Rbuildignore's, so it never
+    # reached an installed copy. These are connect's only end-to-end assertions
+    # against real reference numbers, so the most valuable tests in the package
+    # were the ones silently not executing. The fixture now ships from
+    # inst/calamus-2016/ (GH #337 follow-up).
     testthat::skip("calamus-2016 fixture not available from the installed tidycreel")
   }
   d

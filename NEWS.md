@@ -1,5 +1,21 @@
 # tidycreel.connect (development version)
 
+## Bug fixes
+
+* `test-composition-calamus.R` runs. All eight of its tests had been skipping on
+  every run, CI included, because the fixture they need lived under tidycreel's
+  `inst/extdata/` — which that package `.Rbuildignore`s, so it never reached an
+  installed copy and `system.file()` returned nothing.
+
+  These are this package's only end-to-end assertions against real reference
+  numbers: CSV through `fetch_*()`, `creel_design()`, `add_counts()` and
+  `add_interviews()` to the estimators, compared against Calamus 2016. The most
+  valuable tests here were the ones silently not executing.
+
+  The suite now reports **461 passing and 1 skip**, where it reported 437 and 9.
+  Nothing in this package changed to achieve it beyond the fixture path; the
+  code under those tests was correct the whole time.
+
 ## Documentation
 
 * The example field names in the profile templates, README, vignette and tests
