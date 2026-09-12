@@ -1,5 +1,20 @@
 # tidycreel.connect (development version)
 
+## Breaking changes
+
+* `fetch_*()` returns character identifier columns from every backend.
+
+  The CSV reader inferred a bare integer id as numeric while the API served the
+  same ids as strings, so the backend a caller chose decided the type of their
+  join key. `interview_uid`, `catch_uid`, `length_uid` and `age_uid` are now
+  character everywhere, matching the normalisation tidycreel applies at
+  `add_catch()`, `add_lengths()` and `add_ages()`.
+
+  Two related inconsistencies went with it: the empty-lengths and empty-catch
+  frames declared `integer(0)` ids beside `character(0)` ones, so a quiet day
+  returned different types from a busy one; and a synthesised `catch_uid` was a
+  row index rather than a label.
+
 ## New features
 
 * The test suite now runs against a real HTTP server (#330 item 2, transport

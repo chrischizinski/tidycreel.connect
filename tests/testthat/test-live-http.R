@@ -191,14 +191,15 @@ test_that("an HTTP fetch equals a CSV fetch of the same fixture (HTTP-08)", {
   # the caller assemble it. Nothing is lost, it arrives by another route.
   expect_false("catch_count" %in% shared)
 
-  # The uid is compared as text on both sides. It arrives as a JSON string here
-  # and is inferred numeric by the CSV reader, and the package passes each
-  # source's type through rather than imposing one -- so the SAME survey has a
-  # character uid from an API and a numeric uid from CSV. That is a real
-  # difference and not this test's to settle; what matters for transport is
-  # that the identifiers themselves match.
-  over_http$interview_uid <- as.character(over_http$interview_uid)
-  off_disk$interview_uid <- as.character(off_disk$interview_uid)
+  # The uid arrives as a JSON string here and is inferred numeric by the CSV
+  # reader, so the two backends used to hand back different types for the same
+  # survey. Base R hid it -- merge() and %in% coerce -- but dplyr::left_join()
+  # refuses outright and identical() is silently FALSE, so anyone joining a
+  # fetched interviews frame to a fetched catch frame across backends hit it.
+  # Both fetchers now normalise to character, and this asserts the types agree
+  # rather than papering over them with a coercion (GH #345 follow-up).
+  expect_type(over_http$interview_uid, "character")
+  expect_type(off_disk$interview_uid, "character")
   # Ordered on every shared column, because interview_uid alone is not a total
   # order here -- the fixture repeats each uid -- and a partial key leaves the
   # two frames in different orders for reasons that have nothing to do with
@@ -218,4 +219,26 @@ test_that("an HTTP fetch equals a CSV fetch of the same fixture (HTTP-08)", {
     counts_disk[order(counts_disk$date), shared_c, drop = FALSE],
     ignore_attr = TRUE
   )
+})
+
+test_that("both backends hand back a joinable uid type (HTTP-09)", {
+  # The consequence, stated as the thing a user actually does: join a fetched
+  # interviews frame to a fetched catch frame. base::merge() and %in% coerce,
+  # so the mismatch stayed invisible through every base-R idiom, while
+  # dplyr::left_join() refuses outright with "Can't join `x$interview_uid` with
+  # `y$interview_uid` due to incompatible types". dplyr is deliberately not
+  # added as a dependency just to demonstrate that -- the invariant worth
+  # holding is that the two types agree, which is what this asserts.
+  skip_if_no_webfakes()
+  srv <- webfakes::new_app_process(live_http_app(page_size = 10L))
+  on.exit(srv$stop(), add = TRUE)
+
+  conn <- live_http_conn(srv$url("/"), pagination = list(style = "link"))
+  interviews <- suppressMessages(fetch_interviews(conn))
+  catch <- suppressMessages(fetch_catch(conn))
+
+  expect_type(interviews$interview_uid, "character")
+  expect_type(catch$interview_uid, "character")
+  expect_type(catch$catch_uid, "character")
+  expect_identical(class(interviews$interview_uid), class(catch$interview_uid))
 })

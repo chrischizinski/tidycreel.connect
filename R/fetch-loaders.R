@@ -153,6 +153,47 @@
   result
 }
 
+# Internal: normalise every identifier column present to character.
+#
+# A uid is a LABEL, not a quantity: nothing is summed or ordered by magnitude on
+# it, and what it must do is join. The CSV reader infers a bare integer id
+# column as numeric while a JSON API serves the same ids as strings, so the same
+# survey used to arrive with a numeric uid from one backend and a character uid
+# from the other -- and a join key whose type depends on its source does not
+# reliably join (GH #345). tidycreel normalises the same way at `add_catch()`,
+# `add_lengths()` and `add_ages()`; this keeps `fetch_*()` output consistent for
+# callers who join before building a design.
+#
+# NOT `as.character()`: R renders a numeric 100000 as "1e+05", so a naive
+# coercion silently rewrites every id at or above 1e5 -- in the join key, where
+# a corrupted value cannot be spotted by eyeballing a total.
+.coerce_uid <- function(x) {
+  if (is.character(x)) {
+    return(x)
+  }
+  if (is.factor(x)) {
+    return(as.character(x))
+  }
+  if (is.numeric(x)) {
+    finite <- !is.na(x) & is.finite(x)
+    if (all(x[finite] == trunc(x[finite]))) {
+      out <- rep(NA_character_, length(x))
+      out[finite] <- sprintf("%.0f", x[finite])
+      odd <- !is.na(x) & !finite
+      if (any(odd)) out[odd] <- as.character(x[odd])
+      return(out)
+    }
+  }
+  as.character(x)
+}
+
+.coerce_uid_cols <- function(df) {
+  for (col in c("interview_uid", "catch_uid", "length_uid", "age_uid")) {
+    if (col %in% names(df)) df[[col]] <- .coerce_uid(df[[col]])
+  }
+  df
+}
+
 # Internal: coerce the canonical length columns, shared by the harvest and
 # release loaders so the two tables cannot drift apart in what they carry.
 #
@@ -160,6 +201,7 @@
 # `.coerce_numeric()` turns "300-350" into NA, and a column named `_mm` holding
 # a label asserts a unit the source never gave (GH #127).
 .coerce_length_cols <- function(df) {
+  df <- .coerce_uid_cols(df)
   if ("species" %in% names(df)) df$species <- as.character(df$species)
   if ("length_mm" %in% names(df)) df$length_mm <- .coerce_numeric(df$length_mm, "length_mm")
   if ("length_bin" %in% names(df)) df$length_bin <- as.character(df$length_bin)
@@ -176,7 +218,7 @@
 # binned still selects `length_bin`/`count` on a quiet day (GH #127).
 .empty_lengths_frame <- function(fm) {
   df <- data.frame(
-    length_uid       = integer(0),
+    length_uid       = character(0),
     interview_uid    = character(0),
     species          = character(0),
     length_mm        = numeric(0),
@@ -536,6 +578,7 @@ fetch_interviews.creel_connection_csv <- function(conn, ...) {
   }
   df <- .apply_value_maps(df, conn$schema, "interviews")
 
+  df <- .coerce_uid_cols(df)
   validate_fetch_interviews(df) # nolint: object_usage_linter
   df
 }
@@ -572,6 +615,7 @@ fetch_interviews.creel_connection_dbi <- function(conn, ...) {
   }
   df <- .apply_value_maps(df, conn$schema, "interviews")
 
+  df <- .coerce_uid_cols(df)
   validate_fetch_interviews(df) # nolint: object_usage_linter
   df
 }
@@ -649,6 +693,7 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
 
   df <- .apply_value_maps(df, conn$schema, "interviews")
 
+  df <- .coerce_uid_cols(df)
   validate_fetch_interviews_api(df) # nolint: object_usage_linter
   df
 }
@@ -848,6 +893,7 @@ fetch_catch.creel_connection_csv <- function(conn, ...) {
   if ("catch_type"  %in% names(df)) df$catch_type  <- as.character(df$catch_type)
   df <- .apply_value_maps(df, conn$schema, "catch")
 
+  df <- .coerce_uid_cols(df)
   validate_fetch_catch(df) # nolint: object_usage_linter
   df
 }
@@ -868,6 +914,7 @@ fetch_catch.creel_connection_dbi <- function(conn, ...) {
   if ("catch_type"  %in% names(df)) df$catch_type  <- as.character(df$catch_type)
   df <- .apply_value_maps(df, conn$schema, "catch")
 
+  df <- .coerce_uid_cols(df)
   validate_fetch_catch(df) # nolint: object_usage_linter
   df
 }
@@ -879,7 +926,7 @@ fetch_catch.creel_connection_api <- function(conn, ...) {
   # Early return for empty API response
   if (nrow(raw_df) == 0L) {
     return(data.frame(
-      catch_uid        = integer(0),
+      catch_uid        = character(0),
       interview_uid    = character(0),
       species          = character(0),
       catch_count      = numeric(0),
@@ -900,7 +947,7 @@ fetch_catch.creel_connection_api <- function(conn, ...) {
 
   # UID synthesis: catch_uid absent from API response -- synthesize as row index (D-05, D-06)
   if (!"catch_uid" %in% names(df)) {
-    df$catch_uid <- seq_len(nrow(df))
+    df$catch_uid <- as.character(seq_len(nrow(df)))
   }
 
   if ("species"     %in% names(df)) df$species     <- as.character(df$species)
@@ -909,6 +956,7 @@ fetch_catch.creel_connection_api <- function(conn, ...) {
 
   df <- .apply_value_maps(df, conn$schema, "catch")
 
+  df <- .coerce_uid_cols(df)
   validate_fetch_catch(df) # nolint: object_usage_linter
   df
 }
