@@ -1,5 +1,23 @@
 # tidycreel.connect (development version)
 
+## Documentation
+
+* The example field names in the profile templates, README, vignette and tests
+  no longer reuse a real agency's API field names.
+
+  `CatchCategory`, `LengthBand` and `TripKind` were carried over from the source
+  survey this package was first written against — `AUDIT-connect-ingestion`
+  records the first two in its AGENCY field-map table — and they were still
+  shipped in `api-profile-example.yml`, `csv-profile-example.yml`, the README
+  and the getting-started vignette as though invented. They are now
+  `CatchCategory`, `LengthBand` and `TripKind`, which belong to no one.
+
+  Every raw name in this package's examples describes an imaginary API. That is
+  the point of them: the package ships no organisation's field names, and a
+  template that quietly carried three real ones undercut the rule it exists to
+  demonstrate. Example values only — no behaviour changes, and anyone using a
+  profile of their own is unaffected.
+
 ## Bug fixes
 
 * The API backend follows pagination, and refuses a response it can prove is
