@@ -32,6 +32,24 @@
 #' or deleted, and no file is written locally, so pointing it at a production
 #' service cannot modify anything there.
 #'
+#' ## Failed requests
+#'
+#' Every request is retried up to three times on a status that suggests the
+#' failure is temporary: 408, 425, 429, 500, 502, 503 and 504. Retrying is safe
+#' because every request is a `GET`, so a repeat cannot duplicate a side effect.
+#' A `Retry-After` header is honoured, so a throttled request waits the interval
+#' the server asked for rather than a fixed backoff.
+#'
+#' Any other status at or above 400 aborts on the first response, carrying the
+#' status, the endpoint and the body: a 401 or a 404 will give the same answer
+#' three times, and retrying only delays it.
+#'
+#' A response that returns 200 while carrying an error document rather than
+#' records is also refused, quoting what the API said. Nothing is wrong at the
+#' HTTP layer there, so the alternative is reading the error object as a record
+#' and failing later with a message that blames `api_field_map` for a fault in
+#' the request.
+#'
 #' ## Authentication
 #'
 #' Three auth modes are supported via the `auth` argument:
@@ -643,7 +661,10 @@ creel_connect_api <- function(
     req  <- .api_apply_retry(req)
     resp <- httr2::req_perform(req)
     .api_check_status(resp, endpoint)
-    df <- .api_page_to_df(resp, endpoint_key, con_info$records_path)
+    df <- .api_page_to_df(
+      resp, endpoint_key, con_info$records_path,
+      expected_fields = as.character(unlist(con_info$api_field_map[[endpoint_key]]))
+    )
 
     if (style == "none") {
       # No style declared: one request, and refuse anything provably partial.
@@ -758,15 +779,45 @@ creel_connect_api <- function(
 # convention: req_retry() first, req_error() after.
 #' @noRd
 .api_apply_retry <- function(req) {
-  # D-10, D-11: retry on 429/503, max 3 tries; explicit is_transient so retry
-  # fires regardless of the req_error policy applied below (httr2 1.2.2 behaviour)
+  # D-10, D-11: max 3 tries; explicit is_transient so retry fires regardless of
+  # the req_error policy applied below (httr2 1.2.2 behaviour).
   req <- httr2::req_retry(
     req,
     max_tries    = 3L,
-    is_transient = \(resp) httr2::resp_status(resp) %in% c(429L, 503L)
+    is_transient = \(resp) httr2::resp_status(resp) %in% .api_transient_statuses()
   )
   # D-13: disable httr2 auto-error AFTER retry is wired; manual cli_abort() controls format
   httr2::req_error(req, is_error = \(resp) FALSE)
+}
+
+# Statuses worth trying again.
+#
+# Wider than httr2's own 429/503 default, and safe to be: every request this
+# backend makes is a GET (see the read-only guarantee on `creel_connect_api()`),
+# so a repeat cannot duplicate a side effect. The cost of retrying a genuinely
+# permanent failure is bounded at three tries; the cost of NOT retrying a
+# transient one is the whole fetch, and for a paginated fetch that means
+# discarding the pages already collected.
+#
+# 500 is included deliberately. It is the debatable one -- often a real server
+# bug that repeating will not fix -- but a flaky backend behind a load balancer
+# emits it for exactly the kind of blip a retry absorbs, and an idempotent GET
+# makes the attempt free of consequence.
+#
+# `Retry-After` needs nothing here: httr2 reads it already, and a 429 carrying
+# one waits the interval the server asked for rather than the backoff curve.
+# Verified against a real server rather than assumed -- see the STATUS tests.
+#' @noRd
+.api_transient_statuses <- function() {
+  c(
+    408L, # Request Timeout
+    425L, # Too Early
+    429L, # Too Many Requests
+    500L, # Internal Server Error -- see the note above
+    502L, # Bad Gateway
+    503L, # Service Unavailable
+    504L  # Gateway Timeout
+  )
 }
 
 # Abort with a human-readable message on any HTTP error status.
@@ -794,6 +845,81 @@ creel_connect_api <- function(
     "i" = "Endpoint: {endpoint}",
     "x" = body_text
   ))
+}
+
+# Member names that conventionally carry an error message.
+#
+# Read ONLY to refuse, never to decide what to return -- the same licence
+# .api_total_key_candidates() takes. A wrong guess here cannot put a value in a
+# result; it can only stop a fetch that was going to fail anyway.
+#' @noRd
+.api_error_key_candidates <- function() {
+  c("error", "errors", "message", "detail", "details", "fault", "fault_string")
+}
+
+# Refuse a 200 whose body is an error document rather than data.
+#
+# Some APIs report a bad request with a 200 and an error object, so
+# .api_check_status() never sees it. Left alone the object is read as one
+# record, every mapped field misses, and the fetch dies at the validator saying
+# "date: column missing" -- which accuses the field map of a fault that belongs
+# to the request. The API said "invalid survey_id"; the package said "your
+# configuration is wrong".
+#
+# The test is deliberately narrow, because a legitimate record may well have a
+# field called `message`. All three must hold: the body is a JSON object rather
+# than an array, it carries a conventionally-named error member with something
+# in it, and NOT ONE of the raw fields this endpoint was configured to read is
+# present. A response containing an error and none of what you asked for is not
+# a record by any reading.
+#' @noRd
+.api_path_exists <- function(body, path) {
+  node <- body
+  for (key in path) {
+    if (!is.list(node) || is.null(names(node)) || !key %in% names(node)) {
+      return(FALSE)
+    }
+    node <- node[[key]]
+  }
+  TRUE
+}
+
+#' @noRd
+.api_assert_not_error_doc <- function(body, endpoint_key, expected_fields,
+                                      records_path = NULL) {
+  if (!is.list(body) || is.data.frame(body) || is.null(names(body))) {
+    return(invisible(NULL))
+  }
+  # An envelope whose records member is present is carrying records, whatever
+  # else sits beside them. `{"results": [...], "message": "partial day"}` is a
+  # successful response with a note attached, and the mapped fields are INSIDE
+  # `results` -- so looking for them at the top level would find none and
+  # condemn every enveloped API that annotates its payload.
+  if (!is.null(records_path) && .api_path_exists(body, records_path)) {
+    return(invisible(NULL))
+  }
+  if (length(intersect(expected_fields, names(body))) > 0L) {
+    return(invisible(NULL))
+  }
+  hits <- intersect(.api_error_key_candidates(), names(body))
+  for (key in hits) {
+    val <- body[[key]]
+    if (is.null(val) || length(val) == 0L) {
+      next
+    }
+    text <- paste(utils::head(trimws(as.character(unlist(val))), 3L), collapse = "; ")
+    if (!nzchar(text) || identical(tolower(text), "na")) {
+      next
+    }
+    cli::cli_abort(c(
+      "The {.val {endpoint_key}} endpoint returned an error document with status 200.",
+      "x" = "{.field {key}}: {text}",
+      "i" = "No field named in {.field api_field_map} for this endpoint is present, \\
+             so this is the API reporting a problem rather than returning records.",
+      "i" = "Reading it as data would blame the field map for a fault in the request."
+    ))
+  }
+  invisible(NULL)
 }
 
 # Validate a body path: NULL, or a character vector of non-empty member names.
@@ -924,8 +1050,15 @@ creel_connect_api <- function(
 # `records_path` is NULL for an API whose body is the record array, and names
 # the enclosing member(s) for one that wraps it.
 #' @noRd
-.api_page_to_df <- function(resp, endpoint_key, records_path = NULL) {
+.api_page_to_df <- function(resp, endpoint_key, records_path = NULL,
+                            expected_fields = character(0)) {
   body <- httr2::resp_body_json(resp, simplifyVector = TRUE)
+
+  # Before anything tries to read this as a table: it may not be one, and the
+  # body may already say why. Runs ahead of the records extraction so that an
+  # enveloped API reporting an error gets its own words quoted, rather than
+  # "no results member".
+  .api_assert_not_error_doc(body, endpoint_key, expected_fields, records_path)
 
   if (is.null(records_path)) {
     .api_assert_not_envelope(body, endpoint_key)

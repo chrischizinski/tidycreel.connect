@@ -540,3 +540,151 @@ test_that("a cursor loop names the pointer, not an offset parameter (CUR-07)", {
     "next.* pointer leads back to the page it came from"
   )
 })
+
+# --- HTTP status semantics (GH #349) -----------------------------------------
+
+test_that("every transient status is retried, not aborted (STATUS-01)", {
+  # Before this, only 429 and 503 were transient. A 502 from a load balancer, a
+  # 504 from a slow upstream, a 408 -- each aborted the whole fetch on the first
+  # try, and for a paginated fetch that discards the pages already collected.
+  #
+  # Each route fails once and then succeeds, so recovering the records IS the
+  # proof that a second request was made.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  for (code in api_shapes_status_codes()) {
+    conn <- api_shapes_conn(srv$url("/"), sprintf("status%d", code))
+    got  <- suppressMessages(fetch_counts(conn))
+    expect_equal(nrow(got), 3L, info = paste("status", code))
+  }
+})
+
+test_that("425 is transient too, though no local server can serve it (STATUS-01b)", {
+  # webfakes answers "Unknown HTTP response code: 425" with a 500. Because 500
+  # is now transient itself, a 425 route would recover and the test would look
+  # green having never served a 425 -- passing for the wrong reason. So the
+  # predicate is asserted directly, and the gap in coverage is stated rather
+  # than papered over.
+  expect_true(425L %in% tidycreel.connect:::.api_transient_statuses())
+  # The set is a deliberate list, not "every 4xx/5xx": a 404 must stay permanent.
+  expect_false(404L %in% tidycreel.connect:::.api_transient_statuses())
+})
+
+test_that("a permanent status aborts on the first request (STATUS-02)", {
+  # The other half, and the one that keeps STATUS-01 from being "retry
+  # everything". A 404 or a 401 will say the same thing three times; retrying
+  # only triples the wait before the user sees it.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  for (code in api_shapes_permanent_codes()) {
+    conn <- api_shapes_conn(srv$url("/"), sprintf("perm%d", code))
+    expect_error(
+      suppressMessages(fetch_counts(conn)),
+      sprintf("API request failed \\[%d\\]", code)
+    )
+    # ...and exactly once. The server counts its own hits, so this measures the
+    # retry rather than inferring it from how long the failure took.
+    n <- httr2::resp_body_json(
+      httr2::req_perform(httr2::request(paste0(srv$url("/"), "attempts?key=p", code)))
+    )$n
+    expect_equal(n, 1L, info = paste("status", code))
+  }
+})
+
+test_that("a 429 waits the interval the server asked for (STATUS-03)", {
+  # httr2 reads Retry-After itself, so this is not code this package had to
+  # write -- but #349 recorded it as unhandled, and the only way to know which
+  # is true is to make a server ask for a wait and time it. Two seconds
+  # requested against a sub-second default backoff.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  conn    <- api_shapes_conn(srv$url("/"), "retry-after")
+  started <- Sys.time()
+  got     <- suppressMessages(fetch_counts(conn))
+  elapsed <- as.numeric(difftime(Sys.time(), started, units = "secs"))
+
+  expect_equal(nrow(got), 3L)
+  # Generous lower bound: the point is that it waited SECONDS rather than
+  # httr2's default sub-second first backoff, not that it waited exactly 2.
+  expect_gt(elapsed, 1.5)
+})
+
+test_that("a 200 carrying an error document is refused, quoting it (STATUS-04)", {
+  # The one with teeth. Nothing is wrong at the HTTP layer, so
+  # .api_check_status() never sees it. Read as data, the object becomes one
+  # record, every mapped field misses, and the fetch dies at the validator
+  # saying "date: column missing" -- blaming the field map for a fault in the
+  # request. The API said "invalid survey_id" and the package said "your
+  # configuration is wrong".
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  conn <- api_shapes_conn(srv$url("/"), "ok-error")
+  expect_error(
+    suppressMessages(fetch_counts(conn)),
+    "returned an error document with status 200"
+  )
+  # The API's own words have to survive into the message, or the user still has
+  # to go and look.
+  expect_error(suppressMessages(fetch_counts(conn)), "invalid survey_id")
+  # And it must NOT be the old misdiagnosis. Asserted on the captured message
+  # rather than as a negative-lookahead pattern: the abort is multi-line, and
+  # `^(?!...)$` anchors to the first line only, so that form would pass whether
+  # or not the phrase appeared further down.
+  msg <- tryCatch(
+    suppressMessages(fetch_counts(conn)),
+    error = function(e) conditionMessage(e)
+  )
+  expect_false(grepl("column missing", msg, fixed = TRUE))
+})
+
+test_that("a real record carrying a message field is not an error document (STATUS-05)", {
+  # The false-positive guard, and the reason the check needs all three
+  # conditions. `message` is a perfectly ordinary field name. What makes a body
+  # an error document is that it carries one AND none of the fields the profile
+  # asked for -- here every one of them is present.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  got <- suppressMessages(fetch_counts(api_shapes_conn(srv$url("/"), "ok-message")))
+  expect_equal(nrow(got), 1L)
+  expect_equal(got$bank_anglers, 4)
+})
+
+test_that("an envelope annotated with a message is not an error document (STATUS-06)", {
+  # Found by the pre-push review, and a regression I introduced: with
+  # `records_path` set, the mapped fields live INSIDE the envelope, so looking
+  # for them at the top level finds none. `{"results": [...], "message": "..."}`
+  # -- a successful response with a note attached -- was refused, which would
+  # have broken exactly the enveloped and cursor APIs #347 and #348 added.
+  #
+  # A records member that resolves is proof the body carries records, whatever
+  # sits beside it.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  conn <- api_shapes_conn(srv$url("/"), "env-message", records_path = "results")
+  got  <- suppressMessages(fetch_counts(conn))
+  expect_equal(nrow(got), 3L)
+  expect_equal(got$bank_anglers, c(4, 0, 7))
+})
+
+test_that("an enveloped API reporting an error is quoted, not 'no member' (STATUS-07)", {
+  # The other side of STATUS-06, and why the error check still runs before the
+  # extraction. When `records_path` does NOT resolve and the body carries an
+  # error, the useful message is the API's own -- not "the response has no
+  # results member", which describes the symptom and hides the cause.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  conn <- api_shapes_conn(srv$url("/"), "ok-error", records_path = "results")
+  expect_error(suppressMessages(fetch_counts(conn)), "invalid survey_id")
+  msg <- tryCatch(
+    suppressMessages(fetch_counts(conn)),
+    error = function(e) conditionMessage(e)
+  )
+  expect_false(grepl("has no", msg, fixed = TRUE))
+})

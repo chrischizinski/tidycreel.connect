@@ -137,10 +137,30 @@ api_shapes_rows_json <- function() {
   # nolint end
 }
 
+# The statuses a flaky-but-working API emits. Every one of these is a GET here,
+# so a retry cannot duplicate a side effect.
+#
+# 425 is deliberately ABSENT: webfakes cannot emit it ("Unknown HTTP response
+# code: 425") and answers 500 instead. Since 500 is itself transient now, a 425
+# route would recover and the test would pass without ever having served a 425.
+# It is asserted against the predicate directly in STATUS-01b instead.
+api_shapes_status_codes <- function() {
+  c(408L, 429L, 500L, 502L, 503L, 504L)
+}
+
+# Statuses that mean the request itself was wrong, and must NOT be retried.
+api_shapes_permanent_codes <- function() {
+  c(400L, 401L, 403L, 404L, 422L)
+}
+
 api_shapes_app <- function() {
   app <- webfakes::new_app()
   app$locals$bodies <- api_shapes_bodies()
   app$locals$rows   <- api_shapes_rows_json()
+  # Request counters for the status routes. An environment, because the handler
+  # runs in a subprocess and needs somewhere mutable that survives between
+  # requests within it.
+  app$locals$seen   <- new.env(parent = emptyenv())
   for (shape in names(api_shapes_bodies())) {
     local({
       key <- shape
@@ -151,6 +171,111 @@ api_shapes_app <- function() {
       })
     })
   }
+  # --- status routes ---------------------------------------------------
+  # Each /status<code> route fails once with that code and then succeeds, so a
+  # test can tell "retried and recovered" from "aborted" by the RESULT rather
+  # than by counting requests.
+  for (code in api_shapes_status_codes()) {
+    local({
+      cc <- code
+      app$get(sprintf("/status%d", cc), function(req, res) {
+        seen <- res$app$locals$seen
+        key  <- as.character(cc)
+        n    <- (if (is.null(seen[[key]])) 0L else seen[[key]]) + 1L
+        seen[[key]] <- n
+        if (n < 2L) {
+          res$
+            set_status(cc)$
+            set_header("Content-Type", "application/json")$
+            send(charToRaw(sprintf('{"transient":true,"try":%d}', n)))
+        } else {
+          res$
+            set_header("Content-Type", "application/json")$
+            send(charToRaw(sprintf("[%s]", paste(res$app$locals$rows, collapse = ","))))
+        }
+      })
+    })
+  }
+
+  # Permanent failures: these always fail, and the count is reported in the body
+  # so a test can prove the request was made ONCE. A retried 404 is three times
+  # the latency for the same answer.
+  for (code in api_shapes_permanent_codes()) {
+    local({
+      cc <- code
+      app$get(sprintf("/perm%d", cc), function(req, res) {
+        seen <- res$app$locals$seen
+        key  <- paste0("p", cc)
+        n    <- (if (is.null(seen[[key]])) 0L else seen[[key]]) + 1L
+        seen[[key]] <- n
+        res$
+          set_status(cc)$
+          set_header("Content-Type", "application/json")$
+          send(charToRaw(sprintf('{"attempts":%d}', n)))
+      })
+    })
+  }
+
+  # Reports how many times a route was hit, so "retried" is measured rather
+  # than inferred from timing.
+  app$get("/attempts", function(req, res) {
+    key <- req$query[["key"]]
+    n   <- res$app$locals$seen[[key]]
+    res$
+      set_header("Content-Type", "application/json")$
+      send(charToRaw(sprintf('{"n":%d}', if (is.null(n)) 0L else n)))
+  })
+
+  # A 429 that names its own wait. httr2 reads Retry-After itself; the route
+  # exists so that fact is pinned rather than believed.
+  app$get("/retry-after", function(req, res) {
+    seen <- res$app$locals$seen
+    n <- (if (is.null(seen[["ra"]])) 0L else seen[["ra"]]) + 1L
+    seen[["ra"]] <- n
+    if (n < 2L) {
+      res$
+        set_status(429L)$
+        set_header("Retry-After", "2")$
+        set_header("Content-Type", "application/json")$
+        send(charToRaw('{"throttled":true}'))
+    } else {
+      res$
+        set_header("Content-Type", "application/json")$
+        send(charToRaw(sprintf("[%s]", paste(res$app$locals$rows, collapse = ","))))
+    }
+  })
+
+  # A 200 whose body is an error object, not data. .api_check_status() never
+  # sees this, because nothing is wrong at the HTTP layer.
+  app$get("/ok-error", function(req, res) {
+    res$
+      set_header("Content-Type", "application/json")$
+      send(charToRaw('{"error":"invalid survey_id","code":4001}'))
+  })
+
+  # A successful ENVELOPE with an informational note beside the records. The
+  # mapped fields are inside `results`, so nothing the field map names appears
+  # at the top level -- which is what made this look like an error document.
+  app$get("/env-message", function(req, res) {
+    res$
+      set_header("Content-Type", "application/json")$
+      send(charToRaw(sprintf(
+        '{"results":[%s],"message":"partial day"}',
+        paste(res$app$locals$rows, collapse = ",")
+      )))
+  })
+
+  # The false-positive guard: a real record that happens to carry a `message`
+  # field, alongside the fields the profile actually asked for.
+  app$get("/ok-message", function(req, res) {
+    res$
+      set_header("Content-Type", "application/json")$
+      send(charToRaw(paste0(
+        '{"SurveyDate":"2016-05-14","ShoreAnglers":4,"FishingBoats":2,',
+        '"OtherBoats":0,"message":"partial day"}'
+      )))
+  })
+
   # --- cursor routes ---------------------------------------------------
   # Stateless: the page is derived from the request, so a loop that fails to
   # advance repeats a page rather than quietly running off the end.

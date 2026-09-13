@@ -148,6 +148,25 @@ or deleted, and no file is written locally, so pointing it at a production
 service cannot modify anything there.
 }
 
+\subsection{Failed requests}{
+
+Every request is retried up to three times on a status that suggests the
+failure is temporary: 408, 425, 429, 500, 502, 503 and 504. Retrying is safe
+because every request is a \code{GET}, so a repeat cannot duplicate a side effect.
+A \code{Retry-After} header is honoured, so a throttled request waits the interval
+the server asked for rather than a fixed backoff.
+
+Any other status at or above 400 aborts on the first response, carrying the
+status, the endpoint and the body: a 401 or a 404 will give the same answer
+three times, and retrying only delays it.
+
+A response that returns 200 while carrying an error document rather than
+records is also refused, quoting what the API said. Nothing is wrong at the
+HTTP layer there, so the alternative is reading the error object as a record
+and failing later with a message that blames \code{api_field_map} for a fault in
+the request.
+}
+
 \subsection{Authentication}{
 
 Three auth modes are supported via the \code{auth} argument:

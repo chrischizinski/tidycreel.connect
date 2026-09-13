@@ -17,6 +17,44 @@
 
 ## New features
 
+* HTTP status handling covers more than the 429/503 pair (#349).
+
+  Only 429 and 503 were treated as worth retrying. A 502 from a load balancer, a
+  504 from a slow upstream, a 408 — each aborted the whole fetch on its first
+  response, and for a paginated fetch that discards the pages already collected.
+  The transient set is now 408, 425, 429, 500, 502, 503 and 504.
+
+  Retrying is safe here because every request this backend makes is a `GET`, so
+  a repeat cannot duplicate a side effect, and the cost of retrying a genuinely
+  permanent failure is bounded at three tries. Anything else at or above 400
+  still aborts on the first response: a 401 or a 404 gives the same answer three
+  times, and retrying only delays it.
+
+* A 200 response carrying an error document is refused, quoting the API.
+
+  Some APIs report a bad request with a 200 and an error object, so the status
+  check never sees it. Read as data, the object became one record, every mapped
+  field missed, and the fetch died at the validator saying `date: column
+  missing` — blaming `api_field_map` for a fault in the request. The API said
+  `invalid survey_id`; the package said your configuration was wrong.
+
+  The test is deliberately narrow, because `message` is an ordinary field name.
+  All three must hold: the body is a JSON object rather than an array, it
+  carries a conventionally-named error member with something in it, and **not
+  one** of the raw fields configured for that endpoint is present.
+
+  A fourth condition came out of the pre-push review, which caught the first
+  version refusing a perfectly good enveloped response. With `records_path` set
+  the mapped fields live *inside* the envelope, so none of them appears at the
+  top level and `{"results": [...], "message": "partial day"}` looked like an
+  error — which would have broken exactly the enveloped and cursor APIs the
+  previous two entries added. A records member that resolves is now proof the
+  body carries records, whatever sits beside them.
+
+  `Retry-After` needed no work: **httr2 already honours it.** #349 recorded it
+  as unhandled and that was wrong — timed at 4.08s for two 2s waits against a
+  real server. A test pins it so the claim is not inherited again.
+
 * `pagination` gains `style = "cursor"`, now that there is an envelope to read
   it from.
 
