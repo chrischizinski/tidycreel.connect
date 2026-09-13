@@ -1,6 +1,6 @@
 Package: tidycreel.connect
 Title: Database and File Connections for Tidycreel
-Version: 0.4.0
+Version: 0.5.0
 Authors@R:
     person("Christopher", "Chizinski", role = c("aut", "cre"),
            email = "cchizinski2@unl.edu")
@@ -20,7 +20,7 @@ Imports:
     httr2 (>= 1.0.0),
     readr,
     tibble,
-    tidycreel (>= 5.0.0)
+    tidycreel (>= 7.0.0)
 Suggests:
     config,
     duckdb,

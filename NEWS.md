@@ -1,6 +1,21 @@
-# tidycreel.connect (development version)
+# tidycreel.connect 0.5.0
 
 ## Breaking changes
+
+* Requires `tidycreel (>= 7.0.0)`, raised from `>= 5.0.0`.
+
+  Two things in this release depend on tidycreel 7.0.0 specifically, and
+  neither fails in a way that would point at the version. The character
+  identifier normalisation below is applied on both sides — this package
+  coerces `fetch_*()` output, tidycreel coerces again at `add_catch()` — and
+  against tidycreel 6.0.0 the design side still produces numeric ids, so a
+  join that looks fine here breaks downstream. And `test-composition-calamus.R`
+  resolves its fixture through `system.file("calamus-2016", package =
+  "tidycreel")`, which only exists from 7.0.0; on 6.0.0 those eight tests skip
+  rather than fail, reporting a green run that asserted nothing.
+
+  The floor had sat at 5.0.0 since that release and was never exercised, so it
+  had stopped describing what this package actually needs.
 
 * `fetch_*()` returns character identifier columns from every backend.
 
@@ -14,6 +29,19 @@
   frames declared `integer(0)` ids beside `character(0)` ones, so a quiet day
   returned different types from a busy one; and a synthesised `catch_uid` was a
   row index rather than a label.
+
+
+* `list_creels()` and `search_creels()` still abort on a database connection,
+  but now as a statement rather than a placeholder, with the condition class
+  `creel_error_discovery_unavailable` (#185).
+
+  Discovery asks a source which surveys it holds. A database connection is
+  already pointed at one set of tables and has no catalogue to enumerate
+  without inventing a convention for how an agency names or partitions surveys
+  — exactly the organisation-specific knowledge this package does not carry.
+  The previous wording, "not supported", read as "not yet" and invited an
+  implementation that cannot exist. Use the API backend, whose service defines
+  discovery.
 
 ## New features
 
@@ -238,6 +266,34 @@
   `{"SurveyDate": ..., "Audit": {...}}` was refused as a wrapper, a shape that
   reads correctly on the previous release.
 
+
+* The DBI backend loads data (#185). SQL Server via ODBC works, and so does any
+  other DBI driver.
+
+  Until now a database connection opened, reported itself open, and aborted on
+  every `fetch_*()` call. Each fetcher now reads its table by the name the
+  schema gives it and puts the rows through the same rename, coercion,
+  value-map and validation stages the CSV backend uses — the read is the only
+  backend-specific step, so a frame fetched from a database and the same rows
+  fetched from CSV come back identical, which the tests assert directly.
+
+  Table names come from `interviews_table`, `counts_table`, `catch_table` and
+  `harvest_lengths_table` / `release_lengths_table`. A table the schema does
+  not name is refused, naming the setting that is missing: unlike a column,
+  there is no canonical table name to fall back on, and guessing would mean
+  querying whatever happened to match.
+
+  A table name may be a string or a `DBI::Id()`. `Id()` is what reaches a
+  schema-qualified table — `DBI::Id(schema = "dbo", table = "vwInterviews")` —
+  since the string `"dbo.vwInterviews"` is one literal name and is not found.
+
+* Database connections now carry the class `creel_connection_dbi`, with
+  `creel_connection_sqlserver` kept alongside it (#185). Nothing in the read
+  path is SQL Server specific — the test suite exercises it on duckdb — so the
+  methods live on the general name. The old name stays in the class vector and
+  every method is registered for it too, so existing code that dispatches on it
+  is unaffected.
+
 ## Bug fixes
 
 * A relative `Link` target is resolved against the request URL before being
@@ -263,29 +319,12 @@
   `add_interviews()` to the estimators, compared against Calamus 2016. The most
   valuable tests here were the ones silently not executing.
 
-  The suite now reports **461 passing and 1 skip**, where it reported 437 and 9.
+  That change took the suite from **437 passing with 9 skips** to **461 with 1**.
+  (Stated as the delta rather than a running total: a current count written
+  into a release note is wrong by the next release.)
   Nothing in this package changed to achieve it beyond the fixture path; the
   code under those tests was correct the whole time.
 
-## Documentation
-
-* The example field names in the profile templates, README, vignette and tests
-  no longer reuse a real agency's API field names.
-
-  `CatchCategory`, `LengthBand` and `TripKind` were carried over from the source
-  survey this package was first written against — `AUDIT-connect-ingestion`
-  records the first two in its AGENCY field-map table — and they were still
-  shipped in `api-profile-example.yml`, `csv-profile-example.yml`, the README
-  and the getting-started vignette as though invented. They are now
-  `CatchCategory`, `LengthBand` and `TripKind`, which belong to no one.
-
-  Every raw name in this package's examples describes an imaginary API. That is
-  the point of them: the package ships no organisation's field names, and a
-  template that quietly carried three real ones undercut the rule it exists to
-  demonstrate. Example values only — no behaviour changes, and anyone using a
-  profile of their own is unaffected.
-
-## Bug fixes
 
 * The API backend follows pagination, and refuses a response it can prove is
   only part of the data (#330).
@@ -330,50 +369,6 @@
   a response envelope this backend did not read. That reason expired when
   `records_path` shipped; `style = "cursor"` is supported now (see below).
 
-## New features
-
-* The DBI backend loads data (#185). SQL Server via ODBC works, and so does any
-  other DBI driver.
-
-  Until now a database connection opened, reported itself open, and aborted on
-  every `fetch_*()` call. Each fetcher now reads its table by the name the
-  schema gives it and puts the rows through the same rename, coercion,
-  value-map and validation stages the CSV backend uses — the read is the only
-  backend-specific step, so a frame fetched from a database and the same rows
-  fetched from CSV come back identical, which the tests assert directly.
-
-  Table names come from `interviews_table`, `counts_table`, `catch_table` and
-  `harvest_lengths_table` / `release_lengths_table`. A table the schema does
-  not name is refused, naming the setting that is missing: unlike a column,
-  there is no canonical table name to fall back on, and guessing would mean
-  querying whatever happened to match.
-
-  A table name may be a string or a `DBI::Id()`. `Id()` is what reaches a
-  schema-qualified table — `DBI::Id(schema = "dbo", table = "vwInterviews")` —
-  since the string `"dbo.vwInterviews"` is one literal name and is not found.
-
-* Database connections now carry the class `creel_connection_dbi`, with
-  `creel_connection_sqlserver` kept alongside it (#185). Nothing in the read
-  path is SQL Server specific — the test suite exercises it on duckdb — so the
-  methods live on the general name. The old name stays in the class vector and
-  every method is registered for it too, so existing code that dispatches on it
-  is unaffected.
-
-## Breaking changes
-
-* `list_creels()` and `search_creels()` still abort on a database connection,
-  but now as a statement rather than a placeholder, with the condition class
-  `creel_error_discovery_unavailable` (#185).
-
-  Discovery asks a source which surveys it holds. A database connection is
-  already pointed at one set of tables and has no catalogue to enumerate
-  without inventing a convention for how an agency names or partitions surveys
-  — exactly the organisation-specific knowledge this package does not carry.
-  The previous wording, "not supported", read as "not yet" and invited an
-  implementation that cannot exist. Use the API backend, whose service defines
-  discovery.
-
-## Bug fixes
 
 * A YAML profile setting `harvest_lengths_table` or `release_lengths_table`
   aborted with R's bare "unused arguments" error, naming no cause (#185). The
@@ -391,6 +386,24 @@
   does not move. The test now asserts that, and additionally gives those rows a
   catch and requires the SE to move — otherwise it would keep passing if the
   variance stopped responding to the data at all.
+
+## Documentation
+
+* The example field names in the profile templates, README, vignette and tests
+  no longer reuse a real agency's API field names.
+
+  `CatchCategory`, `LengthBand` and `TripKind` were carried over from the source
+  survey this package was first written against — `AUDIT-connect-ingestion`
+  records the first two in its AGENCY field-map table — and they were still
+  shipped in `api-profile-example.yml`, `csv-profile-example.yml`, the README
+  and the getting-started vignette as though invented. They are now
+  `CatchCategory`, `LengthBand` and `TripKind`, which belong to no one.
+
+  Every raw name in this package's examples describes an imaginary API. That is
+  the point of them: the package ships no organisation's field names, and a
+  template that quietly carried three real ones undercut the rule it exists to
+  demonstrate. Example values only — no behaviour changes, and anyone using a
+  profile of their own is unaffected.
 
 # tidycreel.connect 0.4.0
 
