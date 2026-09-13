@@ -280,13 +280,26 @@ test_that("style 'offset' requires the parameter name (PAG-15b)", {
   )
 })
 
-test_that("style 'cursor' is refused by name with its reason (PAG-16)", {
-  # Deferred rather than half-built: a cursor arrives in a response envelope
-  # this backend does not read. Accepting the style and fetching page 1 would
-  # be the defect wearing a configuration.
+test_that("style 'cursor' needs records_path and next_path (PAG-16)", {
+  # This test used to assert that `cursor` was refused BY NAME, on the grounds
+  # that a cursor arrives in a response envelope this backend did not read.
+  # That reason expired when `records_path` shipped -- the style is supported
+  # now, and what is refused is a cursor declared without the two things it
+  # cannot work without.
+  #
+  # A cursor with no envelope around it is a contradiction, not a
+  # configuration: the pointer has nowhere to live.
   expect_error(
-    make_api_conn(pagination = list(style = "cursor", cursor_param = "after")),
-    "must be one of"
+    make_api_conn(pagination = list(style = "cursor", next_path = "next")),
+    "needs.*records_path"
+  )
+  # And a cursor style with no pointer named would silently stop after page one.
+  expect_error(
+    make_api_conn(
+      pagination   = list(style = "cursor", cursor_param = "after"),
+      records_path = "results"
+    ),
+    "next_path.* is required"
   )
 })
 

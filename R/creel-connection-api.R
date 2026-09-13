@@ -74,10 +74,23 @@
 #'     actually received, not by an assumed page size.
 #'   - `"link"` -- an RFC 8288 `Link` header carrying `rel="next"`. Needs no
 #'     other setting.
+#'   - `"cursor"` -- a pointer to the next page inside the response *body*.
+#'     Requires `next_path` naming the member that holds it, and `records_path`
+#'     (a cursor implies an envelope; without one the pointer has nowhere to
+#'     live). Add `cursor_param` when the pointer is an opaque token to send
+#'     back as a query parameter; omit it when the pointer is a whole URL, which
+#'     is then followed the way a `Link` target is, relative targets included.
+#'     A token is added to the original request rather than replacing it, so the
+#'     uid filter survives the page turn.
+#'
+#'     The member must be present on the *first* response, `null` included.
+#'     Absent there is treated as a mistyped `next_path` and aborts, because
+#'     reading it as "no more pages" would return page one as the whole dataset.
+#'     On later pages an absent member simply ends the loop.
 #'   - `"none"` -- this API is not paginated. Declaring it is the same as
 #'     leaving `pagination` `NULL`, but says so on purpose.
 #'
-#'   Optional for `"page"` and `"offset"`: `page_size` (rows per request) and
+#'   Optional for `"page"`, `"offset"` and `"cursor"`: `page_size` (rows per request) and
 #'   `page_size_param` (the query parameter to send it as). `page_size` is also
 #'   the stop rule -- a page shorter than it is the last one. Supplying it
 #'   without `page_size_param` is allowed, for an API with a fixed page size it
@@ -215,6 +228,16 @@ creel_connect_api <- function(
   }
   resolved_records_path <- .validate_api_json_path(records_path, "records_path")
   resolved_total_path   <- .validate_api_json_path(total_path, "total_path")
+  if (!is.null(resolved_pagination) &&
+        identical(resolved_pagination$style, "cursor") &&
+        is.null(resolved_records_path)) {
+    cli::cli_abort(c(
+      "{.code pagination = list(style = \"cursor\")} needs {.arg records_path}.",
+      "x" = "A cursor is carried in the response body, so the body is an envelope \\
+             and the records sit inside a member of it.",
+      "i" = "Name that member, e.g. {.code records_path = \"results\"}."
+    ))
+  }
   if (is.null(resolved_records_path) && !is.null(resolved_total_path)) {
     cli::cli_abort(c(
       "{.arg total_path} was given without {.arg records_path}.",
@@ -396,14 +419,14 @@ creel_connect_api <- function(
 
 # The pagination styles this backend can follow.
 #
-# `cursor` is deliberately absent. A cursor arrives in the response *body*,
-# which means the body is an envelope (`{"items": [...], "next": "..."}`) rather
-# than the bare JSON array this backend reads. Envelope support is a separate
-# capability and is tracked as its own half of GH #330; refusing the style by
-# name is honest, where accepting it and reading page 1 would not be.
+# `cursor` was refused by name until the envelope reader landed, because a
+# cursor arrives in the response *body* and this backend only read a bare JSON
+# array. `records_path` removed that obstacle, so the style is supported now and
+# requires `records_path` to be set -- a cursor with no envelope around it is a
+# contradiction, not a configuration.
 #' @noRd
 .api_pagination_styles <- function() {
-  c("page", "offset", "link", "none")
+  c("page", "offset", "link", "cursor", "none")
 }
 
 # Settings each style accepts, beyond `style` itself. A name outside its style's
@@ -417,6 +440,7 @@ creel_connect_api <- function(
     page   = c(common, "page_param", "start_page"),
     offset = c(common, "offset_param", "start_offset"),
     link   = c("style", "max_pages"),
+    cursor = c(common, "next_path", "cursor_param"),
     none   = "style"
   )
 }
@@ -437,8 +461,8 @@ creel_connect_api <- function(
     cli::cli_abort(c(
       "{.field pagination$style} must be one of {.val {styles}}.",
       "x" = "Got: {.val {style}}",
-      "i" = "{.val cursor} is not supported: it needs a response envelope, which \\
-             this backend does not read."
+      "i" = "{.val cursor} reads its next pointer from the response body, so it \\
+             also needs {.arg records_path}."
     ))
   }
 
@@ -493,7 +517,7 @@ creel_connect_api <- function(
   }
 
   out <- list(style = style)
-  if (style %in% c("page", "offset")) {
+  if (style %in% c("page", "offset", "cursor")) {
     # Held as locals, not read back off `out`: `$` partial-matches, so
     # `out$page_size` would return `page_size_param`'s value whenever the size
     # itself is absent -- which is exactly the case being checked for.
@@ -514,6 +538,18 @@ creel_connect_api <- function(
   } else if (style == "offset") {
     out$offset_param  <- .pag_string("offset_param", required = TRUE)
     out$start_offset  <- .pag_count("start_offset", 0L, 0L)
+  } else if (style == "cursor") {
+    out$next_path <- .validate_api_json_path(pagination[["next_path"]], "pagination$next_path")
+    if (is.null(out$next_path)) {
+      cli::cli_abort(c(
+        "{.field pagination$next_path} is required for style {.val cursor}.",
+        "i" = "Name the response member holding the pointer to the next page, \\
+               e.g. {.code next_path = \"next\"}."
+      ))
+    }
+    # Absent means the body holds a whole URL, the way a Link header does.
+    # Present means it holds an opaque token to send back as that parameter.
+    out$cursor_param <- .pag_string("cursor_param", required = FALSE)
   }
   out$max_pages <- .pag_count("max_pages", 1000L, 1L)
 
@@ -522,7 +558,10 @@ creel_connect_api <- function(
   # `?page=<uid>` into `?page=1` and the survey filter is gone. An API that
   # reads a missing filter as "every survey" then returns other surveys' rows,
   # which is a wrong dataset carrying no sign that it is wrong.
-  param_names <- unlist(out[c("page_param", "offset_param", "page_size_param")], use.names = TRUE)
+  param_names <- unlist(
+    out[c("page_param", "offset_param", "page_size_param", "cursor_param")],
+    use.names = TRUE
+  )
   param_names <- param_names[!is.na(param_names)]
   if (!is.null(uid_param)) {
     clash <- names(param_names)[param_names == uid_param]
@@ -586,14 +625,15 @@ creel_connect_api <- function(
   pag   <- con_info$pagination
   style <- if (is.null(pag)) "none" else pag$style
 
-  pages    <- list()
-  page_no  <- 1L
-  n_so_far <- 0L
-  next_url <- NULL
+  pages       <- list()
+  page_no     <- 1L
+  n_so_far    <- 0L
+  next_url    <- NULL
+  next_cursor <- NULL
 
   repeat {
     req <- if (is.null(next_url)) {
-      .api_page_request(base_req, pag, page_no, n_so_far)
+      .api_page_request(base_req, pag, page_no, n_so_far, cursor = next_cursor)
     } else {
       # A next link is an absolute URL the API built, filter included, so the
       # uid query is not re-applied -- only the credentials are.
@@ -623,7 +663,12 @@ creel_connect_api <- function(
     # A page shorter than the declared size is the last one. Without a declared
     # size the only safe stop is an empty page -- guessing from a round row
     # count would drop a final page whose length happened to look full.
-    if (!is.null(pag[["page_size"]]) && nrow(df) < pag[["page_size"]]) break
+    #
+    # Not for `cursor`, where the pointer is authoritative: an API is free to
+    # return a short page and still offer a next one, and stopping on the length
+    # would discard the rest while the response was still saying there is more.
+    if (style != "cursor" &&
+          !is.null(pag[["page_size"]]) && nrow(df) < pag[["page_size"]]) break
 
     # The same rows twice means the request did not advance. Binding them would
     # duplicate every record and inflate every total, so stop and say which
@@ -634,6 +679,11 @@ creel_connect_api <- function(
     if (page_no > 1L && identical(df, pages[[page_no - 1L]])) {
       cause <- if (style == "link") {
         cli::format_inline("Its {.field Link} header points back at the same page.")
+      } else if (style == "cursor") {
+        ptr <- paste(pag[["next_path"]], collapse = " > ") # nolint: object_usage_linter
+        cli::format_inline(
+          "Its {.field {ptr}} pointer leads back to the page it came from."
+        )
       } else {
         param <- if (style == "page") pag[["page_param"]] else pag[["offset_param"]] # nolint: object_usage_linter, line_length_linter
         cli::format_inline("It appears to ignore the {.field {param}} parameter.")
@@ -644,6 +694,20 @@ creel_connect_api <- function(
         "i" = "Check the setting against your API, or set \\
                {.code pagination = list(style = \"none\")} if it does not paginate."
       ))
+    }
+
+    if (style == "cursor") {
+      ptr <- .api_body_next(resp, pag[["next_path"]], first_page = page_no == 1L)
+      if (is.null(ptr)) break
+      if (is.null(pag[["cursor_param"]])) {
+        # No parameter named: the body holds a whole URL, followed the way a
+        # Link target is, relative targets included.
+        next_url <- httr2::url_modify_relative(httr2::resp_url(resp), ptr)
+      } else {
+        # An opaque token, sent back on the original request rather than
+        # replacing it -- the uid filter has to survive the page turn.
+        next_cursor <- ptr
+      }
     }
 
     if (style == "link") {
@@ -925,6 +989,47 @@ creel_connect_api <- function(
   NULL
 }
 
+# The pointer to the next page, read from the response body, or NULL at the end.
+#
+# `first_page` is what keeps a typo from reading as "done". A member that is
+# absent on the FIRST response is a configuration error -- the same silent
+# truncation a mistyped `total_path` used to cause -- while a member absent on a
+# later one is just an API that stops sending the key instead of sending null.
+#' @noRd
+.api_body_next <- function(resp, next_path, first_page) {
+  body <- tryCatch(
+    httr2::resp_body_json(resp, simplifyVector = TRUE),
+    error = function(e) NULL
+  )
+  node <- body
+  for (i in seq_along(next_path)) {
+    key <- next_path[[i]]
+    if (!is.list(node) || is.null(names(node)) || !key %in% names(node)) {
+      if (!first_page) {
+        return(NULL)
+      }
+      present <- if (is.list(node) && !is.null(names(node))) names(node) else character(0) # nolint: object_usage_linter, line_length_linter
+      cli::cli_abort(c(
+        "The first response has no {.field {key}} member, but \\
+         {.field pagination$next_path} names one.",
+        "x" = "Looked in {.code {paste(c('body', next_path[seq_len(i - 1L)]), collapse = ' > ')}}, \\
+               which holds: {.field {present}}",
+        "i" = "A pointer that is never found would end the fetch after page one \\
+               and return it as the complete dataset.",
+        "i" = "If this API omits the key when there is only one page, it is not \\
+               paginating this query -- use {.code style = \"none\"}."
+      ))
+    }
+    node <- node[[key]]
+  }
+  # null, absent, or blank all mean the same thing: there is no next page.
+  if (is.null(node) || length(node) != 1L || is.na(node)) {
+    return(NULL)
+  }
+  node <- as.character(node)
+  if (!nzchar(node)) NULL else node
+}
+
 # The record count the API reported for the whole query, or NULL.
 #' @noRd
 .api_reported_total <- function(resp) {
@@ -1092,11 +1197,14 @@ creel_connect_api <- function(
 # is a prefix of `page_size_param`, so `pag$page_size` silently returns a
 # parameter NAME when no size was declared.
 #' @noRd
-.api_page_request <- function(req, pag, page_no, n_so_far) {
+.api_page_request <- function(req, pag, page_no, n_so_far, cursor = NULL) {
   if (is.null(pag)) {
     return(req)
   }
   args <- list()
+  if (!is.null(cursor)) {
+    args[[pag[["cursor_param"]]]] <- cursor
+  }
   if (pag$style == "page") {
     args[[pag[["page_param"]]]] <- pag[["start_page"]] + (page_no - 1L)
   } else if (pag$style == "offset") {

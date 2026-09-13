@@ -60,10 +60,12 @@ test_api_field_map <- function() {
   )
 }
 
-make_api_conn <- function(field_map  = test_api_field_map(),
-                          endpoints  = test_api_endpoints(),
-                          schema     = tidycreel::creel_schema(survey_type = "instantaneous"),
-                          pagination = NULL) {
+make_api_conn <- function(field_map    = test_api_field_map(),
+                          endpoints    = test_api_endpoints(),
+                          schema       = tidycreel::creel_schema(survey_type = "instantaneous"),
+                          pagination   = NULL,
+                          records_path = NULL,
+                          total_path   = NULL) {
   tidycreel.connect::creel_connect_api(
     base_url      = "http://test.example.com/api/",
     creel_uids    = "test-uid-001",
@@ -71,7 +73,9 @@ make_api_conn <- function(field_map  = test_api_field_map(),
     uid_param     = "survey_id",
     endpoints     = endpoints,
     api_field_map = field_map,
-    pagination    = pagination
+    pagination    = pagination,
+    records_path  = records_path,
+    total_path    = total_path
   )
 }
 

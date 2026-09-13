@@ -369,3 +369,174 @@ test_that("a total_path naming something that is not a number aborts (SHAPE-25)"
     "total_path.* does not name a number"
   )
 })
+
+# --- cursor pagination (GH #330; unblocked by records_path) -------------------
+
+test_that("a cursor carrying a whole URL is followed to the end (CUR-01)", {
+  # Three pages of one record each, chained by a `next` in the response BODY.
+  # The old code refused this style by name because the pointer had nowhere to
+  # be read from; records_path is what changed that.
+  #
+  # The pointer is deliberately RELATIVE, which no mocked response can exercise:
+  # a mock never performs the follow-up, so a target that cannot be turned into
+  # a request looks healthy. Same trap as the Link header in #345.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  conn <- api_shapes_conn(
+    srv$url("/"), "cur-url",
+    records_path = "results",
+    pagination   = list(style = "cursor", next_path = "next")
+  )
+  got <- suppressMessages(fetch_counts(conn))
+
+  expect_equal(as.data.frame(got[, names(api_shapes_expected())]), api_shapes_expected())
+})
+
+test_that("a whole-URL cursor is requested verbatim, filter included (CUR-01b)", {
+  # Review flagged that a URL pointer replaces the request rather than adding to
+  # it, so anything the API leaves out of the next URL is left out. That is the
+  # documented contract and matches `style = "link"` -- the API builds the URL,
+  # so the API owns what is in it. Pinned rather than changed: the fixture now
+  # emits the filter the way a real API does, and the server reports whether it
+  # arrived, so a regression to a filter-losing request fails here.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  conn <- api_shapes_conn(
+    srv$url("/"), "cur-url",
+    records_path = "results",
+    pagination   = list(style = "cursor", next_path = "next")
+  )
+  raw <- .api_fetch(conn$con, "counts")
+  expect_true("SawFilter" %in% names(raw))
+  expect_equal(nrow(raw), 3L)
+  expect_equal(raw$SawFilter, rep(TRUE, 3L))
+})
+
+test_that("a cursor carrying an opaque token is sent back as its parameter (CUR-02)", {
+  # The other real flavour: the body holds `"next": "t2"`, not a URL, and the
+  # token goes back on the ORIGINAL request as ?after=t2. Getting all three
+  # records is only possible if each token was actually sent.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  conn <- api_shapes_conn(
+    srv$url("/"), "cur-token",
+    records_path = "results",
+    pagination   = list(style = "cursor", next_path = "next", cursor_param = "after")
+  )
+  got <- suppressMessages(fetch_counts(conn))
+
+  expect_equal(nrow(got), 3L)
+  expect_equal(got$bank_anglers, c(4, 0, 7))
+})
+
+test_that("the uid filter survives every page turn (CUR-03)", {
+  # A token sent by REPLACING the request would drop `survey_id`, and an API
+  # reading a missing filter as "every survey" returns other surveys' rows --
+  # a wrong dataset carrying no sign that it is wrong. The server reports back
+  # whether it saw the filter, so this cannot pass by accident.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  conn <- api_shapes_conn(
+    srv$url("/"), "cur-token",
+    records_path = "results",
+    pagination   = list(style = "cursor", next_path = "next", cursor_param = "after")
+  )
+  raw <- .api_fetch(conn$con, "counts")
+  # Assert the column EXISTS and has a row per page before asserting its value:
+  # a flag that never arrived is NULL, and `all(NULL)` is TRUE, so the obvious
+  # form of this test passes without checking anything.
+  expect_true("SawFilter" %in% names(raw))
+  expect_equal(nrow(raw), 3L)
+  expect_equal(raw$SawFilter, rep(TRUE, 3L))
+})
+
+test_that("a next_path that names nothing on page one aborts (CUR-04)", {
+  # The mistyped-setting case. Treating an absent pointer as "done" would end
+  # the fetch after page one and return it as the complete dataset -- the exact
+  # silent truncation this whole feature exists to prevent, and the same defect
+  # the review found in total_path on #347.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  conn <- api_shapes_conn(
+    srv$url("/"), "cur-nonext",
+    records_path = "results",
+    pagination   = list(style = "cursor", next_path = "next")
+  )
+  expect_error(
+    suppressMessages(fetch_counts(conn)),
+    "first response has no .*next.* member"
+  )
+  # The message must say what IS there, or it is not actionable.
+  expect_error(suppressMessages(fetch_counts(conn)), "results")
+})
+
+test_that("a cursor that points back at the same page aborts (CUR-05)", {
+  # A chain that never advances would bind the same rows over and over and
+  # inflate every total. Caught by the existing identical-pages guard, asserted
+  # here because a cursor loop is a different way of reaching it than a Link one.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  conn <- api_shapes_conn(
+    srv$url("/"), "cur-loop",
+    records_path = "results",
+    pagination   = list(style = "cursor", next_path = "next")
+  )
+  expect_error(
+    suppressMessages(fetch_counts(conn)),
+    "identical rows for two consecutive pages"
+  )
+})
+
+test_that("a cursor page_size is sent, and does not end the loop early (CUR-06)", {
+  # Review found page_size accepted for `cursor` and then dropped on the floor —
+  # the exact "silently ignored setting" the pagination validator refuses
+  # everywhere else. It is stored and sent now.
+  #
+  # But the short-page stop rule is NOT applied to a cursor: the pointer is
+  # authoritative, and an API may return a short page while still offering a
+  # next one. Each page here holds 1 record against a declared size of 2, so a
+  # length-based stop would return 1 of 3 and call it complete.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  conn <- api_shapes_conn(
+    srv$url("/"), "cur-token",
+    records_path = "results",
+    pagination   = list(
+      style = "cursor", next_path = "next", cursor_param = "after",
+      page_size = 2, page_size_param = "limit"
+    )
+  )
+  raw <- .api_fetch(conn$con, "counts")
+  # The size actually reached the wire. Asserting only the row count cannot
+  # tell a dropped page_size from a sent one, because both return all 3.
+  expect_true("SawLimit" %in% names(raw))
+  expect_equal(raw$SawLimit, rep(TRUE, 3L))
+  # ...and every record still arrived: each page holds 1 against a declared 2,
+  # so a length-based stop would have returned 1 of 3 and called it complete.
+  expect_equal(nrow(raw), 3L)
+})
+
+test_that("a cursor loop names the pointer, not an offset parameter (CUR-07)", {
+  # The duplicate-page abort assumed any non-link style was page or offset, so a
+  # cursor loop produced "It appears to ignore the parameter." with no parameter
+  # named — a message that tells you nothing about which setting to look at.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  conn <- api_shapes_conn(
+    srv$url("/"), "cur-loop",
+    records_path = "results",
+    pagination   = list(style = "cursor", next_path = "next")
+  )
+  expect_error(
+    suppressMessages(fetch_counts(conn)),
+    "next.* pointer leads back to the page it came from"
+  )
+})

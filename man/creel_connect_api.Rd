@@ -54,11 +54,24 @@ returns every record in one response. A named list whose \code{style} is one of:
 actually received, not by an assumed page size.
 \item \code{"link"} -- an RFC 8288 \code{Link} header carrying \code{rel="next"}. Needs no
 other setting.
+\item \code{"cursor"} -- a pointer to the next page inside the response \emph{body}.
+Requires \code{next_path} naming the member that holds it, and \code{records_path}
+(a cursor implies an envelope; without one the pointer has nowhere to
+live). Add \code{cursor_param} when the pointer is an opaque token to send
+back as a query parameter; omit it when the pointer is a whole URL, which
+is then followed the way a \code{Link} target is, relative targets included.
+A token is added to the original request rather than replacing it, so the
+uid filter survives the page turn.
+
+The member must be present on the \emph{first} response, \code{null} included.
+Absent there is treated as a mistyped \code{next_path} and aborts, because
+reading it as "no more pages" would return page one as the whole dataset.
+On later pages an absent member simply ends the loop.
 \item \code{"none"} -- this API is not paginated. Declaring it is the same as
 leaving \code{pagination} \code{NULL}, but says so on purpose.
 }
 
-Optional for \code{"page"} and \code{"offset"}: \code{page_size} (rows per request) and
+Optional for \code{"page"}, \code{"offset"} and \code{"cursor"}: \code{page_size} (rows per request) and
 \code{page_size_param} (the query parameter to send it as). \code{page_size} is also
 the stop rule -- a page shorter than it is the last one. Supplying it
 without \code{page_size_param} is allowed, for an API with a fixed page size it

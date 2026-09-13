@@ -125,9 +125,22 @@ api_shapes_bodies <- function() {
   # nolint end
 }
 
+# The three records again, one JSON object per element, so the cursor routes
+# below can hand back exactly one per page.
+api_shapes_rows_json <- function() {
+  # nolint start: quotes_linter. As above.
+  c(
+    '{"SurveyDate":"2016-05-14","ShoreAnglers":4,"FishingBoats":2,"OtherBoats":0}',
+    '{"SurveyDate":"2016-05-15","ShoreAnglers":0,"FishingBoats":1,"OtherBoats":0}',
+    '{"SurveyDate":"2016-05-16","ShoreAnglers":7,"FishingBoats":3,"OtherBoats":1}'
+  )
+  # nolint end
+}
+
 api_shapes_app <- function() {
   app <- webfakes::new_app()
   app$locals$bodies <- api_shapes_bodies()
+  app$locals$rows   <- api_shapes_rows_json()
   for (shape in names(api_shapes_bodies())) {
     local({
       key <- shape
@@ -138,6 +151,75 @@ api_shapes_app <- function() {
       })
     })
   }
+  # --- cursor routes ---------------------------------------------------
+  # Stateless: the page is derived from the request, so a loop that fails to
+  # advance repeats a page rather than quietly running off the end.
+
+  # The pointer is a whole URL, and deliberately RELATIVE -- RFC-legal, emitted
+  # by real servers, and unreachable by any mock.
+  app$get("/cur-url", function(req, res) {
+    rows <- res$app$locals$rows
+    p <- req$query[["p"]]
+    p <- if (is.null(p)) 1L else as.integer(p)
+    # Relative AND carrying the caller's filter, which is what a real API emits:
+    # the next URL is requested verbatim, so whatever the API leaves out of it is
+    # left out of the request. A server that dropped its own filter here would
+    # hand back other surveys' rows, and no code on this side could tell.
+    sid <- req$query[["survey_id"]]
+    nxt <- if (p < length(rows)) {
+      sprintf('"/cur-url?survey_id=%s&p=%d"', if (is.null(sid)) "" else sid, p + 1L)
+    } else {
+      "null"
+    }
+    row <- sub("\\}$", sprintf(',"SawFilter":%s}', if (is.null(sid)) "false" else "true"),
+               rows[[p]])
+    res$
+      set_header("Content-Type", "application/json")$
+      send(charToRaw(sprintf('{"results":[%s],"next":%s}', row, nxt)))
+  })
+
+  # The pointer is an opaque token, sent back as ?after=. The uid filter has to
+  # survive the page turn, so the handler records whether it saw it.
+  app$get("/cur-token", function(req, res) {
+    rows  <- res$app$locals$rows
+    after <- req$query[["after"]]
+    p <- if (is.null(after)) 1L else as.integer(sub("^t", "", after))
+    nxt <- if (p < length(rows)) sprintf('"t%d"', p + 1L) else "null"
+    saw <- if (is.null(req$query[["survey_id"]])) "false" else "true"
+    # Reported per row so a declared page_size that never reaches the wire is
+    # visible in the RESULT. Row count alone cannot see it: a size that is
+    # dropped and a size that is sent but does not stop the loop both return
+    # every record.
+    lim <- if (is.null(req$query[["limit"]])) "false" else "true"
+    # Spliced INTO the record, not left as a sibling of it: records_path strips
+    # every sibling before the frame is built, so a flag reported beside the
+    # records would arrive as NULL and `all(NULL)` is TRUE -- an assertion that
+    # cannot fail. See the vacuous-assertion trap.
+    row <- sub("\\}$", sprintf(',"SawFilter":%s,"SawLimit":%s}', saw, lim), rows[[p]])
+    res$
+      set_header("Content-Type", "application/json")$
+      send(charToRaw(sprintf('{"results":[%s],"next":%s}', row, nxt)))
+  })
+
+  # No `next` member at all. On the FIRST page that is a mistyped next_path,
+  # not the end of the data.
+  app$get("/cur-nonext", function(req, res) {
+    res$
+      set_header("Content-Type", "application/json")$
+      send(charToRaw(sprintf(
+        '{"results":[%s]}', paste(res$app$locals$rows, collapse = ",")
+      )))
+  })
+
+  # A pointer that never advances.
+  app$get("/cur-loop", function(req, res) {
+    res$
+      set_header("Content-Type", "application/json")$
+      send(charToRaw(sprintf(
+        '{"results":[%s],"next":"/cur-loop"}', res$app$locals$rows[[1L]]
+      )))
+  })
+
   app
 }
 

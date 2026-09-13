@@ -17,6 +17,43 @@
 
 ## New features
 
+* `pagination` gains `style = "cursor"`, now that there is an envelope to read
+  it from.
+
+  A cursor arrives in the response *body*, so while this backend read only a
+  bare JSON array the style had nowhere to look and was refused by name. The
+  `records_path` work in the same release removed that obstacle, and leaving the
+  refusal in place would have meant shipping a message that said a capability
+  was impossible while the code to do it sat one function away.
+
+  ```r
+  # the body holds a whole URL — followed the way a Link target is
+  pagination = list(style = "cursor", next_path = "next")
+
+  # the body holds an opaque token — sent back as ?cursor=...
+  pagination = list(style = "cursor", next_path = "next", cursor_param = "cursor")
+  ```
+
+  `records_path` is required: a cursor with no envelope around it is a
+  contradiction rather than a configuration, and the constructor says so. A
+  token is **added to** the original request rather than replacing it, so the
+  uid filter survives every page turn — a replacement would drop it, and an API
+  that reads a missing filter as "every survey" would return other surveys'
+  rows, which is a wrong dataset carrying no sign that it is wrong.
+
+  `next_path` must resolve on the **first** response, `null` included. Absent
+  there is treated as a typo and aborts, because reading it as "no more pages"
+  would return page one as the complete dataset — the same silent truncation the
+  review caught in `total_path`. On later pages an absent member just ends the
+  loop, since plenty of APIs stop sending the key rather than sending null.
+
+  `page_size` / `page_size_param` work for a cursor too — found by the pre-push
+  review, which caught them being accepted by the validator and then dropped,
+  the exact "silently ignored setting" this validator refuses everywhere else.
+  The short-page **stop rule** is deliberately not applied to a cursor: the
+  pointer is authoritative, and an API may return a short page while still
+  offering a next one.
+
 * `creel_connect_api()` gains `records_path` and `total_path`, for an API that
   wraps its records in an envelope (#330 item 2, schema half).
 
@@ -206,9 +243,9 @@
   API reading a missing filter as "every survey" would return other surveys'
   rows), and two paging settings naming the same parameter.
 
-  A cursor style is deliberately not supported: a cursor arrives in a response
-  envelope, which this backend does not read. It is refused by name rather than
-  accepted and silently reduced to page 1.
+  A cursor style was refused by name at this point, because a cursor arrives in
+  a response envelope this backend did not read. That reason expired when
+  `records_path` shipped; `style = "cursor"` is supported now (see below).
 
 ## New features
 
