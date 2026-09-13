@@ -17,6 +17,51 @@
 
 ## New features
 
+* `auth$token` and `auth$key` may be a **function**, for credentials that
+  expire (#349).
+
+  A paginated fetch can outlive a short-lived token. Until now page three would
+  answer 401, the fetch would abort, and pages one and two were discarded with
+  nothing said about them.
+
+  ```r
+  auth = list(type = "bearer", token = function() my_oauth_client$token())
+  ```
+
+  The function is called before every request, and once more if the API answers
+  401 or 403 — so an expired token is renewed rather than ending the fetch.
+  What it does is entirely yours: an OAuth2 exchange, a refresh token, a
+  shell-out to a CLI, a cached value with its own expiry check. This package
+  implements none of them, for the same reason it ships no endpoint paths or
+  field names: a token's lifetime belongs to a provider, not to a creel package.
+
+  A refusal that survives one refresh aborts rather than looping — a credential
+  the provider keeps rejecting is a configuration problem, and retrying it would
+  turn a clear 401 into a hang. A fixed-string credential is never retried at
+  all, because the second attempt would send the same header and get the same
+  answer.
+
+* A rejected credential says which shape is configured, and a mid-fetch failure
+  says what it is discarding.
+
+  A 401 used to read exactly like a mis-mapped field to anyone who had not seen
+  the configuration. It now names what the connection was set up with — no
+  credentials at all, a fixed string that cannot be renewed, or a function whose
+  result the API still refused — and what to change.
+
+  Separately, an **HTTP failure** part-way through a paginated fetch now reports
+  how many pages and rows had already been collected and are being thrown away.
+  Returning them is not an option, because a partial dataset understates every
+  total without saying so; but neither is letting the reader think one request
+  failed when several succeeded.
+
+  That note is carried on the HTTP status path only. A mid-loop abort from
+  somewhere else — an unreadable body, an error document on page two — still
+  discards the earlier pages without mentioning them. Narrowed deliberately
+  after review pointed out that the first wording claimed more than the code
+  does; widening it means threading page context through the parse path, which
+  belongs with that code rather than with this change.
+
 * HTTP status handling covers more than the 429/503 pair (#349).
 
   Only 429 and 503 were treated as worth retrying. A 502 from a load balancer, a

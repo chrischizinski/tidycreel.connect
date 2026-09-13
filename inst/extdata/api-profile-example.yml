@@ -26,6 +26,15 @@ default:
   # auth:
   #   type: bearer
   #   token: !expr Sys.getenv("CREEL_API_TOKEN")
+  #
+  # A token that EXPIRES needs a function rather than a string, so it can be
+  # fetched again. It is called before every request, and once more if the API
+  # answers 401 -- which is what keeps a long paginated fetch from dying
+  # part-way and discarding the pages it already has. What the function does is
+  # yours; this package implements no provider's handshake.
+  # auth:
+  #   type: bearer
+  #   token: !expr function() my_oauth_client$token()
 
   # How this API pages its responses. Omit the block for an API that returns
   # every record in one response -- nothing is assumed either way, and a

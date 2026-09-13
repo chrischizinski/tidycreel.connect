@@ -182,6 +182,30 @@ as plain strings:
 
 \if{html}{\out{<div class="sourceCode r">}}\preformatted{auth = list(type = "bearer", token = Sys.getenv("CREEL_API_TOKEN"))
 }\if{html}{\out{</div>}}
+\subsection{Credentials that expire}{
+
+\code{token} and \code{key} may each be a \strong{function} returning the credential
+instead of the credential itself. It is called before every request, and
+again once if the API answers 401 or 403 -- so a token that ages out
+part-way through a paginated fetch is renewed rather than aborting the fetch
+and discarding the pages already collected.
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{auth = list(type = "bearer", token = function() my_oauth_client$token())
+}\if{html}{\out{</div>}}
+
+What the function does is entirely yours: an OAuth2 client-credentials
+exchange, a refresh token, a shell-out to a CLI, a cached value with its own
+expiry check. This package implements none of them and never will -- a
+token's lifetime and renewal belong to a provider, not to a creel package,
+exactly as \code{endpoints} and \code{api_field_map} belong to a deployment.
+
+A refusal that survives one refresh aborts rather than looping: a credential
+the provider keeps rejecting is a configuration problem, and retrying it
+would turn a clear 401 into a hang. A fixed-string credential is never
+retried at all, because the second attempt would send the same header and
+get the same answer.
+}
+
 }
 }
 \examples{

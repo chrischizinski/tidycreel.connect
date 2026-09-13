@@ -276,6 +276,46 @@ api_shapes_app <- function() {
       )))
   })
 
+  # --- auth routes -----------------------------------------------------
+  # `/expiring` accepts a token for its first two requests and 401s after that,
+  # which is a token ageing out MID-FETCH rather than being wrong from the
+  # start. Paired with cursor pagination it takes three requests to finish, so
+  # the third is the one that expires.
+  app$get("/expiring", function(req, res) {
+    p <- req$query[["p"]]
+    p <- if (is.null(p)) 1L else as.integer(p)
+    rows <- res$app$locals$rows
+    tok <- req$get_header("Authorization")
+    # Keyed on the PAGE, not on a request counter. This server is shared by
+    # every test in the file, so a counter would carry one test's requests into
+    # the next and the page a token expires on would depend on execution order.
+    # AUTH-05 failed exactly that way before this was made stateless.
+    ok <- if (p <= 2L) {
+      identical(tok, "Bearer t-first")
+    } else {
+      identical(tok, "Bearer t-fresh")
+    }
+    if (!ok) {
+      res$set_status(401L)$set_header("Content-Type", "application/json")$
+        send(charToRaw('{"error":"token expired"}'))
+      return()
+    }
+    nxt <- if (p < length(rows)) sprintf('"/expiring?p=%d"', p + 1L) else "null"
+    res$
+      set_header("Content-Type", "application/json")$
+      send(charToRaw(sprintf('{"results":[%s],"next":%s}', rows[[p]], nxt)))
+  })
+
+  # Refuses everything, and counts how many times it was asked.
+  app$get("/always401", function(req, res) {
+    e <- res$app$locals$seen
+    e[["a401"]] <- (if (is.null(e[["a401"]])) 0L else e[["a401"]]) + 1L
+    res$
+      set_status(401L)$
+      set_header("Content-Type", "application/json")$
+      send(charToRaw('{"error":"forbidden"}'))
+  })
+
   # --- cursor routes ---------------------------------------------------
   # Stateless: the page is derived from the request, so a loop that fails to
   # advance repeats a page rather than quietly running off the end.

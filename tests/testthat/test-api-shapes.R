@@ -688,3 +688,209 @@ test_that("an enveloped API reporting an error is quoted, not 'no member' (STATU
   )
   expect_false(grepl("has no", msg, fixed = TRUE))
 })
+
+# --- credentials that expire (GH #349, auth half) ----------------------------
+
+test_that("a callable credential is refreshed when a token expires mid-fetch (AUTH-01)", {
+  # The shape #349 describes: a paginated fetch outlives a short-lived token.
+  # The server accepts `t-first` for two requests and demands `t-fresh` after,
+  # so finishing all three pages is only possible if the credential function
+  # was called again rather than the first token being replayed.
+  #
+  # Before this, page 3 returned 401, the fetch aborted, and pages 1-2 were
+  # discarded with nothing said about them.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  calls <- 0L
+  conn  <- api_shapes_conn(
+    srv$url("/"), "expiring",
+    records_path = "results",
+    pagination   = list(style = "cursor", next_path = "next"),
+    # Stale for the first THREE calls, so page 3's first attempt presents an
+    # expired token and gets a 401. That is what makes this exercise the
+    # re-auth retry rather than merely handing over a fresh token in time.
+    auth         = list(type = "bearer", token = function() {
+      calls <<- calls + 1L
+      if (calls <= 3L) "t-first" else "t-fresh"
+    })
+  )
+  got <- suppressMessages(fetch_counts(conn))
+
+  expect_equal(nrow(got), 3L)
+  expect_equal(got$bank_anglers, c(4, 0, 7))
+  # Three pages plus the re-auth call after page 3's 401.
+  expect_equal(calls, 4L)
+})
+
+test_that("a fixed-string credential is not retried after a 401 (AUTH-02)", {
+  # A second attempt would send the identical header and get the identical
+  # answer. Retrying it only doubles the wait before the user sees the problem,
+  # so the request count is what this asserts, not merely that it failed.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  before <- httr2::resp_body_json(
+    httr2::req_perform(httr2::request(paste0(srv$url("/"), "attempts?key=a401")))
+  )$n
+  conn <- api_shapes_conn(
+    srv$url("/"), "always401",
+    auth = list(type = "bearer", token = "never-valid")
+  )
+  expect_error(suppressMessages(fetch_counts(conn)), "API request failed \\[401\\]")
+
+  after <- httr2::resp_body_json(
+    httr2::req_perform(httr2::request(paste0(srv$url("/"), "attempts?key=a401")))
+  )$n
+  expect_equal(after - before, 1L)
+})
+
+test_that("a refusal that survives a refresh says so, and stops (AUTH-03)", {
+  # The other half of AUTH-01. A credential function whose result the API keeps
+  # rejecting is a configuration problem, not a stale token, and looping on it
+  # would turn a clear 401 into a hang. Exactly two requests: the original and
+  # one re-auth.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  # The counter is shared with AUTH-02 on this one server, so it is read before
+  # and differenced rather than compared to an absolute -- the lesson AUTH-05
+  # taught when a shared counter made a test order-dependent.
+  before <- httr2::resp_body_json(
+    httr2::req_perform(httr2::request(paste0(srv$url("/"), "attempts?key=a401")))
+  )$n
+  conn <- api_shapes_conn(
+    srv$url("/"), "always401",
+    auth = list(type = "bearer", token = function() "still-wrong")
+  )
+  expect_error(
+    suppressMessages(fetch_counts(conn)),
+    "called again and the API still refused"
+  )
+  # Review caught this test asserting only the message: an implementation that
+  # retried five times before giving up would have passed it. Exactly two
+  # requests -- the original and one re-auth -- is the behaviour being claimed.
+  after <- httr2::resp_body_json(
+    httr2::req_perform(httr2::request(paste0(srv$url("/"), "attempts?key=a401")))
+  )$n
+  expect_equal(after - before, 2L)
+})
+
+test_that("a 401 says which credential shape is configured (AUTH-04)", {
+  # #349 asked whether a 401 reads distinguishably from a bad api_field_map.
+  # It does now: the message names what this connection was configured with and
+  # what to change. A fixed string cannot be renewed, and saying so is the
+  # difference between "try again" and "supply a function".
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  fixed <- api_shapes_conn(
+    srv$url("/"), "always401",
+    auth = list(type = "bearer", token = "never-valid")
+  )
+  expect_error(suppressMessages(fetch_counts(fixed)), "fixed string")
+  expect_error(suppressMessages(fetch_counts(fixed)), "as a function")
+
+  none <- api_shapes_conn(srv$url("/"), "always401")
+  expect_error(suppressMessages(fetch_counts(none)), "No credentials are configured")
+})
+
+test_that("a mid-fetch failure reports the pages it is discarding (AUTH-05)", {
+  # Returning the pages already collected is not an option -- a partial dataset
+  # understates every total without saying so. But neither is letting the user
+  # believe one request failed when several succeeded and were thrown away.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  conn <- api_shapes_conn(
+    srv$url("/"), "expiring",
+    records_path = "results",
+    pagination   = list(style = "cursor", next_path = "next"),
+    auth         = list(type = "bearer", token = "t-first")
+  )
+  expect_error(
+    suppressMessages(fetch_counts(conn)),
+    "had already been fetched and .*discarded"
+  )
+})
+
+test_that("a credential function is validated before it is trusted (AUTH-06)", {
+  # It runs before every request, so a function that errors or returns the
+  # wrong thing has to fail saying which, not somewhere inside httr2.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  boom <- api_shapes_conn(
+    srv$url("/"), "bare",
+    auth = list(type = "bearer", token = function() stop("vault is down"))
+  )
+  # The provider's own message is deliberately NOT forwarded -- credential code
+  # quotes the request or response that failed, and a token can be in either.
+  expect_error(suppressMessages(fetch_counts(boom)), "raised an error when called")
+  msg <- tryCatch(
+    suppressMessages(fetch_counts(boom)),
+    error = function(e) conditionMessage(e)
+  )
+  expect_false(grepl("vault is down", msg, fixed = TRUE))
+
+  wrong <- api_shapes_conn(
+    srv$url("/"), "bare",
+    auth = list(type = "bearer", token = function() NULL)
+  )
+  expect_error(
+    suppressMessages(fetch_counts(wrong)),
+    "did not return a non-empty single string"
+  )
+
+  # A function needing arguments can never be called, so it is refused at
+  # construction rather than at the first fetch.
+  expect_error(
+    api_shapes_conn(
+      srv$url("/"), "bare",
+      auth = list(type = "bearer", token = function(scope) "t")
+    ),
+    "requires"
+  )
+  # ...and `...` does not excuse it. Found by three reviewers independently:
+  # `function(scope, ...)` is still called as `value()` and still fails on the
+  # missing `scope`, so bailing out at the sight of a dots only moved the
+  # failure from construction to the first fetch.
+  expect_error(
+    api_shapes_conn(
+      srv$url("/"), "bare",
+      auth = list(type = "bearer", token = function(scope, ...) "t")
+    ),
+    "requires"
+  )
+  # A function whose arguments all have defaults IS callable, and is accepted.
+  expect_no_error(
+    api_shapes_conn(
+      srv$url("/"), "bare",
+      auth = list(type = "bearer", token = function(scope = "read", ...) "t")
+    )
+  )
+})
+
+test_that("refresh eligibility follows the credential actually sent (AUTH-07)", {
+  # `list(type = "bearer", token = "fixed", key = function() ...)` passes
+  # validation, because bearer auth never looks at `key`. Reading either field
+  # meant a 401 re-sent the identical fixed bearer token AND reported that a
+  # credential function had been retried. Both halves wrong; found in review.
+  skip_if_no_shapes_server()
+  srv <- api_shapes_server()
+
+  before <- httr2::resp_body_json(
+    httr2::req_perform(httr2::request(paste0(srv$url("/"), "attempts?key=a401")))
+  )$n
+  conn <- api_shapes_conn(
+    srv$url("/"), "always401",
+    auth = list(type = "bearer", token = "fixed", key = function() "unused")
+  )
+  # The bearer token is a fixed string, so there is nothing to refresh...
+  expect_error(suppressMessages(fetch_counts(conn)), "fixed string")
+  after <- httr2::resp_body_json(
+    httr2::req_perform(httr2::request(paste0(srv$url("/"), "attempts?key=a401")))
+  )$n
+  # ...and the request is not repeated.
+  expect_equal(after - before, 1L)
+})
