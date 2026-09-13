@@ -32,6 +32,19 @@
 #' it out for an API that returns every record at once -- a response that proves
 #' otherwise then aborts rather than being read as the complete dataset.
 #'
+#' Two more optional keys describe the *shape* of a response rather than the
+#' number of them. `records_path:` names the member holding the records for an
+#' API that wraps them in an envelope, and `total_path:` names the member
+#' holding the count for the whole query. Both are passed straight to
+#' [creel_connect_api()]. Write a nested path as a sequence:
+#' ```yaml
+#' records_path: results        # {"count": 42, "results": [...]}
+#' total_path: count
+#'
+#' records_path: [data, items]  # {"data": {"items": [...]}}
+#' ```
+#' Leave them out for an API whose body is the JSON array itself.
+#'
 #' ## CSV profiles
 #'
 #' The CSV backend resolves every canonical column through the schema, so the
@@ -275,7 +288,13 @@ creel_connect_from_yaml <- function(path, config = "default") {
       api_field_map = lapply(as.list(cfg$field_map), as.list),
       # Optional: how this deployment paginates. Absent means "returns every
       # record at once", which the fetch then verifies rather than assumes.
-      pagination    = if (is.null(cfg$pagination)) NULL else as.list(cfg$pagination)
+      pagination    = if (is.null(cfg$pagination)) NULL else as.list(cfg$pagination),
+      # Optional: where the records sit if this API wraps them in an envelope.
+      # Absent means the body is the array itself -- which the fetch also
+      # verifies rather than assumes, refusing a body it can prove is wrapped.
+      # `unlist()` so a nested path may be written as a YAML sequence.
+      records_path  = if (is.null(cfg$records_path)) NULL else as.character(unlist(cfg$records_path)), # nolint: line_length_linter
+      total_path    = if (is.null(cfg$total_path)) NULL else as.character(unlist(cfg$total_path))
     )
   } else if (backend == "sqlserver") {
     if (!requireNamespace("odbc", quietly = TRUE)) {

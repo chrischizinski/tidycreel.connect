@@ -47,6 +47,31 @@ default:
   #   page_size: 500
   #   page_size_param: "per_page"
 
+  # Where the records sit in the response body. Omit both keys for an API whose
+  # body IS the JSON array of records:
+  #
+  #   [ {...}, {...} ]
+  #
+  # Give records_path when the API wraps them in an envelope. The wrapper key
+  # is not guessed -- "results", "data" and "value" are each right for some API
+  # and wrong for the rest -- but a body that can be PROVEN to be an envelope is
+  # refused rather than flattened into columns named after the wrapper.
+  #
+  #   { "count": 42, "next": null, "results": [ {...}, {...} ] }
+  # records_path: results
+  #
+  # total_path names the whole-query count, the body-borne twin of the
+  # X-Total-Count header: with no pagination style declared, a total larger than
+  # the rows returned aborts instead of passing page one off as the dataset.
+  # Optional -- a sibling conventionally named count / total / total_count /
+  # totalCount / totalResults / recordCount is read for that refusal anyway.
+  # total_path: count
+  #
+  # Write a nested envelope as a sequence, outermost member first:
+  #
+  #   { "data": { "items": [ {...} ] } }
+  # records_path: [data, items]
+
   schema:
     # Only the survey type is needed here: the API backend reads field_map
     # below, not the schema's column mappings.

@@ -369,6 +369,48 @@
   result
 }
 
+# Refuse a mapped field that arrived as a nested JSON value.
+#
+# `{"site": {"id": 7, "name": "Ramp"}}` parses to a data.frame COLUMN and
+# `{"tags": ["a", "b"]}` to a list column. Neither errors here, and neither is a
+# quantity: carried on, a data.frame column reaches add_interviews() where a
+# site label was expected, and a list column survives every numeric coercion
+# untouched because `.coerce_numeric()` is only applied to columns that exist by
+# name, not to columns that hold what it can read.
+#
+# Only fields the profile actually asked for are refused. An unmapped nested
+# member is dropped by the rename below, as any other unmapped column is.
+.assert_api_cols_atomic <- function(df, keep, table) {
+  if (length(keep) == 0L) {
+    return(invisible(NULL))
+  }
+  nested <- vapply(
+    keep,
+    function(col) is.data.frame(df[[col]]) || is.list(df[[col]]),
+    logical(1L)
+  )
+  if (!any(nested)) {
+    return(invisible(NULL))
+  }
+  bad <- keep[nested]
+  detail <- vapply(
+    seq_along(bad),
+    function(i) {
+      kind <- if (is.data.frame(df[[bad[[i]]]])) "a nested object" else "an array"
+      sprintf("%s (mapped to %s) holds %s", bad[[i]], names(bad)[[i]], kind)
+    },
+    character(1L)
+  )
+  cli::cli_abort(c(
+    "The {.val {table}} response returned nested JSON for {cli::qty(length(bad))} \
+     {?a field/fields} named in {.field api_field_map}.",
+    stats::setNames(detail, rep("x", length(detail))),
+    "i" = "tidycreel reads flat columns: a nested value carried on would reach \
+           the design as an object rather than a measurement.",
+    "i" = "Flatten it server-side, or map a scalar member of it instead."
+  ))
+}
+
 # Internal: rename raw API columns to canonical names.
 # api_rename_map: named character vector where names = canonical names,
 #   values = the raw JSON field names the connection was configured with
@@ -387,6 +429,7 @@
       keep[[canonical]] <- api_col
     }
   }
+  .assert_api_cols_atomic(df, keep, table)
   result <- df[, keep, drop = FALSE]
   names(result) <- names(keep)
   .report_dropped_cols(names(df), c(keep, also_used), table, "api_field_map")

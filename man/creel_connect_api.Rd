@@ -12,7 +12,9 @@ creel_connect_api(
   endpoints,
   auth = NULL,
   api_field_map,
-  pagination = NULL
+  pagination = NULL,
+  records_path = NULL,
+  total_path = NULL
 )
 }
 \arguments{
@@ -69,6 +71,35 @@ result: with no style declared, a response the connection can prove is
 incomplete -- a \code{Link} header offering a next page, or an \code{X-Total-Count}
 larger than the rows returned -- aborts instead of being returned as the
 whole dataset.}
+
+\item{records_path}{Where the records live in the response body, for an API
+that wraps them in an envelope, or \code{NULL} (default) for one whose body \emph{is}
+the JSON array of records.
+
+Give the member name -- \code{records_path = "results"} for
+\verb{\{"count": 42, "results": [...]\}} -- or a character vector naming each step
+for a nested envelope: \code{records_path = c("data", "items")} for
+\verb{\{"data": \{"items": [...]\}\}}.
+
+Nothing is guessed. \code{"results"}, \code{"data"} and \code{"value"} are all common and
+all wrong for someone, so an envelope is only read when the profile says
+where to look. What the connection does do unasked is refuse a body it can
+prove is an envelope while no \code{records_path} is set -- otherwise
+\verb{\{"data": [...], "meta": \{...\}\}} flattens into columns named \code{data.x} with
+the metadata recycled down every row, and no error is raised.}
+
+\item{total_path}{Where the record count for the whole query lives in the
+envelope, or \code{NULL} (default). Named relative to the body root, the same
+way as \code{records_path}: \code{total_path = "count"} for
+\verb{\{"count": 42, "results": [...]\}}.
+
+This is the body-borne twin of the \code{X-Total-Count} header, and it is used
+for one thing: when no \code{pagination} style is declared and the total exceeds
+the rows returned, the fetch aborts rather than handing back page one as
+the dataset. Declaring it is optional, but leaving it out does not disable
+the check -- an undeclared sibling whose \emph{name} is a conventional total
+(\code{count}, \code{total}, \code{total_count}, \code{totalCount}, \code{totalResults}) is read for
+this refusal too. Such a guess is never used to return data, only to stop.}
 }
 \value{
 A \code{creel_connection} S3 object with subclass \code{creel_connection_api}.

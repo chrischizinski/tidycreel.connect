@@ -91,6 +91,33 @@
 #'   larger than the rows returned -- aborts instead of being returned as the
 #'   whole dataset.
 #'
+#' @param records_path Where the records live in the response body, for an API
+#'   that wraps them in an envelope, or `NULL` (default) for one whose body *is*
+#'   the JSON array of records.
+#'
+#'   Give the member name -- `records_path = "results"` for
+#'   `{"count": 42, "results": [...]}` -- or a character vector naming each step
+#'   for a nested envelope: `records_path = c("data", "items")` for
+#'   `{"data": {"items": [...]}}`.
+#'
+#'   Nothing is guessed. `"results"`, `"data"` and `"value"` are all common and
+#'   all wrong for someone, so an envelope is only read when the profile says
+#'   where to look. What the connection does do unasked is refuse a body it can
+#'   prove is an envelope while no `records_path` is set -- otherwise
+#'   `{"data": [...], "meta": {...}}` flattens into columns named `data.x` with
+#'   the metadata recycled down every row, and no error is raised.
+#' @param total_path Where the record count for the whole query lives in the
+#'   envelope, or `NULL` (default). Named relative to the body root, the same
+#'   way as `records_path`: `total_path = "count"` for
+#'   `{"count": 42, "results": [...]}`.
+#'
+#'   This is the body-borne twin of the `X-Total-Count` header, and it is used
+#'   for one thing: when no `pagination` style is declared and the total exceeds
+#'   the rows returned, the fetch aborts rather than handing back page one as
+#'   the dataset. Declaring it is optional, but leaving it out does not disable
+#'   the check -- an undeclared sibling whose *name* is a conventional total
+#'   (`count`, `total`, `total_count`, `totalCount`, `totalResults`) is read for
+#'   this refusal too. Such a guess is never used to return data, only to stop.
 #' @return A `creel_connection` S3 object with subclass `creel_connection_api`.
 #' @export
 #' @examples
@@ -143,7 +170,9 @@ creel_connect_api <- function(
     endpoints,
     auth          = NULL,
     api_field_map,
-    pagination    = NULL
+    pagination    = NULL,
+    records_path  = NULL,
+    total_path    = NULL
 ) {
   if (!inherits(schema, "creel_schema")) {
     cli::cli_abort(c(
@@ -183,6 +212,16 @@ creel_connect_api <- function(
     NULL
   } else {
     .validate_api_pagination(pagination, uid_param)
+  }
+  resolved_records_path <- .validate_api_json_path(records_path, "records_path")
+  resolved_total_path   <- .validate_api_json_path(total_path, "total_path")
+  if (is.null(resolved_records_path) && !is.null(resolved_total_path)) {
+    cli::cli_abort(c(
+      "{.arg total_path} was given without {.arg records_path}.",
+      "x" = "A total inside the response body only has a place to live in an envelope.",
+      "i" = "Name the member holding the records, e.g. \\
+             {.code records_path = \"results\"}."
+    ))
   }
 
   # Schema col-mappings configure CSV/SQL column names, not API JSON field
@@ -232,7 +271,9 @@ creel_connect_api <- function(
       endpoints     = resolved_endpoints,
       auth          = auth,
       api_field_map = resolved_field_map,
-      pagination    = resolved_pagination
+      pagination    = resolved_pagination,
+      records_path  = resolved_records_path,
+      total_path    = resolved_total_path
     ),
     schema   = schema,
     status   = "ready",
@@ -562,11 +603,15 @@ creel_connect_api <- function(
     req  <- .api_apply_retry(req)
     resp <- httr2::req_perform(req)
     .api_check_status(resp, endpoint)
-    df <- .api_page_to_df(resp, endpoint_key)
+    df <- .api_page_to_df(resp, endpoint_key, con_info$records_path)
 
     if (style == "none") {
       # No style declared: one request, and refuse anything provably partial.
-      .api_assert_untruncated(resp, endpoint, nrow(df))
+      .api_assert_untruncated(
+        resp, endpoint, nrow(df),
+        records_path = con_info$records_path,
+        total_path   = con_info$total_path
+      )
       return(df)
     }
 
@@ -687,10 +732,151 @@ creel_connect_api <- function(
   ))
 }
 
-# Parse one response body into a plain data.frame.
+# Validate a body path: NULL, or a character vector of non-empty member names.
 #' @noRd
-.api_page_to_df <- function(resp, endpoint_key) {
-  result <- httr2::resp_body_json(resp, simplifyVector = TRUE)
+.validate_api_json_path <- function(path, arg) {
+  if (is.null(path)) {
+    return(NULL)
+  }
+  if (!is.character(path) || length(path) == 0L || anyNA(path) || !all(nzchar(path))) {
+    cli::cli_abort(c(
+      "{.arg {arg}} must be a character vector of member names, or {.code NULL}.",
+      "i" = "One name for a flat envelope ({.code \"results\"}), or one per level \\
+             for a nested one ({.code c(\"data\", \"items\")})."
+    ))
+  }
+  path
+}
+
+# Member names that conventionally carry a whole-query record count.
+#
+# Read ONLY to refuse a response that proves itself partial, never to decide
+# what to return -- so a wrong guess here cannot put a number in a result. An
+# API whose total is named something else declares it in `total_path`.
+#' @noRd
+.api_total_key_candidates <- function() {
+  c("count", "total", "total_count", "totalCount", "totalResults", "recordCount")
+}
+
+# Could this member be a record array, or something around one?
+#
+# After simplifyVector = TRUE, a JSON array of flat objects arrives as a
+# data.frame and any other JSON array as an UNNAMED list. A JSON object arrives
+# as a NAMED list, and that distinction is what separates an envelope from an
+# ordinary record: `{"SurveyDate": ..., "Audit": {"by": "jd"}}` is one record
+# carrying a metadata object, not a wrapper around a table.
+#
+# A named list still counts when it holds a container itself, because that is a
+# nested envelope -- `{"data": {"items": [...]}}` -- and refusing to look one
+# level down would let exactly the shape `records_path` exists for slip past.
+#' @noRd
+.api_is_record_container <- function(m, depth = 2L) {
+  if (is.data.frame(m)) {
+    return(TRUE)
+  }
+  if (!is.list(m)) {
+    return(FALSE)
+  }
+  if (is.null(names(m))) {
+    # An unnamed list is a JSON array, including the empty one.
+    return(TRUE)
+  }
+  if (depth <= 0L) {
+    return(FALSE)
+  }
+  any(vapply(m, .api_is_record_container, logical(1L), depth = depth - 1L))
+}
+
+# Members of a parsed body that could hold the records.
+#' @noRd
+.api_envelope_candidates <- function(body) {
+  if (!is.list(body) || is.data.frame(body) || is.null(names(body))) {
+    return(character(0))
+  }
+  is_container <- vapply(body, .api_is_record_container, logical(1L))
+  keys <- names(body)[is_container]
+  if (length(keys) == 0L) {
+    return(character(0))
+  }
+  # A member already simplified to a data.frame is the strongest candidate, so
+  # name it first in the message the caller has to act on.
+  frames <- vapply(body[keys], is.data.frame, logical(1L))
+  c(keys[frames], keys[!frames])
+}
+
+# Refuse a body that is provably an envelope while no records_path is declared.
+#
+# The twin of .api_assert_untruncated(), for structure rather than length, and
+# for the same reason: `{"data": [...], "meta": {"total": 2}}` does not fail
+# under as.data.frame(). It flattens to columns named `data.x` with every
+# metadata scalar recycled down the rows, so the misread reaches the field-map
+# rename looking like an ordinary set of unfamiliar column names.
+#' @noRd
+.api_assert_not_envelope <- function(body, endpoint_key) {
+  candidates <- .api_envelope_candidates(body)
+  if (length(candidates) == 0L) {
+    return(invisible(NULL))
+  }
+  best <- candidates[1L] # nolint: object_usage_linter
+  cli::cli_abort(c(
+    "The {.val {endpoint_key}} response is a JSON object wrapping the records, \\
+     and no {.arg records_path} is configured.",
+    "x" = "Member{?s} that could hold the records: {.field {candidates}}",
+    "i" = "Reading the object as a table would name the columns after the \\
+           wrapper and recycle every sibling value down each row.",
+    "i" = "Say where the records are, e.g. {.code records_path = \"{best}\"}."
+  ))
+}
+
+# Walk `path` into the parsed body and return the member it names.
+#' @noRd
+.api_extract_records <- function(body, path, endpoint_key, arg = "records_path") {
+  node <- body
+  for (i in seq_along(path)) {
+    key <- path[[i]]
+    walked <- if (i == 1L) "the response body" else paste(path[seq_len(i - 1L)], collapse = " > ") # nolint: line_length_linter
+    if (!is.list(node) || is.null(names(node))) {
+      cli::cli_abort(c(
+        "{.arg {arg}} looks past the end of the {.val {endpoint_key}} response.",
+        "x" = "{walked} is not a JSON object, so it has no {.field {key}} member.",
+        "i" = "Path given: {.field {path}}"
+      ))
+    }
+    if (!key %in% names(node)) {
+      present <- names(node) # nolint: object_usage_linter
+      cli::cli_abort(c(
+        "The {.val {endpoint_key}} response has no {.field {key}} member.",
+        "x" = "Looked in {walked}, which holds: {.field {present}}",
+        "i" = "Path given: {.field {path}}"
+      ))
+    }
+    node <- node[[key]]
+  }
+  node
+}
+
+# Parse one response body into a plain data.frame.
+#
+# `records_path` is NULL for an API whose body is the record array, and names
+# the enclosing member(s) for one that wraps it.
+#' @noRd
+.api_page_to_df <- function(resp, endpoint_key, records_path = NULL) {
+  body <- httr2::resp_body_json(resp, simplifyVector = TRUE)
+
+  if (is.null(records_path)) {
+    .api_assert_not_envelope(body, endpoint_key)
+    result <- body
+  } else {
+    if (is.data.frame(body)) {
+      cli::cli_abort(c(
+        "{.arg records_path} is configured but the {.val {endpoint_key}} response \\
+         is already a bare JSON array.",
+        "x" = "There is no envelope to look inside for {.field {records_path}}.",
+        "i" = "Drop {.arg records_path} for this API."
+      ))
+    }
+    result <- .api_extract_records(body, records_path, endpoint_key)
+  }
 
   if (is.null(result) || (is.list(result) && length(result) == 0L)) {
     return(data.frame())
@@ -750,6 +936,81 @@ creel_connect_api <- function(
   if (is.na(n)) NULL else n
 }
 
+# The record count the API reported inside an envelope, or NULL.
+#
+# `total_path` is used when declared. When it is not, a sibling of the records
+# whose NAME is a conventional total is read instead -- see
+# .api_total_key_candidates() for why a guess is safe in this one direction.
+#' @noRd
+.api_body_total <- function(resp, records_path, total_path) {
+  if (is.null(records_path)) {
+    return(NULL)
+  }
+  body <- tryCatch(
+    httr2::resp_body_json(resp, simplifyVector = TRUE),
+    error = function(e) NULL
+  )
+  if (is.null(body)) {
+    return(NULL)
+  }
+  if (!is.null(total_path)) {
+    # A DECLARED path is not allowed to quietly resolve to nothing. The caller
+    # configured the truncation check; a typo that silently switched it off
+    # would leave a profile that looks guarded and is not -- the same reason
+    # .validate_api_pagination() refuses an unknown setting rather than
+    # ignoring it.
+    raw <- .api_extract_records(body, total_path, endpoint_key = "total", arg = "total_path")
+    total <- .api_scalar_number(raw)
+    if (is.null(total)) {
+      cli::cli_abort(c(
+        "{.arg total_path} does not name a number.",
+        "x" = "{.field {paste(total_path, collapse = ' > ')}} holds \\
+               {.obj_type_friendly {raw}}.",
+        "i" = "It should name the record count for the whole query, e.g. the \\
+               {.field count} in {.code {{\"count\": 42, \"results\": [...]}}}."
+      ))
+    }
+    return(total)
+  }
+  # Siblings of the records member, one level up from the array itself.
+  parent <- if (length(records_path) == 1L) {
+    body
+  } else {
+    tryCatch(
+      .api_extract_records(body, records_path[-length(records_path)], "total"),
+      error = function(e) NULL
+    )
+  }
+  if (!is.list(parent) || is.null(names(parent))) {
+    return(NULL)
+  }
+  hit <- intersect(.api_total_key_candidates(), names(parent))
+  if (length(hit) == 0L) {
+    return(NULL)
+  }
+  # A guessed key is allowed to be something other than a count -- that is what
+  # guessing means -- so an unreadable value here is simply not a total.
+  .api_scalar_number(raw = parent[[hit[[1L]]]])
+}
+
+# A single number, from a JSON value that may have arrived quoted.
+#
+# `{"count": "9"}` is legal JSON and common from an API whose counts come back
+# as strings. The X-Total-Count twin already coerced its header text, so
+# refusing the body's quoted total would have made the guard depend on how the
+# API happened to type a number.
+#' @noRd
+.api_scalar_number <- function(raw) {
+  if (is.null(raw) || length(raw) != 1L || is.list(raw)) {
+    return(NULL)
+  }
+  if (!is.numeric(raw) && !is.character(raw)) {
+    return(NULL)
+  }
+  n <- suppressWarnings(as.numeric(raw))
+  if (is.na(n)) NULL else n
+}
+
 # Refuse a response that can be PROVEN to be one page of several.
 #
 # This runs only when no pagination style is declared, and it is the half of GH
@@ -758,7 +1019,8 @@ creel_connect_api <- function(
 # does not pretend to: what it removes is the case where the response says it is
 # incomplete and the connection returns it as the whole dataset anyway.
 #' @noRd
-.api_assert_untruncated <- function(resp, endpoint, n_rows) {
+.api_assert_untruncated <- function(resp, endpoint, n_rows,
+                                    records_path = NULL, total_path = NULL) {
   advice <- "Declare how this API paginates in {.arg pagination}, e.g. \\
              {.code pagination = list(style = \"link\")}."
   if (!is.null(.api_next_link(resp))) {
@@ -775,6 +1037,18 @@ creel_connect_api <- function(
     cli::cli_abort(c(
       "The API reported a total of {total} records but returned {n_rows}.",
       "x" = "Endpoint {endpoint} sent an {.field X-Total-Count} larger than the response.",
+      "i" = "Returning this would treat a partial response as the complete dataset.",
+      "i" = advice
+    ))
+  }
+  # An enveloped API usually carries its count in the body rather than a header,
+  # so supporting `records_path` without this would re-open, for exactly those
+  # APIs, the silent truncation the header check exists to prevent.
+  body_total <- .api_body_total(resp, records_path, total_path)
+  if (!is.null(body_total) && body_total > n_rows) {
+    cli::cli_abort(c(
+      "The API reported a total of {body_total} records but returned {n_rows}.",
+      "x" = "Endpoint {endpoint} sent a larger count inside the response body.",
       "i" = "Returning this would treat a partial response as the complete dataset.",
       "i" = advice
     ))

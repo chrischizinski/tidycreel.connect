@@ -44,6 +44,20 @@ An optional \verb{pagination:} block says how the API pages its responses and is
 passed straight to \code{\link[=creel_connect_api]{creel_connect_api()}}, which documents the styles. Leave
 it out for an API that returns every record at once -- a response that proves
 otherwise then aborts rather than being read as the complete dataset.
+
+Two more optional keys describe the \emph{shape} of a response rather than the
+number of them. \verb{records_path:} names the member holding the records for an
+API that wraps them in an envelope, and \verb{total_path:} names the member
+holding the count for the whole query. Both are passed straight to
+\code{\link[=creel_connect_api]{creel_connect_api()}}. Write a nested path as a sequence:
+
+\if{html}{\out{<div class="sourceCode yaml">}}\preformatted{records_path: results        # \{"count": 42, "results": [...]\}
+total_path: count
+
+records_path: [data, items]  # \{"data": \{"items": [...]\}\}
+}\if{html}{\out{</div>}}
+
+Leave them out for an API whose body is the JSON array itself.
 }
 
 \subsection{CSV profiles}{

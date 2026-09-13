@@ -17,6 +17,53 @@
 
 ## New features
 
+* `creel_connect_api()` gains `records_path` and `total_path`, for an API that
+  wraps its records in an envelope (#330 item 2, schema half).
+
+  Until now the connection assumed the response body *was* the JSON array of
+  records. That is one convention among several: Django REST Framework returns
+  `{"count": 42, "results": [...]}`, JSON:API and Laravel use `data`, OData uses
+  `value`, and some APIs nest a level further. Pointed at any of them this
+  package could not fetch at all — and the reason it gave was misleading, since
+  `as.data.frame()` flattens `{"data": [...], "meta": {...}}` into columns named
+  `data.SurveyDate` with the metadata recycled down every row, so the failure
+  surfaced from the validator as "column missing" and pointed at the field map.
+
+  Say where the records are and they are read:
+
+  ```r
+  creel_connect_api(..., records_path = "results")       # {"results": [...]}
+  creel_connect_api(..., records_path = c("data", "items"))
+  ```
+
+  Nothing is guessed — `"results"`, `"data"` and `"value"` are each right for
+  some deployment and wrong for the rest, so an envelope is only read when the
+  profile says where to look. What *is* automatic is the refusal: a body that
+  can be proven to be an envelope now aborts naming the member that looks like
+  the records, instead of being flattened.
+
+  `total_path` names the whole-query count an envelope usually carries in place
+  of an `X-Total-Count` header. With no pagination style declared, a total
+  larger than the rows returned aborts rather than passing page one off as the
+  dataset — the same guard the header already had, which supporting envelopes
+  without it would have left open for exactly the enveloped APIs. Declaring it
+  is optional: a sibling conventionally named `count`, `total`, `total_count`,
+  `totalCount`, `totalResults` or `recordCount` is read for that refusal too.
+  Such a guess is only ever used to stop, never to decide what to return.
+
+  Both keys are settable from a YAML profile.
+
+* A mapped field that arrives as nested JSON is refused by name.
+
+  `{"ShoreAnglers": {"bank": 4, "pier": 1}}` parses to a data.frame column and a
+  ragged `{"ShoreAnglers": [4, 1]}` to a list column. Neither is a measurement,
+  and both used to fail somewhere downstream with a base-R message —
+  `replacement has 2 rows, data has 1`, or `'list' object cannot be coerced to
+  type 'double'` — that named neither the field nor the endpoint. The fetch now
+  aborts saying which raw field, which canonical name it was mapped to, and
+  whether it held an object or an array. A nested member the field map never
+  asks for is still dropped, as any other unmapped column is.
+
 * The test suite now runs against a real HTTP server (#330 item 2, transport
   half).
 
@@ -37,10 +84,39 @@
 
   `webfakes` is a `Suggests`; the file skips cleanly without it.
 
-  This does **not** close #330 item 2. A local server cannot tell you that a
-  real deployment named a field something you did not expect. What it closes is
-  the transport half, which is most of what "nothing has ever run against a
-  real endpoint" was costing.
+  A local server cannot tell you that a real deployment named a field something
+  you did not expect. What it closes is the transport half, which is most of
+  what "nothing has ever run against a real endpoint" was costing.
+
+* The response *shapes* an arbitrary API may return are now enumerated in a
+  test matrix.
+
+  `test-api-shapes.R` points the connection at one `webfakes` server that
+  returns the same three records under twenty different wrappers: bare array,
+  four envelope conventions, a nested envelope, a single object instead of a
+  one-element array, quoted numbers, an explicit `null` beside an absent key,
+  nested members mapped and unmapped, an empty array, an empty envelope, and
+  two body-carried truncations. Each shape is either read correctly or refused
+  with a message naming what to change.
+
+  The payload is deliberately synthetic and three rows wide: when a shape test
+  fails it should be the shape that failed, not the arithmetic. `test-live-http.R`
+  keeps the calamus fixture for the end-to-end assertion.
+
+  Eleven of these pass against the previous release and fifteen do not, which
+  is the measurement worth keeping: the shapes that already worked are the ones
+  that still work.
+
+  Five more shapes were added after the pre-push review, which found three real
+  defects in the first version of this work -- two of them independently, by
+  two different models. A body total arriving quoted (`{"count": "9"}`) was
+  ignored rather than acted on, so the new truncation guard did nothing for an
+  API that types its counts as strings. A `total_path` that resolved to nothing
+  was swallowed, leaving a profile that looked guarded and was not. And the
+  envelope check first asked only whether a member held a container, which is
+  true of an ordinary metadata object -- so a single record returned as
+  `{"SurveyDate": ..., "Audit": {...}}` was refused as a wrapper, a shape that
+  reads correctly on the previous release.
 
 ## Bug fixes
 
