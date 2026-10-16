@@ -9,6 +9,9 @@ Description: Provides connection objects and data loaders for the tidycreel
     DBI-compliant databases including SQL Server via ODBC, and from REST APIs
     described by a caller-supplied profile.
 License: MIT + file LICENSE
+URL: https://github.com/chrischizinski/tidycreel.connect,
+    https://chrischizinski.com/tidycreel.connect/
+BugReports: https://github.com/chrischizinski/tidycreel.connect/issues
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
@@ -32,4 +35,6 @@ Suggests:
     withr,
     yaml
 VignetteBuilder: knitr
+Remotes:
+    chrischizinski/tidycreel
 Config/testthat/edition: 3

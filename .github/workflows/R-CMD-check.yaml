@@ -1,0 +1,89 @@
+name: R-CMD-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  r-cmd-check:
+    runs-on: ${{ matrix.config.os }}
+    timeout-minutes: 45
+    concurrency:
+      group: R-CMD-check-${{ github.ref }}-${{ matrix.config.os }}
+      cancel-in-progress: true
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {os: macos-latest,  r: 'release'}
+          - {os: ubuntu-latest, r: 'release'}
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/harden-apt
+        if: runner.os == 'Linux'
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      # Install ODBC driver manager and SQL Server driver so creel_check_driver()
+      # and odbc-dependent tests can run. Tests already skip gracefully via
+      # skip_if_not_installed("odbc") if the driver is absent.
+      - name: Install ODBC driver (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install unixodbc
+          brew tap microsoft/mssql-release \
+            https://github.com/Microsoft/homebrew-mssql-release
+          # Homebrew now refuses to load formulae from untrusted third-party
+          # taps. Scope the grant to this one formula rather than the whole
+          # tap, so anything added to it later does not inherit trust.
+          brew trust --formula microsoft/mssql-release/msodbcsql18
+          HOMEBREW_ACCEPT_EULA=Y brew install msodbcsql18
+
+      - name: Install ODBC driver (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # GitHub's Ubuntu images already ship the Microsoft prod repository
+          # (microsoft-prod.list, signed by microsoft-prod.gpg). Adding a
+          # second entry for the same repo under a different Signed-By keyring
+          # makes apt refuse to read *any* source list:
+          #   E: Conflicting values set for option Signed-By regarding source
+          #      https://packages.microsoft.com/ubuntu/24.04/prod/ noble
+          # So only add the repository when it is genuinely missing.
+          if ! grep -rqs packages.microsoft.com \
+            /etc/apt/sources.list /etc/apt/sources.list.d/; then
+            curl -sSL https://packages.microsoft.com/keys/microsoft.asc \
+              | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+            echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] \
+              https://packages.microsoft.com/ubuntu/$(lsb_release -rs)/prod \
+              $(lsb_release -cs) main" \
+              | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          fi
+          sudo apt-get update -qq
+          ACCEPT_EULA=Y sudo apt-get install -y msodbcsql18 unixodbc-dev
+
+      - uses: r-lib/actions/setup-r@v2
+        timeout-minutes: 20
+        with:
+          r-version: ${{ matrix.config.r }}
+          use-public-rspm: true
+
+      # tidycreel comes from its GitHub main branch (DESCRIPTION Remotes), not
+      # CRAN, so connect is checked against the tidycreel it will meet next,
+      # as it was when both lived in one repository and CI installed `..`.
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::rcmdcheck
+          needs: check
+
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          upload-snapshots: true
+          error-on: '"error"'

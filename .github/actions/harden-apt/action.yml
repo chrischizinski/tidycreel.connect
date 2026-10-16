@@ -1,0 +1,87 @@
+name: Harden apt
+description: >
+  Make apt fail fast instead of hanging, and fall back to the canonical Ubuntu
+  archive when the runner's default mirror stalls. Run this before any action
+  that installs system packages (r-lib/actions/setup-r and friends).
+
+runs:
+  using: composite
+  steps:
+    - name: Bound every apt transfer
+      shell: bash
+      run: |
+        # apt ships with no read timeout and no retries, so a mirror that
+        # accepts the connection and then stops sending data blocks forever.
+        # That is exactly how this repository burned a six-hour job on
+        # test-coverage (2026-08-17) and a 1h41m job on pkgdown (2026-08-18):
+        # both stopped after "Get:5 ... noble-security InRelease" and never
+        # emitted another line. A bounded transfer turns that into a fast,
+        # legible failure.
+        sudo tee /etc/apt/apt.conf.d/99-ci-resilience >/dev/null <<'CONF'
+        Acquire::Retries "5";
+        Acquire::http::Timeout "15";
+        Acquire::https::Timeout "15";
+        Acquire::ftp::Timeout "15";
+        CONF
+
+    - name: Drop third-party sources this build does not need
+      shell: bash
+      run: |
+        # The runner image ships Google's Chrome repository. On 2026-09-09 it
+        # served a Packages.gz whose hash did not match the SHA256 in its own
+        # Release file, and apt treats a hash mismatch on ANY configured source
+        # as a failure of the whole update -- so a broken third-party repo took
+        # down ubuntu-latest, pkgdown and test-coverage together while macOS and
+        # Windows stayed green.
+        #
+        # The mirror fallback below cannot rescue this: it rewrites
+        # azure.archive.ubuntu.com to archive.ubuntu.com, and dl.google.com is
+        # neither. Nothing in tidycreel needs Chrome, so the source is removed
+        # rather than repaired.
+        #
+        # Removing only what broke, deliberately. Dropping every non-Ubuntu
+        # source would be the broader guard, but it would also silently discard
+        # a repository some future job does need.
+        for f in /etc/apt/sources.list.d/google-chrome.list \
+                 /etc/apt/sources.list.d/google-chrome.sources; do
+          if [ -f "$f" ]; then
+            echo "removing ${f} (not required by this package)"
+            sudo rm -f "$f"
+          fi
+        done
+
+    - name: Refresh package indexes, with a mirror fallback
+      shell: bash
+      run: |
+        set -uo pipefail
+
+        update() { sudo timeout 180 apt-get update -qq; }
+
+        if update; then
+          echo "apt indexes refreshed from the default mirror."
+          exit 0
+        fi
+
+        # Only rewrite the mirror after the default one has actually failed.
+        # The Azure mirror is network-local to the runner and is the faster
+        # choice whenever it works, so switching pre-emptively would slow every
+        # green build to guard against an intermittent fault.
+        echo "::warning::Default apt mirror failed; falling back to archive.ubuntu.com"
+        for f in /etc/apt/sources.list \
+                 /etc/apt/sources.list.d/*.sources \
+                 /etc/apt/sources.list.d/*.list; do
+          [ -f "$f" ] || continue
+          sudo sed -i -E 's|://([a-z0-9-]+\.)?azure\.archive\.ubuntu\.com/|://archive.ubuntu.com/|g' "$f"
+        done
+
+        for attempt in 2 3; do
+          if update; then
+            echo "apt indexes refreshed from archive.ubuntu.com on attempt ${attempt}."
+            exit 0
+          fi
+          echo "attempt ${attempt} failed; retrying"
+          sleep 10
+        done
+
+        echo "::error::apt-get update failed against both mirrors after 3 attempts."
+        exit 1

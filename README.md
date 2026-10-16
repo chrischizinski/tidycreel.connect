@@ -21,10 +21,8 @@ one set of tables rather than a catalogue.
 ## Installation
 
 ```r
-# Install tidycreel.connect
-# (requires tidycreel to be installed first)
-remotes::install_github("chrischizinski/tidycreel")
-remotes::install_github("chrischizinski/tidycreel", subdir = "tidycreel.connect")
+# Installs tidycreel from GitHub too, if it is not already installed
+remotes::install_github("chrischizinski/tidycreel.connect")
 ```
 
 ### ODBC prerequisites (SQL Server connections only)
