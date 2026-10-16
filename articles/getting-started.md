@@ -1,0 +1,529 @@
+# Getting Started with tidycreel.connect
+
+## Overview
+
+**tidycreel.connect** provides a unified connection layer for the
+[tidycreel](https://github.com/chrischizinski/tidycreel) creel survey
+package. It lets you load interview, count, catch, and length data from
+three backends:
+
+| Backend | When to use | Status |
+|----|----|----|
+| **CSV** | Flat files from a data export or field laptop | Loads data |
+| **REST API** | A service returning JSON, described by a profile you supply | Loads data |
+| **Database (DBI)** | An agency production database — SQL Server via ODBC, or any DBI driver | Loads data |
+
+Every `creel_connection` is accepted by every `fetch_*()` function and
+passes cleanly into
+[`tidycreel::add_interviews()`](https://chrischizinski.com/tidycreel/reference/add_interviews.html).
+A database connection reads each table by the name the schema gives it,
+then puts the rows through the same rename, coercion and validation as
+the other backends, so which backend the frame came from does not change
+what comes out.
+
+[`list_creels()`](https://chrischizinski.com/tidycreel.connect/reference/list_creels.md)
+and
+[`search_creels()`](https://chrischizinski.com/tidycreel.connect/reference/search_creels.md)
+are the exception: discovery asks a source which surveys it holds, and a
+database connection addresses one set of tables rather than a catalogue.
+They abort on a database connection, saying that, and are available on
+the API backend where the service defines them.
+
+### Connections are read-only
+
+No backend writes anything. The CSV backend only reads the files named
+in the schema; the API backend issues `GET` requests only; a database
+connection only ever reads the tables the schema names. No table is
+created, altered, dropped or written to, no row is inserted or updated,
+and no file is written — including the files a CSV connection reads.
+Pointing a connection at a production database or an agency’s live
+export cannot modify it.
+
+## Installation prerequisites
+
+``` r
+
+# Core package (already installed if you have tidycreel)
+install.packages("tidycreel.connect")
+
+# Required for YAML-based connections
+install.packages("config")
+
+# Required for SQL Server connections
+install.packages("odbc")
+```
+
+You also need a native ODBC driver on your OS — see the README for
+platform-specific install instructions.
+
+------------------------------------------------------------------------
+
+## 1. Define a column-mapping schema
+
+A `creel_schema` tells tidycreel.connect which columns in your data
+files correspond to the canonical names used by `tidycreel`. Create one
+with
+[`tidycreel::creel_schema()`](https://chrischizinski.com/tidycreel/reference/creel_schema.html):
+
+``` r
+
+library(tidycreel)
+library(tidycreel.connect)
+
+schema <- creel_schema(
+  survey_type       = "instantaneous",
+  # Table names: required by the database backend, ignored for CSV.
+  # harvest_lengths_table / release_lengths_table both fall back to
+  # lengths_table, so a source keeping one lengths table needs only this.
+  interviews_table  = "vwInterviews",
+  counts_table      = "vwCounts",
+  catch_table       = "vwCatch",
+  lengths_table     = "vwLengths",
+  # Column mappings: right-hand side is the name in your data source
+  interview_uid_col = "InterviewID",
+  date_col          = "SurveyDate",
+  effort_col        = "EffortHours",
+  catch_col         = "TotalCatch",
+  trip_status_col   = "TripStatus",
+  bank_anglers_col  = "BankAnglers",
+  # Party size: map it whenever your source records it. Unmapped, the interview
+  # effort is party-hours and every rate denominator is off by the mean party
+  # size. Bus-route designs additionally need site_col and circuit_col.
+  n_anglers_col     = "NumberAnglers",
+  angler_type_col   = "AnglerType",
+  catch_uid_col     = "CatchUID",
+  species_col       = "SpeciesCode",
+  catch_count_col   = "CatchCount",
+  catch_type_col    = "CatchCategory",
+  length_uid_col    = "LengthUID",
+  length_mm_col     = "LengthMM",
+  length_type_col   = "LengthType"
+)
+
+schema
+#> <creel_schema: instantaneous>
+#> 
+#> ── interviews: vwInterviews ──
+#> 
+#> date -> SurveyDate
+#> catch -> TotalCatch
+#> effort -> EffortHours
+#> trip_status -> TripStatus
+#> n_anglers -> NumberAnglers
+#> angler_type -> AnglerType
+#> interview_uid -> InterviewID
+#> 
+#> ── counts: vwCounts ──
+#> 
+#> bank_anglers -> BankAnglers
+#> 
+#> ── catch: vwCatch ──
+#> 
+#> catch_uid -> CatchUID
+#> species -> SpeciesCode
+#> catch_count -> CatchCount
+#> catch_type -> CatchCategory
+#> 
+#> ── lengths: vwLengths ──
+#> 
+#> length_uid -> LengthUID
+#> length_mm -> LengthMM
+#> length_type -> LengthType
+```
+
+------------------------------------------------------------------------
+
+## 2a. Connect using a YAML config file (recommended)
+
+YAML config keeps connection details out of your scripts. Create a file
+`creel-config.yml`:
+
+``` yaml
+# creel-config.yml — CSV backend example
+default:
+  backend: csv
+  files:
+    interviews:      data/interviews.csv
+    counts:          data/counts.csv
+    catch:           data/catch.csv
+    harvest_lengths: data/harvest_lengths.csv
+    release_lengths: data/release_lengths.csv
+  schema:
+    survey_type: instantaneous
+```
+
+Then connect:
+
+``` r
+
+conn <- creel_connect_from_yaml("creel-config.yml")
+```
+
+### SQL Server YAML config
+
+Credentials must **never** be stored as plain text. Use the `config`
+package’s `!expr` tag to inject them from environment variables:
+
+``` yaml
+# creel-config.yml — SQL Server backend example
+default:
+  backend:   sqlserver
+  server:    myserver.example.com
+  database:  CreelDB
+  auth_type: password
+  username:  !expr Sys.getenv("CREEL_USER")
+  password:  !expr Sys.getenv("CREEL_PASS")
+  schema:
+    survey_type:       instantaneous
+    interviews_table:  vwInterviews
+    counts_table:      vwCounts
+    catch_table:       vwCatch
+    lengths_table:     vwLengths
+    interview_uid_col: InterviewID
+    date_col:          SurveyDate
+    effort_col:        EffortHours
+    catch_col:         TotalCatch
+    trip_status_col:   TripStatus
+    count_col:         AnglerCount
+    catch_uid_col:     CatchUID
+    species_col:       SpeciesCode
+    catch_count_col:   CatchCount
+    catch_type_col:    CatchCategory
+    length_uid_col:    LengthUID
+    length_mm_col:     LengthMM
+    length_type_col:   LengthType
+```
+
+Set credentials before connecting:
+
+``` r
+
+Sys.setenv(CREEL_USER = "your_username", CREEL_PASS = "your_password")
+conn <- creel_connect_from_yaml("creel-config.yml")
+```
+
+For Windows integrated authentication (Windows only):
+
+``` yaml
+auth_type: windows
+```
+
+> **Note:** `auth_type: windows` aborts immediately on macOS and Linux
+> with a helpful error message directing you to use
+> `auth_type: password` instead.
+
+### Multiple environments
+
+The `config` environment block lets you switch between development and
+production databases without editing the file:
+
+``` yaml
+default:
+  backend: csv
+  files:
+    interviews: data/dev/interviews.csv
+    # ...
+
+production:
+  backend:   sqlserver
+  server:    prod.example.com
+  database:  CreelDB
+  auth_type: password
+  username:  !expr Sys.getenv("CREEL_USER")
+  password:  !expr Sys.getenv("CREEL_PASS")
+  # ...
+```
+
+``` r
+
+# Default (CSV for development)
+conn_dev <- creel_connect_from_yaml("creel-config.yml")
+
+# Production SQL Server
+conn_prod <- creel_connect_from_yaml("creel-config.yml", config = "production")
+```
+
+### REST API profile
+
+tidycreel.connect ships **no endpoint paths and no JSON field names for
+any API**. Those describe one deployment, and a built-in default would
+decode that service’s payload while silently misreading everyone else’s
+— so `endpoints`, `api_field_map` and `uid_param` are all required, and
+the connection aborts without them.
+
+Keep them in a profile rather than in your analysis code. A commented
+template with invented names is installed with the package:
+
+``` r
+
+file.edit(
+  system.file("extdata", "api-profile-example.yml", package = "tidycreel.connect")
+)
+```
+
+``` yaml
+# my-api.yml — API backend example
+default:
+  backend: api
+  base_url: "https://api.example.org/creel/"
+  uid_param: "survey_id"
+  creel_uids: ["survey-2016-001"]
+  schema:
+    survey_type: instantaneous
+  endpoints:
+    interviews: "v2/interviews"
+    counts: "v2/counts"
+  field_map:
+    interviews:
+      interview_uid: "InterviewID"
+      date: "SurveyDate"
+      trip_status: "TripStatus"
+      effort_hours: "HoursFished"
+      n_anglers: "PartySize"     # map it: see section 4
+    counts:
+      date: "SurveyDate"
+      bank_anglers: "ShoreAnglers"
+```
+
+``` r
+
+conn <- creel_connect_from_yaml("~/.config/tidycreel/my-api.yml")
+```
+
+Pointing the same script at a different file is how it runs against a
+different organisation’s API.
+
+------------------------------------------------------------------------
+
+## 2b. Connect programmatically
+
+You can also construct a connection directly without a YAML file.
+
+### CSV backend
+
+``` r
+
+# Build small toy CSV files for this example
+tmp_dir <- withr::local_tempdir()
+
+interviews_csv <- file.path(tmp_dir, "interviews.csv")
+counts_csv <- file.path(tmp_dir, "counts.csv")
+catch_csv <- file.path(tmp_dir, "catch.csv")
+lengths_csv <- file.path(tmp_dir, "lengths.csv")
+
+readr::write_csv(
+  data.frame(
+    InterviewID  = 1:4,
+    SurveyDate   = "2024-06-01",
+    EffortHours  = c(2.0, 3.5, 1.5, 4.0),
+    TotalCatch   = c(5L, 8L, 2L, 6L),
+    TripStatus   = "complete"
+  ),
+  interviews_csv
+)
+readr::write_csv(
+  data.frame(SurveyDate = "2024-06-01", BankAnglers = 12L),
+  counts_csv
+)
+readr::write_csv(
+  data.frame(
+    CatchUID    = 1:3,
+    InterviewID = c(1L, 1L, 2L),
+    SpeciesCode = c("WAE", "WAE", "LMB"),
+    CatchCount  = c(2L, 1L, 3L),
+    CatchCategory   = "harvest"
+  ),
+  catch_csv
+)
+readr::write_csv(
+  data.frame(
+    LengthUID   = 1:2,
+    InterviewID = c(1L, 2L),
+    SpeciesCode = c("WAE", "LMB"),
+    LengthMM    = c(420L, 380L),
+    LengthType  = c("harvest", "harvest")
+  ),
+  lengths_csv
+)
+
+# Connect with a named list of file paths
+conn <- creel_connect(
+  con = list(
+    interviews      = interviews_csv,
+    counts          = counts_csv,
+    catch           = catch_csv,
+    harvest_lengths = lengths_csv,
+    release_lengths = lengths_csv
+  ),
+  schema = schema
+)
+
+conn
+#> <creel_connection: csv>
+#> Status: ready
+#> Backend: CSV
+#> interviews → /tmp/RtmpH1DO6S/file1d9822d6e43d/interviews.csv
+#> counts → /tmp/RtmpH1DO6S/file1d9822d6e43d/counts.csv
+#> catch → /tmp/RtmpH1DO6S/file1d9822d6e43d/catch.csv
+#> harvest_lengths → /tmp/RtmpH1DO6S/file1d9822d6e43d/lengths.csv
+#> release_lengths → /tmp/RtmpH1DO6S/file1d9822d6e43d/lengths.csv
+#> Schema: <creel_schema: instantaneous>
+#> 
+#> ── interviews: vwInterviews ──
+#> 
+#> date -> SurveyDate
+#> catch -> TotalCatch
+#> effort -> EffortHours
+#> trip_status -> TripStatus
+#> n_anglers -> NumberAnglers
+#> angler_type -> AnglerType
+#> interview_uid -> InterviewID
+#> 
+#> ── counts: vwCounts ──
+#> 
+#> bank_anglers -> BankAnglers
+#> 
+#> ── catch: vwCatch ──
+#> 
+#> catch_uid -> CatchUID
+#> species -> SpeciesCode
+#> catch_count -> CatchCount
+#> catch_type -> CatchCategory
+#> 
+#> ── lengths: vwLengths ──
+#> 
+#> length_uid -> LengthUID
+#> length_mm -> LengthMM
+#> length_type -> LengthType
+```
+
+### SQL Server / DBI backend
+
+``` r
+
+library(DBI)
+library(odbc)
+
+dbi_con <- dbConnect(
+  odbc(),
+  driver   = "ODBC Driver 17 for SQL Server",
+  server   = "myserver.example.com",
+  database = "CreelDB",
+  uid      = Sys.getenv("CREEL_USER"),
+  pwd      = Sys.getenv("CREEL_PASS")
+)
+
+conn <- creel_connect(dbi_con, schema, auth_type = "password")
+```
+
+------------------------------------------------------------------------
+
+## 3. Fetch data
+
+Once you have a `creel_connection`, use the `fetch_*()` family to load
+each table. All functions return a tibble with canonical column names
+defined by the schema.
+
+``` r
+
+interviews <- fetch_interviews(conn)
+counts <- fetch_counts(conn)
+catch_data <- fetch_catch(conn)
+harvest_lengths <- fetch_harvest_lengths(conn)
+release_lengths <- fetch_release_lengths(conn)
+
+# Date columns are coerced to R Date regardless of backend
+class(interviews$date)
+#> [1] "Date"
+
+# Species codes are coerced to character (SQL Server may store as integer)
+class(catch_data$species)
+#> [1] "character"
+
+interviews
+#> # A tibble: 4 × 5
+#>   interview_uid date       catch_count effort trip_status
+#>   <chr>         <date>           <dbl>  <dbl> <chr>      
+#> 1 1             2024-06-01           5    2   complete   
+#> 2 2             2024-06-01           8    3.5 complete   
+#> 3 3             2024-06-01           2    1.5 complete   
+#> 4 4             2024-06-01           6    4   complete
+```
+
+------------------------------------------------------------------------
+
+## 4. Integrate with tidycreel
+
+The fetched tibbles slot directly into the tidycreel estimation
+workflow.
+[`fetch_interviews()`](https://chrischizinski.com/tidycreel.connect/reference/fetch_interviews.md)
+returns a tibble with canonical column names — pass it to
+[`tidycreel::add_interviews()`](https://chrischizinski.com/tidycreel/reference/add_interviews.html)
+along with a `creel_design` object:
+
+``` r
+
+# First, build a creel_design from your calendar and count data
+# (see the tidycreel getting-started vignette for the full workflow)
+design <- creel_design(
+  calendar    = my_calendar,
+  date        = date,
+  strata      = stratum,
+  design_type = "instantaneous"
+)
+
+# Then attach the fetched interview data. Pass n_anglers when the schema maps a
+# party-size column: without it add_interviews() assumes one angler per
+# interview and warns, and the effort it carries is party-hours rather than
+# angler-hours.
+design <- add_interviews(
+  design,
+  interviews  = interviews,
+  catch       = catch_count,
+  effort      = effort,
+  trip_status = trip_status,
+  n_anglers   = n_anglers
+)
+
+# Now estimate
+estimate_effort(design)
+estimate_catch_rate(design, species = "WAE")
+```
+
+The column names (`catch_count`, `effort`, `trip_status`) come from the
+`creel_schema` column mappings defined earlier — they are the canonical
+names that
+[`fetch_interviews()`](https://chrischizinski.com/tidycreel.connect/reference/fetch_interviews.md)
+renames to, regardless of what your source database calls them.
+
+See `vignette("getting-started", package = "tidycreel")` for a complete
+end-to-end estimation walkthrough.
+
+------------------------------------------------------------------------
+
+## Credential security
+
+Never store credentials as plain text in scripts or YAML files. The
+recommended approach:
+
+1.  **Store in `.Renviron`** (user-level, never committed):
+
+        CREEL_USER=your_username
+        CREEL_PASS=your_password
+
+2.  **Reference via `!expr` in YAML**:
+
+    ``` yaml
+    username: !expr Sys.getenv("CREEL_USER")
+    password: !expr Sys.getenv("CREEL_PASS")
+    ```
+
+3.  **Reload without restarting R** after editing `.Renviron`:
+
+    ``` r
+
+    readRenviron("~/.Renviron")
+    ```
+
+> **Tip:** Add `.Renviron` to your global `.gitignore` to prevent
+> accidental credential commits.
