@@ -1,5 +1,8 @@
 # tidycreel.connect
 
+![tidycreel.connect hex
+sticker](https://raw.githubusercontent.com/chrischizinski/tidycreel.connect/main/man/figures/logo.png)
+
 **Database and file connections for the
 [tidycreel](https://github.com/chrischizinski/tidycreel) creel survey
 package.**

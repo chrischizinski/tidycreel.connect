@@ -13,6 +13,7 @@
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Database and File Connections for Tidycreel">
 <meta name="description" content="Provides connection objects and data loaders for the tidycreel creel survey analysis package. Loads data from flat CSV files, from DBI-compliant databases including SQL Server via ODBC, and from REST APIs described by a caller-supplied profile.">
 <meta property="og:description" content="Provides connection objects and data loaders for the tidycreel creel survey analysis package. Loads data from flat CSV files, from DBI-compliant databases including SQL Server via ODBC, and from REST APIs described by a caller-supplied profile.">
+<meta property="og:image" content="https://chrischizinski.com/tidycreel.connect/logo.png">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -53,8 +54,14 @@
 </nav><div class="container template-home">
 <div class="row">
   <main id="main" class="col-md-9"><div class="section level1">
-<div class="page-header"><h1 id="tidycreelconnect">tidycreel.connect<a class="anchor" aria-label="anchor" href="#tidycreelconnect"></a>
-</h1></div>
+<div class="page-header">
+<img src="logo.png" class="logo" alt=""><h1 id="tidycreelconnect">tidycreel.connect<a class="anchor" aria-label="anchor" href="#tidycreelconnect"></a>
+</h1>
+</div>
+<p align="center">
+<img src="https://raw.githubusercontent.com/chrischizinski/tidycreel.connect/main/man/figures/logo.png" alt="tidycreel.connect hex sticker" width="200"></p>
+<!-- badges: start -->
+
 <p><strong>Database and file connections for the <a href="https://github.com/chrischizinski/tidycreel" class="external-link">tidycreel</a> creel survey package.</strong></p>
 <p>tidycreel.connect provides a unified connection layer that loads interview, count, catch, and length data from flat CSV files or a REST API, renames columns to the canonical names expected by tidycreel, and coerces types consistently — so the rest of your analysis code doesn’t care where the data came from.</p>
 <p>A database backend loads through DBI, so SQL Server via ODBC works, and so does anything else with a DBI driver. It reads each table by the name the schema gives it and puts the rows through the same rename, coercion and validation the CSV backend uses. Survey <em>discovery</em> — <code><a href="reference/list_creels.html">list_creels()</a></code> and <code><a href="reference/search_creels.html">search_creels()</a></code> — does not apply to a database connection, which addresses one set of tables rather than a catalogue.</p>
