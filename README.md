@@ -12,6 +12,7 @@
 [![Roadmap](https://img.shields.io/badge/Roadmap-tidycreel.connect-6f42c1?logo=github)](https://github.com/users/chrischizinski/projects/3)
 [![Report bug](https://img.shields.io/badge/Report%20Bug-d73a4a?logo=github)](https://github.com/chrischizinski/tidycreel.connect/issues/new?labels=bug)
 [![Request feature](https://img.shields.io/badge/Request%20Feature-1f6feb?logo=github)](https://github.com/chrischizinski/tidycreel.connect/issues/new?labels=enhancement)
+[![GitHub Discussions](https://img.shields.io/github/discussions/chrischizinski/tidycreel.connect?logo=github)](https://github.com/chrischizinski/tidycreel.connect/discussions)
 <!-- badges: end -->
 
 **Database and file connections for the
