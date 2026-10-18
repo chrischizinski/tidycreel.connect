@@ -1,5 +1,19 @@
 # tidycreel.connect
 
+<p align="center">
+<img src="https://raw.githubusercontent.com/chrischizinski/tidycreel.connect/main/man/figures/logo.png" alt="tidycreel.connect hex sticker" width="200"/>
+</p>
+
+<!-- badges: start -->
+[![R-CMD-check](https://github.com/chrischizinski/tidycreel.connect/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/chrischizinski/tidycreel.connect/actions/workflows/R-CMD-check.yaml)
+[![pkgdown](https://img.shields.io/badge/pkgdown-live-1B4F72)](https://chrischizinski.com/tidycreel.connect/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+[![Roadmap](https://img.shields.io/badge/Roadmap-tidycreel.connect-6f42c1?logo=github)](https://github.com/users/chrischizinski/projects/3)
+[![Report bug](https://img.shields.io/badge/Report%20Bug-d73a4a?logo=github)](https://github.com/chrischizinski/tidycreel.connect/issues/new?labels=bug)
+[![Request feature](https://img.shields.io/badge/Request%20Feature-1f6feb?logo=github)](https://github.com/chrischizinski/tidycreel.connect/issues/new?labels=enhancement)
+<!-- badges: end -->
+
 **Database and file connections for the
 [tidycreel](https://github.com/chrischizinski/tidycreel) creel survey package.**
 
