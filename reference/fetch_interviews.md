@@ -37,5 +37,20 @@ assumes one angler per interview and party-hours are consumed as
 angler-hours. `site` and `circuit` are what a bus-route design joins the
 site inclusion probability on.
 
+Four more are carried on the same terms for the tidycreel summaries:
+`angler_method` (character), `species_sought` (character), `refused`
+(logical) and `zip_code` (character). `refused` accepts TRUE/FALSE, T/F,
+yes/no, Y/N and 1/0 in any case, and aborts on any other code rather
+than reading it as `NA`; pass it to
+[`tidycreel::add_interviews()`](https://chrischizinski.com/tidycreel/reference/add_interviews.html)
+so a refused interview is not taken for a no-catch party. `zip_code` is
+written as text, with a whole number padded back to five digits.
+`angler_method` and `species_sought` are carried as the source codes
+them: `value_maps` does not cover them, because tidycreel has no
+canonical vocabulary for either. On CSV and SQL,
+[`tidycreel::creel_schema()`](https://chrischizinski.com/tidycreel/reference/creel_schema.html)
+has no `zip_code_col`, so `zip_code` is carried only from a source
+column already named `zip_code`.
+
 Source columns outside the map are dropped, and each fetch reports which
 ones by name.

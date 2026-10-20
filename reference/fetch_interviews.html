@@ -76,6 +76,17 @@ the source records party size – without it <code><a href="https://chrischizins
 assumes one angler per interview and party-hours are consumed as
 angler-hours. <code>site</code> and <code>circuit</code> are what a bus-route design joins the
 site inclusion probability on.</p>
+<p>Four more are carried on the same terms for the tidycreel summaries:
+<code>angler_method</code> (character), <code>species_sought</code> (character), <code>refused</code>
+(logical) and <code>zip_code</code> (character). <code>refused</code> accepts TRUE/FALSE, T/F,
+yes/no, Y/N and 1/0 in any case, and aborts on any other code rather than
+reading it as <code>NA</code>; pass it to <code><a href="https://chrischizinski.com/tidycreel/reference/add_interviews.html" class="external-link">tidycreel::add_interviews()</a></code> so a refused
+interview is not taken for a no-catch party. <code>zip_code</code> is written as
+text, with a whole number padded back to five digits. <code>angler_method</code> and
+<code>species_sought</code> are carried as the source codes them: <code>value_maps</code> does
+not cover them, because tidycreel has no canonical vocabulary for either.
+On CSV and SQL, <code><a href="https://chrischizinski.com/tidycreel/reference/creel_schema.html" class="external-link">tidycreel::creel_schema()</a></code> has no <code>zip_code_col</code>, so
+<code>zip_code</code> is carried only from a source column already named <code>zip_code</code>.</p>
 <p>Source columns outside the map are dropped, and each fetch reports which
 ones by name.</p>
     </div>

@@ -144,7 +144,8 @@ creel_connect_api(
   canonical quantity, e.g.
   `list(interviews = list(date = "SurveyDate", n_anglers = "PartySize"))`.
   The optional interview fields – `n_anglers`, `angler_type`, `site`,
-  `circuit`, `n_counted`, `n_interviewed` – are carried only when named
+  `circuit`, `n_counted`, `n_interviewed`, `angler_method`,
+  `species_sought`, `refused`, `zip_code` – are carried only when named
   here; see
   [`fetch_interviews()`](https://chrischizinski.com/tidycreel.connect/reference/fetch_interviews.md)
   for what each one is used for.
