@@ -1,3 +1,29 @@
+# tidycreel.connect (development version)
+
+* `fetch_interviews()` carries `angler_method`, `species_sought`, `refused`
+  and `zip_code`, the columns tidycreel's interview summaries read
+  (`summarize_by_method()`, `summarize_by_species_sought()`,
+  `summarize_refusals()`, `summarize_by_zip()`) (#3).
+
+  Before, a field named under one of these in `api_field_map` was still
+  dropped, so a report needed a second, raw fetch. They are optional, opt-in
+  columns like `n_anglers`: map them through `api_field_map` on the API, or
+  `angler_method_col`, `species_sought_col` and `refused_col` in
+  `tidycreel::creel_schema()` on CSV and SQL. `creel_schema()` has no
+  `zip_code_col`, so there `zip_code` is carried only from a source column
+  already named `zip_code`.
+
+  `refused` arrives as logical. TRUE/FALSE, T/F, yes/no, Y/N and 1/0 are read
+  in any case; any other code aborts, because a refusal read as `NA` drops out
+  of `summarize_refusals()` silently. Pass it to `add_interviews(refused =)` so
+  a refused interview is not taken for a no-catch party. `zip_code` arrives as
+  text, with a whole number padded back to five digits so a ZIP parsed as a
+  number keeps its leading zero.
+
+  `angler_method` and `species_sought` are carried as the source codes them.
+  `value_maps` cannot translate them yet: tidycreel declares no canonical
+  vocabulary for either column.
+
 # tidycreel.connect 0.5.0
 
 ## Breaking changes

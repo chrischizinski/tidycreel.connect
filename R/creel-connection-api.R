@@ -105,7 +105,8 @@
 #'   holds each canonical quantity, e.g.
 #'   `list(interviews = list(date = "SurveyDate", n_anglers = "PartySize"))`.
 #'   The optional interview fields -- `n_anglers`, `angler_type`, `site`,
-#'   `circuit`, `n_counted`, `n_interviewed` -- are carried only when named
+#'   `circuit`, `n_counted`, `n_interviewed`, `angler_method`,
+#'   `species_sought`, `refused`, `zip_code` -- are carried only when named
 #'   here; see [fetch_interviews()] for what each one is used for.
 #' @param pagination How this API paginates, or `NULL` (default) for an API that
 #'   returns every record in one response. A named list whose `style` is one of:
@@ -310,7 +311,8 @@ creel_connect_api <- function(
     "count_time_col",
     "bank_anglers_col", "angler_boats_col", "non_ang_boats_col",
     "n_anglers_col", "angler_type_col", "site_col", "circuit_col",
-    "n_counted_col", "n_interviewed_col"
+    "n_counted_col", "n_interviewed_col",
+    "angler_method_col", "species_sought_col", "refused_col"
   )
   has_schema_mappings <- any(
     vapply(schema_mapping_fields, function(f) !is.null(schema[[f]]), logical(1L))

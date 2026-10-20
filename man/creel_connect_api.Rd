@@ -41,7 +41,8 @@ you intend to fetch; the matching \verb{fetch_*()} aborts for any you omit.}
 holds each canonical quantity, e.g.
 \code{list(interviews = list(date = "SurveyDate", n_anglers = "PartySize"))}.
 The optional interview fields -- \code{n_anglers}, \code{angler_type}, \code{site},
-\code{circuit}, \code{n_counted}, \code{n_interviewed} -- are carried only when named
+\code{circuit}, \code{n_counted}, \code{n_interviewed}, \code{angler_method},
+\code{species_sought}, \code{refused}, \code{zip_code} -- are carried only when named
 here; see \code{\link[=fetch_interviews]{fetch_interviews()}} for what each one is used for.}
 
 \item{pagination}{How this API paginates, or \code{NULL} (default) for an API that
