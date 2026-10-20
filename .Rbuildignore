@@ -6,3 +6,7 @@
 ^docs$
 ^pkgdown$
 ^DATA_HANDLING\.md$
+^AGENTS\.md$
+^CLAUDE\.md$
+^\.claude$
+^\.ai$
