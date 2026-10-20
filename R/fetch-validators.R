@@ -28,6 +28,7 @@
     "Date"      = inherits(df[[col]], "Date"),
     "numeric"   = is.numeric(df[[col]]),
     "character" = is.character(df[[col]]),
+    "logical"   = is.logical(df[[col]]),
     "uid"       = is.numeric(df[[col]]) || is.character(df[[col]]),
     stop(paste0("Unknown expected_type '", expected_type, "' for column '", col, "'"))
   )
@@ -74,7 +75,13 @@ validate_fetch_interviews <- function(df) {
     site          = "optional:character",
     circuit       = "optional:character",
     n_counted     = "optional:numeric",
-    n_interviewed = "optional:numeric"
+    n_interviewed = "optional:numeric",
+    # The summary columns (tidycreel.connect#3): summarize_by_method(),
+    # summarize_by_species_sought(), summarize_refusals(), summarize_by_zip().
+    angler_method  = "optional:character",
+    species_sought = "optional:character",
+    refused        = "optional:logical",
+    zip_code       = "optional:character"
   )
   .validate_fetch(df, spec, "fetch_interviews")
 }
@@ -95,7 +102,11 @@ validate_fetch_interviews_api <- function(df) {
     site          = "optional:character",
     circuit       = "optional:character",
     n_counted     = "optional:numeric",
-    n_interviewed = "optional:numeric"
+    n_interviewed = "optional:numeric",
+    angler_method  = "optional:character",
+    species_sought = "optional:character",
+    refused        = "optional:logical",
+    zip_code       = "optional:character"
   )
   .validate_fetch(df, spec, "fetch_interviews")
 }

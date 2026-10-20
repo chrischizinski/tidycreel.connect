@@ -153,6 +153,67 @@
   result
 }
 
+# Internal: coerce a refusal flag to logical, refusing codes it cannot read.
+#
+# summarize_refusals() splits on `ifelse(refused, ...)`, which reads a character
+# "Y" as NA rather than failing -- every refusal would vanish from the table
+# without a word. So the flag is settled here, and a code outside the common
+# spellings aborts instead of becoming NA. A blank is a missing flag, not a code.
+.coerce_refused <- function(x) {
+  if (is.logical(x)) {
+    return(x)
+  }
+  values <- tolower(trimws(as.character(x)))
+  out <- rep(NA, length(values))
+  out[values %in% c("true", "t", "yes", "y", "1")] <- TRUE
+  out[values %in% c("false", "f", "no", "n", "0")] <- FALSE
+  unread <- !is.na(values) & nzchar(values) & is.na(out)
+  if (any(unread)) {
+    codes <- unique(as.character(x)[unread]) # nolint: object_usage_linter
+    cli::cli_abort(c(
+      "interviews: {.field refused} holds {length(codes)} code{?s} that {?is/are} not a yes/no flag.",
+      "x" = "Unread: {.val {codes}}.",
+      "i" = paste0(
+        "Accepted: TRUE/FALSE, T/F, yes/no, Y/N, 1/0 (any case). Recode the ",
+        "source, since a refusal read as NA drops out of {.fn tidycreel::summarize_refusals}."
+      )
+    ))
+  }
+  out
+}
+
+# Internal: coerce a ZIP code to character.
+#
+# A ZIP is a label, and summarize_by_zip() / summarize_by_county() match it as
+# text. A reader that guessed it numeric has already turned "06810" into 6810,
+# so a whole number is written back at five digits -- the US ZIP width, which is
+# what summarize_by_county() looks up. sprintf() rather than as.character() for
+# the reason .coerce_uid() gives: 1e+05 is not a ZIP.
+.coerce_zip <- function(x) {
+  if (is.numeric(x)) {
+    whole <- !is.na(x) & is.finite(x) & x == trunc(x)
+    out <- as.character(x)
+    out[whole] <- sprintf("%05.0f", x[whole])
+    return(out)
+  }
+  as.character(x)
+}
+
+# Internal: coerce the summary columns fetch_interviews() carries
+# (tidycreel.connect#3), shared by every backend so they cannot drift apart.
+#
+# angler_method and species_sought are labels, so character. They are not run
+# through value_maps: tidycreel declares no canonical vocabulary for either, so
+# a source's codes are carried as written.
+.coerce_interview_summary_cols <- function(df) {
+  for (nm in c("angler_method", "species_sought")) {
+    if (nm %in% names(df)) df[[nm]] <- as.character(df[[nm]])
+  }
+  if ("refused" %in% names(df)) df$refused <- .coerce_refused(df$refused)
+  if ("zip_code" %in% names(df)) df$zip_code <- .coerce_zip(df$zip_code)
+  df
+}
+
 # Internal: normalise every identifier column present to character.
 #
 # A uid is a LABEL, not a quantity: nothing is summed or ordered by magnitude on
@@ -576,6 +637,18 @@
 #'   angler-hours. `site` and `circuit` are what a bus-route design joins the
 #'   site inclusion probability on.
 #'
+#'   Four more are carried on the same terms for the tidycreel summaries:
+#'   `angler_method` (character), `species_sought` (character), `refused`
+#'   (logical) and `zip_code` (character). `refused` accepts TRUE/FALSE, T/F,
+#'   yes/no, Y/N and 1/0 in any case, and aborts on any other code rather than
+#'   reading it as `NA`; pass it to [tidycreel::add_interviews()] so a refused
+#'   interview is not taken for a no-catch party. `zip_code` is written as
+#'   text, with a whole number padded back to five digits. `angler_method` and
+#'   `species_sought` are carried as the source codes them: `value_maps` does
+#'   not cover them, because tidycreel has no canonical vocabulary for either.
+#'   On CSV and SQL, [tidycreel::creel_schema()] has no `zip_code_col`, so
+#'   `zip_code` is carried only from a source column already named `zip_code`.
+#'
 #'   Source columns outside the map are dropped, and each fetch reports which
 #'   ones by name.
 #' @export
@@ -600,7 +673,14 @@ fetch_interviews.creel_connection_csv <- function(conn, ...) {
     site          = "site_col",
     circuit       = "circuit_col",
     n_counted     = "n_counted_col",
-    n_interviewed = "n_interviewed_col"
+    n_interviewed = "n_interviewed_col",
+    # What the tidycreel summaries read (tidycreel.connect#3). creel_schema()
+    # has no zip_code_col, so zip_code is taken only from a source column
+    # already named zip_code.
+    angler_method  = "angler_method_col",
+    species_sought = "species_sought_col",
+    refused        = "refused_col",
+    zip_code       = "zip_code_col"
   )
   df <- .rename_to_canonical(
     df, conn$schema, rename_map, "interviews",
@@ -619,6 +699,7 @@ fetch_interviews.creel_connection_csv <- function(conn, ...) {
   for (nm in c("angler_type", "site", "circuit")) {
     if (nm %in% names(df)) df[[nm]] <- as.character(df[[nm]])
   }
+  df <- .coerce_interview_summary_cols(df)
   df <- .apply_value_maps(df, conn$schema, "interviews")
 
   df <- .coerce_uid_cols(df)
@@ -640,7 +721,11 @@ fetch_interviews.creel_connection_dbi <- function(conn, ...) {
     site          = "site_col",
     circuit       = "circuit_col",
     n_counted     = "n_counted_col",
-    n_interviewed = "n_interviewed_col"
+    n_interviewed = "n_interviewed_col",
+    angler_method  = "angler_method_col",
+    species_sought = "species_sought_col",
+    refused        = "refused_col",
+    zip_code       = "zip_code_col"
   )
   df <- .rename_to_canonical(
     df, conn$schema, rename_map, "interviews",
@@ -656,6 +741,7 @@ fetch_interviews.creel_connection_dbi <- function(conn, ...) {
   for (nm in c("angler_type", "site", "circuit")) {
     if (nm %in% names(df)) df[[nm]] <- as.character(df[[nm]])
   }
+  df <- .coerce_interview_summary_cols(df)
   df <- .apply_value_maps(df, conn$schema, "interviews")
 
   df <- .coerce_uid_cols(df)
@@ -700,7 +786,13 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
     site          = fm$site,
     circuit       = fm$circuit,
     n_counted     = fm$n_counted,
-    n_interviewed = fm$n_interviewed
+    n_interviewed = fm$n_interviewed,
+    # The summary columns (tidycreel.connect#3): named in the map, they were
+    # still dropped, so an agency report needed a second raw fetch.
+    angler_method  = fm$angler_method,
+    species_sought = fm$species_sought,
+    refused        = fm$refused,
+    zip_code       = fm$zip_code
   )
   api_rename_map <- api_rename_map[!is.na(api_rename_map) & nzchar(api_rename_map)]
   api_rename_map <- c(api_rename_map, .strata_direct_map(conn$schema, fm))
@@ -733,6 +825,7 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
   for (nm in c("angler_type", "site", "circuit")) {
     if (nm %in% names(df)) df[[nm]] <- as.character(df[[nm]])
   }
+  df <- .coerce_interview_summary_cols(df)
 
   df <- .apply_value_maps(df, conn$schema, "interviews")
 
