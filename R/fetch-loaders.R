@@ -315,7 +315,8 @@
 # Internal: translate a coded column into the canonical vocabulary (GH #128).
 #
 # Applies to whichever of `trip_status`, `catch_type` and `length_type` the
-# frame carries and the schema declares a map for. Values already canonical for
+# frame carries and the schema declares a map for -- and, where tidycreel
+# accepts them, the free-label `angler_method` and `species_sought`. Values already canonical for
 # that column pass through untouched, so a source that codes only some of its
 # rows still arrives whole.
 #
@@ -339,7 +340,16 @@
     # name: a source mid-migration writes "1" on some rows and "incomplete" on
     # others, and refusing the already-correct half would be absurd. Read from
     # tidycreel rather than copied here, so the two cannot drift.
-    canonical <- tidycreel::creel_vocabulary(col)
+    #
+    # A free-label column (tidycreel#532) has no vocabulary there: methods and
+    # target species are the agency's own, so the map's labels are the
+    # vocabulary. Asking creel_vocabulary() for one aborts, which is why the
+    # fixed list is consulted only for a column it actually has.
+    canonical <- if (col %in% names(tidycreel::creel_vocabulary())) {
+      tidycreel::creel_vocabulary(col)
+    } else {
+      unique(unname(map))
+    }
 
     known <- is.na(values) | values %in% names(map) | values %in% canonical
     if (!all(known)) {
