@@ -1,5 +1,13 @@
 # tidycreel.connect (development version)
 
+* A `value_maps` entry for `angler_method` or `species_sought` is applied at
+  the fetch instead of aborting (chrischizinski/tidycreel#532). tidycreel
+  accepts a map for either from the version that closes #532; until now the
+  translation step asked `tidycreel::creel_vocabulary()` for the column's
+  vocabulary, which aborts for both. A free-label map's own labels are the
+  column's vocabulary: values already labelled pass through, and a code the
+  map does not declare is still refused.
+
 * `fetch_interviews()` carries `angler_method`, `species_sought`, `refused`
   and `zip_code`, the columns tidycreel's interview summaries read
   (`summarize_by_method()`, `summarize_by_species_sought()`,
