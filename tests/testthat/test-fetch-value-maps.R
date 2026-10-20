@@ -344,3 +344,110 @@ test_that("a YAML profile's declarations reach a fetch (no {config} needed)", {
   expect_equal(iv$trip_status, c("complete", "incomplete"))
   expect_equal(iv$day_type, c("weekday", "weekend"))
 })
+
+# --- free-label columns (tidycreel#532) ---
+#
+# angler_method and species_sought have no canonical vocabulary: methods and
+# target species are the agency's own. tidycreel accepts a map for either from
+# the version that closes #532, so these call the translation step directly
+# with a stand-in schema rather than depend on that version being installed.
+
+free_label_schema <- function(maps) list(value_maps = maps)
+
+test_that("a free-label map translates codes instead of aborting (tidycreel#532)", {
+  # Before, creel_vocabulary("angler_method") aborted inside the translation, so
+  # a map tidycreel had accepted could never be applied.
+  df <- data.frame(angler_method = c("1", "2", "1"), stringsAsFactors = FALSE)
+  out <- tidycreel.connect:::.apply_value_maps(
+    df, free_label_schema(list(angler_method = c("1" = "boat", "2" = "shore"))), "interviews"
+  )
+
+  expect_identical(out$angler_method, c("boat", "shore", "boat"))
+})
+
+test_that("a free-label value already labelled passes through (tidycreel#532)", {
+  # The map's labels are the vocabulary, so a source coding only some rows
+  # still arrives whole -- the same rule as a partial trip_status map.
+  df <- data.frame(species_sought = c("WAE", "walleye", NA), stringsAsFactors = FALSE)
+  out <- tidycreel.connect:::.apply_value_maps(
+    df, free_label_schema(list(species_sought = c(WAE = "walleye"))), "interviews"
+  )
+
+  expect_identical(out$species_sought, c("walleye", "walleye", NA))
+})
+
+test_that("a free-label code the map does not declare still aborts (tidycreel#532)", {
+  # Free labels relax what a code may mean, not whether it must be declared: an
+  # undeclared "3" would otherwise reach summarize_by_method() as a literal.
+  df <- data.frame(angler_method = c("1", "3"), stringsAsFactors = FALSE)
+
+  apply_map <- function() {
+    tidycreel.connect:::.apply_value_maps(
+      df, free_label_schema(list(angler_method = c("1" = "boat"))), "interviews"
+    )
+  }
+
+  expect_error(apply_map(), "does not map")
+  expect_error(apply_map(), '"3"', fixed = TRUE)
+  # Nothing filters on a method label, so the hint must not say one would miss
+  # it -- that is the fixed-vocabulary consequence, kept for those columns.
+  msg <- conditionMessage(tryCatch(apply_map(), error = identity))
+  expect_match(msg, "as a raw code beside the declared labels", fixed = TRUE)
+  expect_no_match(msg, "filters that match", fixed = TRUE)
+})
+
+test_that("a fixed-vocabulary code left unmapped keeps the filter warning (tidycreel#532)", {
+  # The free-label hint is the exception: trip_status literals ARE matched by
+  # tidycreel's filters, so an undeclared code there would slip past them.
+  df <- data.frame(trip_status = "9", stringsAsFactors = FALSE)
+  msg <- conditionMessage(tryCatch(
+    tidycreel.connect:::.apply_value_maps(
+      df, free_label_schema(list(trip_status = c("1" = "complete"))), "interviews"
+    ),
+    error = identity
+  ))
+
+  expect_match(msg, "filters that match", fixed = TRUE)
+})
+
+test_that("a coded angler_method arrives labelled from a fetch (tidycreel#532)", {
+  # The whole path: creel_schema() accepts the map, fetch_interviews() carries
+  # the column (#3) and translates it. Needs a tidycreel that accepts
+  # free-label maps; older versions refuse the map at creel_schema().
+  supported <- tryCatch(
+    {
+      tidycreel::creel_schema(value_maps = list(angler_method = c("1" = "boat")))
+      TRUE
+    },
+    error = function(e) FALSE
+  )
+  skip_if_not(supported, "installed tidycreel predates free-label value_maps (#532)")
+
+  dir <- withr::local_tempdir()
+  interviews <- data.frame(
+    interview_uid = 1L:3L,
+    date          = as.Date(c("2024-06-01", "2024-06-01", "2024-06-02")),
+    effort_hours  = c(2.5, 1.0, 3.0),
+    catch_count   = c(3L, 0L, 4L),
+    trip_status   = rep("complete", 3L),
+    Method        = c("1", "2", "1"),
+    stringsAsFactors = FALSE
+  )
+  paths <- make_test_csv()
+  paths$interviews <- file.path(dir, "interviews.csv")
+  utils::write.csv(interviews, paths$interviews, row.names = FALSE)
+  schema <- tidycreel::creel_schema(
+    survey_type       = "instantaneous",
+    interview_uid_col = "interview_uid",
+    date_col          = "date",
+    catch_col         = "catch_count",
+    effort_col        = "effort_hours",
+    trip_status_col   = "trip_status",
+    angler_method_col = "Method",
+    value_maps        = list(angler_method = c("1" = "boat", "2" = "shore"))
+  )
+
+  iv <- suppressMessages(fetch_interviews(creel_connect(paths, schema)))
+
+  expect_identical(iv$angler_method, c("boat", "shore", "boat"))
+})
