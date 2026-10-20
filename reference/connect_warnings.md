@@ -59,6 +59,13 @@ returns data frames rather than designs, so nothing is recorded for
   Tier 1. Some values of a numeric column could not be read as numbers
   and became `NA`.
 
+- `creel_warning_fetch_created_duplicates`:
+
+  Tier 1. The fetch made interview rows exact duplicates, so each copy
+  counts that interview again: usually by dropping unmapped columns of a
+  long-format source, sometimes by coercing or mapping values to the
+  same value.
+
 - `creel_warning_repeated_sampling_units`:
 
   Tier 1. Counts have repeated dates with no count time to tell them

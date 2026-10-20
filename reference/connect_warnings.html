@@ -118,6 +118,12 @@ be parsed and became <code>NA</code>.</p></dd>
 <dd><p>Tier 1. Some values of a
 numeric column could not be read as numbers and became <code>NA</code>.</p></dd>
 
+<dt><code>creel_warning_fetch_created_duplicates</code></dt>
+<dd><p>Tier 1. The fetch
+made interview rows exact duplicates, so each copy counts that interview
+again: usually by dropping unmapped columns of a long-format source,
+sometimes by coercing or mapping values to the same value.</p></dd>
+
 <dt><code>creel_warning_repeated_sampling_units</code></dt>
 <dd><p>Tier 1. Counts have
 repeated dates with no count time to tell them apart.</p></dd>
