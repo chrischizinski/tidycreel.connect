@@ -389,6 +389,25 @@ test_that("a free-label code the map does not declare still aborts (tidycreel#53
 
   expect_error(apply_map(), "does not map")
   expect_error(apply_map(), '"3"', fixed = TRUE)
+  # Nothing filters on a method label, so the hint must not say one would miss
+  # it -- that is the fixed-vocabulary consequence, kept for those columns.
+  msg <- conditionMessage(tryCatch(apply_map(), error = identity))
+  expect_match(msg, "as a raw code beside the declared labels", fixed = TRUE)
+  expect_no_match(msg, "filters that match", fixed = TRUE)
+})
+
+test_that("a fixed-vocabulary code left unmapped keeps the filter warning (tidycreel#532)", {
+  # The free-label hint is the exception: trip_status literals ARE matched by
+  # tidycreel's filters, so an undeclared code there would slip past them.
+  df <- data.frame(trip_status = "9", stringsAsFactors = FALSE)
+  msg <- conditionMessage(tryCatch(
+    tidycreel.connect:::.apply_value_maps(
+      df, free_label_schema(list(trip_status = c("1" = "complete"))), "interviews"
+    ),
+    error = identity
+  ))
+
+  expect_match(msg, "filters that match", fixed = TRUE)
 })
 
 test_that("a coded angler_method arrives labelled from a fetch (tidycreel#532)", {

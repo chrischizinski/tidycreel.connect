@@ -345,22 +345,28 @@
     # target species are the agency's own, so the map's labels are the
     # vocabulary. Asking creel_vocabulary() for one aborts, which is why the
     # fixed list is consulted only for a column it actually has.
-    canonical <- if (col %in% names(tidycreel::creel_vocabulary())) {
-      tidycreel::creel_vocabulary(col)
-    } else {
-      unique(unname(map))
-    }
+    free_label <- !col %in% names(tidycreel::creel_vocabulary())
+    canonical <- if (free_label) unique(unname(map)) else tidycreel::creel_vocabulary(col)
 
     known <- is.na(values) | values %in% names(map) | values %in% canonical
     if (!all(known)) {
       unknown <- unique(values[!known]) # nolint: object_usage_linter
+      # No filter matches a free label, so the cost of an unmapped code there is
+      # a raw code reported as if it were a label, not a filter that misses it.
+      consequence <- if (free_label) {
+        paste0(
+          "Left unmapped, it would reach the summaries as a raw code beside the ",
+          "declared labels {.val {canonical}}."
+        )
+      } else {
+        "Leaving a code unmapped would hand a literal to filters that match {.val {canonical}}."
+      }
       cli::cli_abort(c(
         "{table}: {.field {col}} holds {length(unknown)} value{?s} the schema does not map.",
         "x" = "Unmapped: {.val {unknown}}.",
         "i" = paste0(
           "Declare {.val {unknown}} in {.code value_maps${col}}, or correct the ",
-          "source. Leaving a code unmapped would hand a literal to filters that ",
-          "match {.val {canonical}}."
+          "source. ", consequence
         )
       ))
     }

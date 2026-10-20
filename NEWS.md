@@ -28,9 +28,8 @@
   text, with a whole number padded back to five digits so a ZIP parsed as a
   number keeps its leading zero.
 
-  `angler_method` and `species_sought` are carried as the source codes them.
-  `value_maps` cannot translate them yet: tidycreel declares no canonical
-  vocabulary for either column.
+  `angler_method` and `species_sought` are carried as the source codes them;
+  a free-label `value_maps` entry translates them (see above).
 
 # tidycreel.connect 0.5.0
 
