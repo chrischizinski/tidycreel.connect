@@ -137,3 +137,18 @@ test_that("a classed note can be handled alone, leaving the warnings", {
     class = "creel_warning_dates_coerced_na"
   )
 })
+
+test_that("a wide source's note does not abort the fetch", {
+  # The once-per-connection key holds every dropped column name; R refuses a
+  # binding name over 10,000 bytes, so storing the key as a name turned an
+  # informational note into an error on a wide table.
+  conn <- list(notes = new.env(parent = emptyenv()))
+  key <- c("interviews", sprintf("column_%05d_with_a_long_name", 1:500))
+  note <- function() {
+    tidycreel.connect:::connect_inform(
+      "x", class = "creel_message_columns_dropped", conn = conn, key = key
+    )
+  }
+  expect_message(note(), class = "creel_message_columns_dropped")
+  expect_no_message(note())
+})

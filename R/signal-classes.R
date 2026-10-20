@@ -106,11 +106,15 @@ connect_inform <- function(message, class, conn = NULL, key = NULL,
                            .envir = parent.frame()) {
   notes <- if (is.list(conn)) conn[["notes"]]
   if (class %in% connect_once_per_connection && is.environment(notes)) {
-    id <- paste(c(class, key), collapse = " ")
-    if (exists(id, envir = notes, inherits = FALSE)) {
+    # Kept as a value, not a binding name: R caps names at 10,000 bytes, and a
+    # wide source's dropped columns pass that, which aborted the fetch. The
+    # separator is a control character no column name carries, so two keys
+    # cannot paste to the same string.
+    id <- paste(c(class, key), collapse = "\x1f")
+    if (id %in% notes[["seen"]]) {
       return(invisible(NULL))
     }
-    assign(id, TRUE, envir = notes)
+    notes[["seen"]] <- c(notes[["seen"]], id)
     # Without this a reader cannot tell a silent second fetch from one that
     # dropped nothing.
     message <- c(message, "i" = "Shown once per connection for this table.")
