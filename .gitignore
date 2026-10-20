@@ -2,3 +2,49 @@
 /Meta/
 /docs/
 .DS_Store
+
+# ---- pii-guard: deny-by-default for data and credentials ----
+# Data directories: nothing under these is ever tracked.
+data/
+datasets/
+raw/
+extracts/
+# Data and serialized formats (whitelist safe aggregates with !path if needed)
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.xlsm
+*.rds
+*.RData
+*.rda
+*.parquet
+*.feather
+*.sav
+*.dta
+*.sas7bdat
+*.sqlite
+*.db
+*.accdb
+# Credentials
+.env
+.env.*
+*.env
+.Renviron
+db_connection.R
+*.pem
+*.key
+# Session history (can contain pasted passwords and printed records)
+.Rhistory
+.Rapp.history
+.Rproj.user/
+.ipynb_checkpoints/
+# OS clutter
+.DS_Store
+
+# Archives can bundle raw data
+*.zip
+*.7z
+*.tar.gz
+# Whitelisted: synthetic aggregate daily counts shipped as a test/vignette fixture
+!inst/extdata/synthetic-boat-counts/counts.csv
