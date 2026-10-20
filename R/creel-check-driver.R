@@ -40,7 +40,7 @@ creel_check_driver <- function() {
         "i" = "  macOS:  {.code brew install unixodbc}",
         "i" = "  Linux:  {.code sudo apt-get install unixodbc-dev}",
         "i" = "  Windows: ODBC manager is built-in."
-      ))
+      ), class = c("creel_warning_odbc_drivers_unlisted", "creel_warning"))
       NULL
     }
   )

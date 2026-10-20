@@ -318,10 +318,15 @@ creel_connect_api <- function(
     vapply(schema_mapping_fields, function(f) !is.null(schema[[f]]), logical(1L))
   )
   if (has_schema_mappings) {
-    cli::cli_warn(c(
-      "{.arg schema} column mappings are ignored by the API backend.",
-      "i" = "Name the raw JSON fields in {.arg api_field_map} instead."
-    ))
+    # An argument with no effect is information, not a warning, as in
+    # tidycreel (GH #496): the fetch reads api_field_map, which is required.
+    connect_inform(
+      c(
+        "i" = "{.arg schema} column mappings are ignored by the API backend.",
+        "i" = "Name the raw JSON fields in {.arg api_field_map} instead."
+      ),
+      class = "creel_message_argument_ignored"
+    )
   }
 
   if (!endsWith(base_url, "/")) base_url <- paste0(base_url, "/")
