@@ -2,6 +2,37 @@
 
 ## tidycreel.connect (development version)
 
+- The note naming the source columns a fetch did not carry through (“Map
+  what you need downstream via `api_field_map`…”) now prints once per
+  connection for each table, not on every fetch. It describes the
+  source, which is the same on every fetch, and repeated on every table
+  it buried the warnings that matter. A later fetch that drops different
+  columns, or a new connection, prints it again. The note about columns
+  taken by canonical name follows the same rule.
+
+- Every warning and message has a class, following tidycreel’s
+  ([\#496](https://github.com/chrischizinski/tidycreel.connect/issues/496)):
+  each warning `creel_warning_<fact>` with parent `creel_warning`, each
+  note `creel_message_<fact>` with parent `creel_message`.
+  [`?connect_warnings`](https://chrischizinski.com/tidycreel.connect/reference/connect_warnings.md)
+  lists them with their tiers. Handle one with
+  [`withCallingHandlers()`](https://rdrr.io/r/base/conditions.html)
+  instead of silencing everything with
+  [`suppressMessages()`](https://rdrr.io/r/base/message.html). Facts
+  tidycreel also raises use tidycreel’s class
+  (`creel_warning_dates_coerced_na`,
+  `creel_warning_repeated_sampling_units`,
+  `creel_message_argument_ignored`).
+
+- [`creel_connect_api()`](https://chrischizinski.com/tidycreel.connect/reference/creel_connect_api.md)’s
+  note that `schema` column mappings are ignored is now a message
+  (`creel_message_argument_ignored`), not a warning: an argument with no
+  effect is information, as in tidycreel. Code that caught it with
+  `expect_warning()` or
+  [`suppressWarnings()`](https://rdrr.io/r/base/warning.html) needs
+  `expect_message()` or
+  [`suppressMessages()`](https://rdrr.io/r/base/message.html).
+
 - A `value_maps` entry for `angler_method` or `species_sought` is
   applied at the fetch instead of aborting
   (chrischizinski/tidycreel#532). tidycreel accepts a map for either

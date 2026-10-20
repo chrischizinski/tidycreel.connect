@@ -2,6 +2,8 @@
 
 ## All functions
 
+- [`connect_warnings`](https://chrischizinski.com/tidycreel.connect/reference/connect_warnings.md)
+  : Warning and message classes
 - [`creel_check_driver()`](https://chrischizinski.com/tidycreel.connect/reference/creel_check_driver.md)
   : Check available ODBC drivers
 - [`creel_connect()`](https://chrischizinski.com/tidycreel.connect/reference/creel_connect.md)
