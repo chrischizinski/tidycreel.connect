@@ -650,6 +650,65 @@
 }
 
 
+# Internal: warn when the fetch itself made interview rows identical (#1).
+#
+# A long-format source -- one row per interview x questionnaire answer -- keeps
+# the answer in columns nothing maps. Dropping them leaves the rows identical,
+# and tidycreel keeps a repeated interview_uid on purpose (bus-route designs
+# need it), so nothing downstream catches it: each copy counts that interview's
+# effort and catch again.
+#
+# Only duplicates the fetch created are counted: distinct source rows minus
+# distinct result rows. Rows already identical in the source are a different
+# question, and a row-for-row comparison needs the same rows on both sides.
+# Nested (non-atomic) source columns are left out of the count, so one that
+# alone told rows apart is missed -- this undercounts rather than miscounts.
+.warn_created_duplicates <- function(source, result, table) {
+  if (nrow(source) != nrow(result) || nrow(result) < 2L) {
+    return(invisible(NULL))
+  }
+  atomic <- vapply(source, is.atomic, logical(1L))
+  source <- source[, atomic, drop = FALSE]
+  n_distinct <- function(x) sum(!duplicated(x))
+  n_result <- n_distinct(result)
+  n_created <- n_distinct(source) - n_result
+  if (n_created <= 0L) {
+    return(invisible(NULL))
+  }
+  # The dropped columns that told rows apart: adding one back to the result
+  # splits some of its duplicates.
+  dropped <- setdiff(names(source), names(result))
+  splits <- dropped[vapply(dropped, function(col) {
+    with_col <- as.data.frame(result)
+    with_col[["..source"]] <- source[[col]]
+    n_distinct(with_col) > n_result
+  }, logical(1L))]
+  shown <- cli::cli_vec(splits, list("vec-trunc" = 5L)) # nolint: object_usage_linter
+  n_rows <- nrow(result) # nolint: object_usage_linter
+  # No single dropped column splits them when rows differed only in how a kept
+  # value was written ("1" and "1.0", or two codes a value map joins).
+  why <- if (length(splits) > 0L) {
+    c("i" = "Rows differed only in {.field {shown}}, which {?is/are} not carried through.")
+  } else {
+    c("i" = "No one dropped column tells them apart: they differed in columns \
+             dropped together, or in values coerced or mapped to the same value.")
+  }
+  cli::cli_warn(c(
+    "{table}: the fetch made {n_created} row{?s} exact duplicate{?s} of another \
+     ({n_rows} rows, {n_result} distinct).",
+    why,
+    "i" = paste0(
+      "tidycreel keeps a repeated {.field interview_uid}, so each copy counts ",
+      "that interview's effort and catch again."
+    ),
+    "i" = paste0(
+      "If the source is long format (one row per interview and answer), ",
+      "collapse to one row per interview before {.fn tidycreel::add_interviews}."
+    )
+  ), class = c("creel_warning_rows_duplicated_by_drop", "creel_warning"))
+  invisible(NULL)
+}
+
 #' Load interview data from a creel connection
 #'
 #' @description
@@ -693,6 +752,7 @@ fetch_interviews <- function(conn, ...) UseMethod("fetch_interviews")
 #' @export
 fetch_interviews.creel_connection_csv <- function(conn, ...) {
   df <- .read_csv_safe(conn$con$interviews)
+  source_df <- df
   rename_map <- c(
     interview_uid = "interview_uid_col",
     date          = "date_col",
@@ -741,12 +801,16 @@ fetch_interviews.creel_connection_csv <- function(conn, ...) {
 
   df <- .coerce_uid_cols(df)
   validate_fetch_interviews(df) # nolint: object_usage_linter
+  # After validation: a fetch that maps nothing has no columns left, every row
+  # "duplicates" every other, and the abort above is the message that matters.
+  .warn_created_duplicates(source_df, df, "interviews")
   df
 }
 
 #' @export
 fetch_interviews.creel_connection_dbi <- function(conn, ...) {
   df <- .read_dbi_table(conn, "interviews_table", "interviews")
+  source_df <- df
   rename_map <- c(
     interview_uid = "interview_uid_col",
     date          = "date_col",
@@ -784,6 +848,9 @@ fetch_interviews.creel_connection_dbi <- function(conn, ...) {
 
   df <- .coerce_uid_cols(df)
   validate_fetch_interviews(df) # nolint: object_usage_linter
+  # After validation: a fetch that maps nothing has no columns left, every row
+  # "duplicates" every other, and the abort above is the message that matters.
+  .warn_created_duplicates(source_df, df, "interviews")
   df
 }
 
@@ -872,6 +939,9 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
 
   df <- .coerce_uid_cols(df)
   validate_fetch_interviews_api(df) # nolint: object_usage_linter
+  # After validation: a fetch that maps nothing has no columns left, every row
+  # "duplicates" every other, and the abort above is the message that matters.
+  .warn_created_duplicates(raw_df, df, "interviews")
   df
 }
 

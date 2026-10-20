@@ -43,6 +43,9 @@
 #'     be parsed and became `NA`.}
 #'   \item{\code{creel_warning_numeric_coerced_na}}{Tier 1. Some values of a
 #'     numeric column could not be read as numbers and became `NA`.}
+#'   \item{\code{creel_warning_rows_duplicated_by_drop}}{Tier 1. Dropping
+#'     unmapped columns made interview rows exact duplicates, so each copy
+#'     counts that interview again. Typical of a long-format source.}
 #'   \item{\code{creel_warning_repeated_sampling_units}}{Tier 1. Counts have
 #'     repeated dates with no count time to tell them apart.}
 #'   \item{\code{creel_warning_bins_without_count}}{Tier 1. Length bins were
@@ -76,6 +79,7 @@ connect_signal_tiers <- c(
   creel_warning_dates_coerced_na = 1L,
   creel_warning_numeric_coerced_na = 1L,
   creel_warning_repeated_sampling_units = 1L,
+  creel_warning_rows_duplicated_by_drop = 1L,
   # Tier 2
   creel_warning_discovery_field_missing = 2L,
   creel_warning_odbc_drivers_unlisted = 2L,
