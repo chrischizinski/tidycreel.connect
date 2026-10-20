@@ -439,7 +439,38 @@
 
 # Internal: as.Date() that warns when parsing introduces NAs
 .coerce_date <- function(x, col_name, formats = c("%Y-%m-%d", "%m/%d/%Y")) {
-  result <- suppressWarnings(as.Date(x, tryFormats = formats))
+  result <- if (is.character(x) || is.factor(x)) {
+    .parse_date_formats(as.character(x), formats)
+  } else {
+    suppressWarnings(as.Date(x, tryFormats = formats))
+  }
+  .warn_dates_coerced_na(result, x, col_name)
+  result
+}
+
+# Internal: parse text dates with one format for the whole column, taken from
+# the first value any format reads (#13).
+#
+# as.Date(tryFormats =) takes the format from the first non-NA value and
+# errors when that value fits none, so one bad date in row 1 aborted the fetch
+# with an unclassed "character string is not in a standard unambiguous format",
+# while the same value in row 2 became NA with a warning. Choosing from the
+# first readable value gives the same format as.Date() would whenever row 1
+# reads, and makes an unreadable value NA wherever it sits. A column no format
+# reads is all NA, and the caller's warning counts every value.
+.parse_date_formats <- function(x, formats) {
+  parsed <- lapply(formats, function(f) as.Date(x, format = f))
+  readable <- Reduce(`|`, lapply(parsed, function(p) !is.na(p)))
+  if (!any(readable)) {
+    return(as.Date(rep(NA_character_, length(x))))
+  }
+  first <- which(readable)[[1L]]
+  fmt <- which(vapply(parsed, function(p) !is.na(p[[first]]), logical(1L)))[[1L]]
+  parsed[[fmt]]
+}
+
+# Internal: warn for values that were present but did not parse as dates.
+.warn_dates_coerced_na <- function(result, x, col_name) {
   na_new <- is.na(result) & !is.na(x)
   if (any(na_new)) {
     cli::cli_warn(
@@ -447,7 +478,7 @@
       class = c("creel_warning_dates_coerced_na", "creel_warning")
     )
   }
-  result
+  invisible(NULL)
 }
 
 # Refuse a mapped field that arrived as a nested JSON value.
