@@ -43,6 +43,10 @@
 #'     be parsed and became `NA`.}
 #'   \item{\code{creel_warning_numeric_coerced_na}}{Tier 1. Some values of a
 #'     numeric column could not be read as numbers and became `NA`.}
+#'   \item{\code{creel_warning_fetch_created_duplicates}}{Tier 1. The fetch
+#'     made interview rows exact duplicates, so each copy counts that interview
+#'     again: usually by dropping unmapped columns of a long-format source,
+#'     sometimes by coercing or mapping values to the same value.}
 #'   \item{\code{creel_warning_repeated_sampling_units}}{Tier 1. Counts have
 #'     repeated dates with no count time to tell them apart.}
 #'   \item{\code{creel_warning_bins_without_count}}{Tier 1. Length bins were
@@ -74,6 +78,7 @@ connect_signal_tiers <- c(
   # Tier 1
   creel_warning_bins_without_count = 1L,
   creel_warning_dates_coerced_na = 1L,
+  creel_warning_fetch_created_duplicates = 1L,
   creel_warning_numeric_coerced_na = 1L,
   creel_warning_repeated_sampling_units = 1L,
   # Tier 2

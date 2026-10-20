@@ -1,5 +1,17 @@
 # tidycreel.connect (development version)
 
+* `fetch_interviews()` warns when the fetch itself makes rows exact
+  duplicates (#1), with class `creel_warning_fetch_created_duplicates`. A
+  long-format source, one row per interview and questionnaire answer, keeps
+  the answer in columns nothing maps; dropping them left identical rows, and
+  because tidycreel keeps a repeated `interview_uid`, each copy counted that
+  interview's effort and catch again. The warning gives the row counts and
+  names the source columns that told the rows apart, saying which were
+  dropped and which were carried but coerced or mapped to the same value.
+  Nested JSON columns are compared too. Rows already identical in the source
+  are not counted. The rows are returned unchanged: collapse
+  them, or map the distinguishing column, before `add_interviews()`.
+
 * The note naming the source columns a fetch did not carry through ("Map
   what you need downstream via `api_field_map`...") now prints once per
   connection for each table, not on every fetch. It describes the source,
