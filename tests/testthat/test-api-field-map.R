@@ -132,21 +132,24 @@ test_that("fetch_*() aborts when the endpoint has no configured field names", {
   expect_error(fetch_interviews(conn), "No field names are configured")
 })
 
-# Schema warning: schema column mappings are not API field names ----
+# Schema note: schema column mappings are not API field names ----
 
-test_that("creel_connect_api() warns when the schema carries column mappings", {
+# A message, not a warning: the mapping has no effect, and the fetch reads
+# api_field_map, which the call requires (tidycreel GH #496's tier 3).
+test_that("creel_connect_api() says when the schema carries column mappings", {
   schema_with_mapping <- tidycreel::creel_schema(
     survey_type       = "instantaneous",
     interview_uid_col = "my_interview_id"
   )
-  expect_warning(
-    make_api_conn(schema = schema_with_mapping),
-    "ignored by the API backend"
+  expect_message(
+    expect_no_warning(make_api_conn(schema = schema_with_mapping)),
+    "ignored by the API backend",
+    class = "creel_message_argument_ignored"
   )
 })
 
-test_that("creel_connect_api() does NOT warn when the schema has no column mappings", {
-  expect_no_warning(make_api_conn())
+test_that("creel_connect_api() says nothing when the schema has no column mappings", {
+  expect_no_warning(expect_no_message(make_api_conn()))
 })
 
 # fetch_*() with the caller's field names ----

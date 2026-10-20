@@ -50,9 +50,7 @@ list_creels.creel_connection_api <- function(conn, ...) {
     comments      = fm$comments
   )
   api_rename_map <- api_rename_map[!is.na(api_rename_map) & nzchar(api_rename_map)]
-  # nolint next: object_usage_linter reads the 3-arg call as one argument too
-  # many; the helper takes (df, map, table, also_used).
-  df <- .rename_api_to_canonical(raw_df, api_rename_map, "discovery") # nolint
+  df <- .rename_api_to_canonical(raw_df, api_rename_map, "discovery", conn = conn)
 
   if ("creel_uid"     %in% names(df)) df$creel_uid     <- as.character(df$creel_uid)
   if ("title"         %in% names(df)) df$title         <- as.character(df$title)
@@ -72,7 +70,10 @@ list_creels.creel_connection_api <- function(conn, ...) {
   )
   for (col in names(expected_cols)) {
     if (!col %in% names(df)) {
-      cli::cli_warn("API response missing expected field {.field {col}}; filling with NA.")
+      cli::cli_warn(
+        "API response missing expected field {.field {col}}; filling with NA.",
+        class = c("creel_warning_discovery_field_missing", "creel_warning")
+      )
       df[[col]] <- expected_cols[[col]]
     }
   }

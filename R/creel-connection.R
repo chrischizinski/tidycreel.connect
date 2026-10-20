@@ -8,7 +8,12 @@ new_creel_connection <- function(backend, con, schema, status, subclass = NULL) 
   stopifnot(inherits(schema, "creel_schema"))
   cls <- if (!is.null(subclass)) c(subclass, "creel_connection") else "creel_connection"
   structure(
-    list(backend = backend, con = con, schema = schema, status = status),
+    list(
+      backend = backend, con = con, schema = schema, status = status,
+      # Once-per-connection notes already printed (see connect_inform()). An
+      # environment, so every copy of the connection shares what it has said.
+      notes = new.env(parent = emptyenv())
+    ),
     class = cls
   )
 }

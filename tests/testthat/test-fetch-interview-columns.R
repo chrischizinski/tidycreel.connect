@@ -126,8 +126,13 @@ test_that("fetch_interviews() names the source columns it did not carry (GH #126
   # otherwise.
   conn <- creel_connect(make_optional_cols_csv(), make_optional_cols_schema())
 
-  expect_message(fetch_interviews(conn), "weather")
-  expect_message(fetch_interviews(conn), "interviews")
+  # One fetch: the note prints once per connection (connect_warnings).
+  msg <- paste(
+    utils::capture.output(fetch_interviews(conn), type = "message"),
+    collapse = " "
+  )
+  expect_match(msg, "weather")
+  expect_match(msg, "interviews")
 })
 
 test_that("mapped columns are absent from the dropped-column report (GH #126)", {

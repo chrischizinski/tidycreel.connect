@@ -148,7 +148,10 @@
   result <- suppressWarnings(as.numeric(x))
   na_new <- is.na(result) & !is.na(x)
   if (any(na_new)) {
-    cli::cli_warn("Coercion introduced {sum(na_new)} NA{?s} in column {.field {col_name}}.")
+    cli::cli_warn(
+      "Coercion introduced {sum(na_new)} NA{?s} in column {.field {col_name}}.",
+      class = c("creel_warning_numeric_coerced_na", "creel_warning")
+    )
   }
   result
 }
@@ -307,7 +310,7 @@
         "Map {.field length_count_col} (CSV/SQL) or the {.field count} field ",
         "(API field map) where the source records one."
       )
-    ))
+    ), class = c("creel_warning_bins_without_count", "creel_warning"))
   }
   invisible(NULL)
 }
@@ -430,7 +433,7 @@
       "If the rows really are distinct sampling units, name what separates ",
       "them in {.code add_counts(unit_cols = )}."
     )
-  ))
+  ), class = c("creel_warning_repeated_sampling_units", "creel_warning"))
   invisible(NULL)
 }
 
@@ -440,7 +443,8 @@
   na_new <- is.na(result) & !is.na(x)
   if (any(na_new)) {
     cli::cli_warn(
-      "Could not parse {sum(na_new)} date value{?s} in column {.field {col_name}}; coerced to NA."
+      "Could not parse {sum(na_new)} date value{?s} in column {.field {col_name}}; coerced to NA.",
+      class = c("creel_warning_dates_coerced_na", "creel_warning")
     )
   }
   result
@@ -498,7 +502,8 @@
 #   effort fields are combined arithmetically, not renamed), so they are not
 #   reported as lost.
 # Returns a plain data.frame with only matched canonical columns.
-.rename_api_to_canonical <- function(df, api_rename_map, table, also_used = character(0)) {
+.rename_api_to_canonical <- function(df, api_rename_map, table, also_used = character(0),
+                                     conn = NULL) {
   keep <- character(0)
   for (canonical in names(api_rename_map)) {
     api_col <- api_rename_map[[canonical]]
@@ -509,7 +514,7 @@
   .assert_api_cols_atomic(df, keep, table)
   result <- df[, keep, drop = FALSE]
   names(result) <- names(keep)
-  .report_dropped_cols(names(df), c(keep, also_used), table, "api_field_map")
+  .report_dropped_cols(names(df), c(keep, also_used), table, "api_field_map", conn)
   result
 }
 
@@ -519,7 +524,8 @@
 # Columns not found in the data frame are dropped (optional mapping).
 # table: canonical table name, used to attribute the dropped-column message.
 # Returns a plain data.frame with only canonical columns.
-.rename_to_canonical <- function(df, schema, rename_map, table, direct_map = character(0)) {
+.rename_to_canonical <- function(df, schema, rename_map, table, direct_map = character(0),
+                                 conn = NULL) {
   keep <- character(0)
   adopted <- character(0)
   for (canonical in names(rename_map)) {
@@ -561,14 +567,19 @@
     # from "something in my export happens to share a canonical name".
     # One quantity per string: cli aborts on two, and says only "Cannot
     # pluralize without a quantity" when it happens.
-    cli::cli_inform(c(
-      "i" = "{table}: taking {length(adopted)} column{?s} by canonical name, with no schema entry.",
-      "i" = "Columns: {.field {adopted}}.",
-      "i" = "Declaring them in {.fn tidycreel::creel_schema} states the mapping \
-             explicitly and silences this."
-    ))
+    connect_inform(
+      c(
+        "i" = "{table}: taking {length(adopted)} column{?s} by canonical name, with no schema entry.",
+        "i" = "Columns: {.field {adopted}}.",
+        "i" = "Declaring them in {.fn tidycreel::creel_schema} states the mapping \
+               explicitly and silences this."
+      ),
+      class = "creel_message_columns_by_canonical_name",
+      conn = conn,
+      key = c(table, sort(adopted))
+    )
   }
-  .report_dropped_cols(names(df), keep, table, "creel_schema")
+  .report_dropped_cols(names(df), keep, table, "creel_schema", conn)
   result
 }
 
@@ -609,7 +620,7 @@
 # from a load-bearing one they expected to be carried -- the bus-route interview
 # columns disappeared this way and add_interviews() then aborted with an error
 # that pointed nowhere near the cause (GH #126).
-.report_dropped_cols <- function(source_cols, keep, table, route) {
+.report_dropped_cols <- function(source_cols, keep, table, route, conn = NULL) {
   dropped <- setdiff(source_cols, unname(keep))
   if (length(dropped) == 0L) {
     return(invisible(NULL))
@@ -622,10 +633,19 @@
   } else {
     "creel_connect_api"
   }
-  cli::cli_inform(c(
-    "i" = "{table}: {length(dropped)} source column{?s} not carried through: {.field {shown}}.",
-    " " = "Map what you need downstream via {.arg {route}} in {.fn {route_fn}}."
-  ))
+  # Once per connection, keyed on the table and what it dropped: the same
+  # source drops the same columns on every fetch, and a note on every table of
+  # every fetch buried the warnings that matter (#1). A source that changes
+  # shape drops something else, and that prints again.
+  connect_inform(
+    c(
+      "i" = "{table}: {length(dropped)} source column{?s} not carried through: {.field {shown}}.",
+      " " = "Map what you need downstream via {.arg {route}} in {.fn {route_fn}}."
+    ),
+    class = "creel_message_columns_dropped",
+    conn = conn,
+    key = c(table, sort(dropped))
+  )
   invisible(NULL)
 }
 
@@ -700,7 +720,8 @@ fetch_interviews.creel_connection_csv <- function(conn, ...) {
   )
   df <- .rename_to_canonical(
     df, conn$schema, rename_map, "interviews",
-    direct_map = .strata_direct_map(conn$schema)
+    direct_map = .strata_direct_map(conn$schema),
+    conn = conn
   )
   if ("date"        %in% names(df)) df$date        <- .coerce_date(df$date, "date")
   if ("catch_count" %in% names(df)) df$catch_count <- .coerce_numeric(df$catch_count, "catch_count")
@@ -745,7 +766,8 @@ fetch_interviews.creel_connection_dbi <- function(conn, ...) {
   )
   df <- .rename_to_canonical(
     df, conn$schema, rename_map, "interviews",
-    direct_map = .strata_direct_map(conn$schema)
+    direct_map = .strata_direct_map(conn$schema),
+    conn = conn
   )
   if ("date"        %in% names(df)) df$date        <- .coerce_date(df$date, "date")
   if ("catch_count" %in% names(df)) df$catch_count <- .coerce_numeric(df$catch_count, "catch_count")
@@ -818,7 +840,10 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
   minutes_col <- fm$effort_minutes
   # Reported as carried, not dropped: they are consumed by the arithmetic below.
   effort_used <- unlist(c(hours_col, minutes_col))
-  df <- .rename_api_to_canonical(raw_df, api_rename_map, "interviews", also_used = effort_used)
+  df <- .rename_api_to_canonical(
+    raw_df, api_rename_map, "interviews",
+    also_used = effort_used, conn = conn
+  )
 
   if (!is.null(hours_col) && nzchar(hours_col) && hours_col %in% names(raw_df)) {
     df$effort <- .coerce_numeric(raw_df[[hours_col]], hours_col)
@@ -923,7 +948,8 @@ fetch_counts.creel_connection_csv <- function(conn, ...) {
   )
   df <- .rename_to_canonical(
     df, conn$schema, rename_map, "counts",
-    direct_map = .strata_direct_map(conn$schema)
+    direct_map = .strata_direct_map(conn$schema),
+    conn = conn
   )
   if ("date"          %in% names(df)) df$date          <- .coerce_date(df$date, "date")
   if ("bank_anglers"  %in% names(df)) df$bank_anglers  <- .coerce_numeric(df$bank_anglers, "bank_anglers")
@@ -947,7 +973,8 @@ fetch_counts.creel_connection_dbi <- function(conn, ...) {
   )
   df <- .rename_to_canonical(
     df, conn$schema, rename_map, "counts",
-    direct_map = .strata_direct_map(conn$schema)
+    direct_map = .strata_direct_map(conn$schema),
+    conn = conn
   )
   if ("date"          %in% names(df)) df$date          <- .coerce_date(df$date, "date")
   if ("bank_anglers"  %in% names(df)) df$bank_anglers  <- .coerce_numeric(df$bank_anglers, "bank_anglers")
@@ -997,7 +1024,7 @@ fetch_counts.creel_connection_api <- function(conn, ...) {
   )
   api_rename_map <- api_rename_map[!is.na(api_rename_map) & nzchar(api_rename_map)]
   api_rename_map <- c(api_rename_map, .strata_direct_map(conn$schema, fm))
-  df <- .rename_api_to_canonical(raw_df, api_rename_map, "counts")
+  df <- .rename_api_to_canonical(raw_df, api_rename_map, "counts", conn = conn)
 
   if ("date"          %in% names(df)) df$date          <- .parse_api_date(df$date)
   if ("bank_anglers"  %in% names(df)) df$bank_anglers  <- .coerce_numeric(df$bank_anglers, "bank_anglers")
@@ -1037,7 +1064,7 @@ fetch_catch.creel_connection_csv <- function(conn, ...) {
     catch_count   = "catch_count_col",
     catch_type    = "catch_type_col"
   )
-  df <- .rename_to_canonical(df, conn$schema, rename_map, "catch")
+  df <- .rename_to_canonical(df, conn$schema, rename_map, "catch", conn = conn)
   # Coerce species to character BEFORE validation: a source may code species as
   # integers, and a code is a label rather than a quantity.
   if ("species"     %in% names(df)) df$species     <- as.character(df$species)
@@ -1060,7 +1087,7 @@ fetch_catch.creel_connection_dbi <- function(conn, ...) {
     catch_count   = "catch_count_col",
     catch_type    = "catch_type_col"
   )
-  df <- .rename_to_canonical(df, conn$schema, rename_map, "catch")
+  df <- .rename_to_canonical(df, conn$schema, rename_map, "catch", conn = conn)
   if ("species"     %in% names(df)) df$species     <- as.character(df$species)
   if ("catch_count" %in% names(df)) df$catch_count <- .coerce_numeric(df$catch_count, "catch_count")
   if ("catch_type"  %in% names(df)) df$catch_type  <- as.character(df$catch_type)
@@ -1095,7 +1122,7 @@ fetch_catch.creel_connection_api <- function(conn, ...) {
     catch_type    = fm$catch_type
   )
   api_rename_map <- api_rename_map[!is.na(api_rename_map) & nzchar(api_rename_map)]
-  df <- .rename_api_to_canonical(raw_df, api_rename_map, "catch")
+  df <- .rename_api_to_canonical(raw_df, api_rename_map, "catch", conn = conn)
 
   # UID synthesis: catch_uid absent from API response -- synthesize as row index (D-05, D-06)
   if (!"catch_uid" %in% names(df)) {
@@ -1145,7 +1172,7 @@ fetch_harvest_lengths.creel_connection_csv <- function(conn, ...) {
     count         = "length_count_col",
     length_type   = "length_type_col"
   )
-  df <- .rename_to_canonical(df, conn$schema, rename_map, "harvest_lengths")
+  df <- .rename_to_canonical(df, conn$schema, rename_map, "harvest_lengths", conn = conn)
   df <- .coerce_length_cols(df)
   df <- .apply_value_maps(df, conn$schema, "harvest_lengths")
   validate_fetch_harvest_lengths(df) # nolint: object_usage_linter
@@ -1155,7 +1182,7 @@ fetch_harvest_lengths.creel_connection_csv <- function(conn, ...) {
 #' @export
 fetch_harvest_lengths.creel_connection_dbi <- function(conn, ...) {
   df <- .read_dbi_table(conn, "harvest_lengths_table", "harvest lengths")
-  df <- .rename_to_canonical(df, conn$schema, .lengths_rename_map(), "harvest_lengths")
+  df <- .rename_to_canonical(df, conn$schema, .lengths_rename_map(), "harvest_lengths", conn = conn)
   df <- .coerce_length_cols(df)
   df <- .apply_value_maps(df, conn$schema, "harvest_lengths")
   validate_fetch_harvest_lengths(df) # nolint: object_usage_linter
@@ -1182,7 +1209,7 @@ fetch_harvest_lengths.creel_connection_api <- function(conn, ...) {
     count         = fm$count
   )
   api_rename_map <- api_rename_map[!is.na(api_rename_map) & nzchar(api_rename_map)]
-  df <- .rename_api_to_canonical(raw_df, api_rename_map, "harvest_lengths")
+  df <- .rename_api_to_canonical(raw_df, api_rename_map, "harvest_lengths", conn = conn)
 
   # UID synthesis: length_uid absent from API response -- synthesize as row index (D-05, D-06)
   if (!"length_uid" %in% names(df)) {
@@ -1232,7 +1259,7 @@ fetch_release_lengths.creel_connection_csv <- function(conn, ...) {
     count         = "length_count_col",
     length_type   = "length_type_col"
   )
-  df <- .rename_to_canonical(df, conn$schema, rename_map, "release_lengths")
+  df <- .rename_to_canonical(df, conn$schema, rename_map, "release_lengths", conn = conn)
   df <- .coerce_length_cols(df)
   df <- .apply_value_maps(df, conn$schema, "release_lengths")
   validate_fetch_release_lengths(df) # nolint: object_usage_linter
@@ -1242,7 +1269,7 @@ fetch_release_lengths.creel_connection_csv <- function(conn, ...) {
 #' @export
 fetch_release_lengths.creel_connection_dbi <- function(conn, ...) {
   df <- .read_dbi_table(conn, "release_lengths_table", "release lengths")
-  df <- .rename_to_canonical(df, conn$schema, .lengths_rename_map(), "release_lengths")
+  df <- .rename_to_canonical(df, conn$schema, .lengths_rename_map(), "release_lengths", conn = conn)
   df <- .coerce_length_cols(df)
   df <- .apply_value_maps(df, conn$schema, "release_lengths")
   validate_fetch_release_lengths(df) # nolint: object_usage_linter
@@ -1271,7 +1298,7 @@ fetch_release_lengths.creel_connection_api <- function(conn, ...) {
     count         = fm$count
   )
   api_rename_map <- api_rename_map[!is.na(api_rename_map) & nzchar(api_rename_map)]
-  df <- .rename_api_to_canonical(raw_df, api_rename_map, "release_lengths")
+  df <- .rename_api_to_canonical(raw_df, api_rename_map, "release_lengths", conn = conn)
 
   # UID synthesis: length_uid absent from API response -- synthesize as row index (D-05, D-06)
   if (!"length_uid" %in% names(df)) {
