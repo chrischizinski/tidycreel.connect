@@ -30,7 +30,7 @@ test_that("a long-format source warns with the count it created and the columns 
   w <- NULL
   result <- withCallingHandlers(
     suppressMessages(fetch_interviews(conn)),
-    creel_warning_rows_duplicated_by_drop = function(cnd) {
+    creel_warning_fetch_created_duplicates = function(cnd) {
       w <<- cnd
       invokeRestart("muffleWarning")
     }
@@ -82,6 +82,64 @@ test_that("the API path warns the same way", {
   expect_warning(
     suppressMessages(fetch_interviews(conn)),
     "QuestionID",
-    class = "creel_warning_rows_duplicated_by_drop"
+    class = "creel_warning_fetch_created_duplicates"
+  )
+})
+
+test_that("a carried column whose values a map joins is not called dropped", {
+  skip_if_not_installed("withr")
+  # TripKind is mapped to trip_status, and "1" -> "complete" makes the two rows
+  # identical. Saying TripKind "is not carried through" would send the caller
+  # to map a column that is already mapped.
+  iv <- long_format_interviews()[c(1L, 2L), ]
+  iv$question_id <- NULL
+  iv$answer <- NULL
+  names(iv)[names(iv) == "trip_status"] <- "TripKind"
+  iv$TripKind <- c("1", "complete")
+  paths <- make_test_csv()
+  utils::write.csv(iv, paths$interviews, row.names = FALSE)
+  schema <- tidycreel::creel_schema(
+    survey_type       = "instantaneous",
+    interview_uid_col = "interview_uid",
+    date_col          = "date",
+    catch_col         = "catch_count",
+    effort_col        = "effort_hours",
+    trip_status_col   = "TripKind",
+    value_maps        = list(trip_status = c("1" = "complete"))
+  )
+  conn <- creel_connect(paths, schema)
+  w <- NULL
+  withCallingHandlers(
+    suppressMessages(fetch_interviews(conn)),
+    creel_warning_fetch_created_duplicates = function(cnd) {
+      w <<- cnd
+      invokeRestart("muffleWarning")
+    }
+  )
+  msg <- conditionMessage(w)
+  expect_match(msg, "TripKind")
+  expect_match(msg, "mapped to the same value")
+  expect_no_match(msg, "not carried through")
+})
+
+test_that("a dropped nested JSON column that alone tells rows apart is seen", {
+  # Nested values parse to a data.frame or list column, which duplicated()
+  # cannot compare directly; skipping them missed exactly this case.
+  httr2::local_mocked_responses(function(req) {
+    httr2::response(
+      200,
+      headers = "Content-Type: application/json",
+      body    = charToRaw(paste0(
+        '[{"InterviewID":"A1","SurveyDate":"2016-03-28","TripStatus":"complete",',
+        '"HoursFished":2,"MinutesFished":30,"Answer":{"q":1,"a":"yes"}},',
+        '{"InterviewID":"A1","SurveyDate":"2016-03-28","TripStatus":"complete",',
+        '"HoursFished":2,"MinutesFished":30,"Answer":{"q":2,"a":"no"}}]'
+      ))
+    )
+  })
+  expect_warning(
+    suppressMessages(fetch_interviews(make_api_conn())),
+    "Answer",
+    class = "creel_warning_fetch_created_duplicates"
   )
 })

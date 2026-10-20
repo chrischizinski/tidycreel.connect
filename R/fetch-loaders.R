@@ -501,9 +501,11 @@
 # also_used: raw field names the caller consumes outside the map (the interview
 #   effort fields are combined arithmetically, not renamed), so they are not
 #   reported as lost.
+# keep_source: attach the source names carried as attr "source_cols", for
+#   .warn_created_duplicates(); the caller strips it.
 # Returns a plain data.frame with only matched canonical columns.
 .rename_api_to_canonical <- function(df, api_rename_map, table, also_used = character(0),
-                                     conn = NULL) {
+                                     conn = NULL, keep_source = FALSE) {
   keep <- character(0)
   for (canonical in names(api_rename_map)) {
     api_col <- api_rename_map[[canonical]]
@@ -515,6 +517,7 @@
   result <- df[, keep, drop = FALSE]
   names(result) <- names(keep)
   .report_dropped_cols(names(df), c(keep, also_used), table, "api_field_map", conn)
+  if (keep_source) attr(result, "source_cols") <- unname(c(keep, also_used))
   result
 }
 
@@ -525,7 +528,7 @@
 # table: canonical table name, used to attribute the dropped-column message.
 # Returns a plain data.frame with only canonical columns.
 .rename_to_canonical <- function(df, schema, rename_map, table, direct_map = character(0),
-                                 conn = NULL) {
+                                 conn = NULL, keep_source = FALSE) {
   keep <- character(0)
   adopted <- character(0)
   for (canonical in names(rename_map)) {
@@ -580,6 +583,7 @@
     )
   }
   .report_dropped_cols(names(df), keep, table, "creel_schema", conn)
+  if (keep_source) attr(result, "source_cols") <- unname(keep)
   result
 }
 
@@ -656,43 +660,53 @@
 # the answer in columns nothing maps. Dropping them leaves the rows identical,
 # and tidycreel keeps a repeated interview_uid on purpose (bus-route designs
 # need it), so nothing downstream catches it: each copy counts that interview's
-# effort and catch again.
+# effort and catch again. Coercion and value maps can do the same to a carried
+# column ("1" and "1.0", or two codes a map joins), so both are reported, and
+# told apart by `carried`, the source names the rename consumed.
 #
 # Only duplicates the fetch created are counted: distinct source rows minus
 # distinct result rows. Rows already identical in the source are a different
 # question, and a row-for-row comparison needs the same rows on both sides.
-# Nested (non-atomic) source columns are left out of the count, so one that
-# alone told rows apart is missed -- this undercounts rather than miscounts.
-.warn_created_duplicates <- function(source, result, table) {
+.warn_created_duplicates <- function(source, result, carried, table) {
   if (nrow(source) != nrow(result) || nrow(result) < 2L) {
     return(invisible(NULL))
   }
-  atomic <- vapply(source, is.atomic, logical(1L))
-  source <- source[, atomic, drop = FALSE]
+  # A nested JSON value parses to a list or data.frame column, which
+  # duplicated() cannot compare; as text it can, so a dropped nested answer
+  # that alone told rows apart is still seen.
+  source <- as.data.frame(lapply(source, .comparable), optional = TRUE)
+  result <- as.data.frame(result)
   n_distinct <- function(x) sum(!duplicated(x))
   n_result <- n_distinct(result)
   n_created <- n_distinct(source) - n_result
   if (n_created <= 0L) {
     return(invisible(NULL))
   }
-  # The dropped columns that told rows apart: adding one back to the result
+  # The source columns that told rows apart: adding one back to the result
   # splits some of its duplicates.
-  dropped <- setdiff(names(source), names(result))
-  splits <- dropped[vapply(dropped, function(col) {
-    with_col <- as.data.frame(result)
+  splits <- names(source)[vapply(names(source), function(col) {
+    with_col <- result
     with_col[["..source"]] <- source[[col]]
     n_distinct(with_col) > n_result
   }, logical(1L))]
-  shown <- cli::cli_vec(splits, list("vec-trunc" = 5L)) # nolint: object_usage_linter
+  dropped <- setdiff(splits, carried)
+  normalised <- intersect(splits, carried)
+  shown_dropped <- cli::cli_vec(dropped, list("vec-trunc" = 5L)) # nolint: object_usage_linter
+  shown_normalised <- cli::cli_vec(normalised, list("vec-trunc" = 5L)) # nolint: object_usage_linter
   n_rows <- nrow(result) # nolint: object_usage_linter
-  # No single dropped column splits them when rows differed only in how a kept
-  # value was written ("1" and "1.0", or two codes a value map joins).
-  why <- if (length(splits) > 0L) {
-    c("i" = "Rows differed only in {.field {shown}}, which {?is/are} not carried through.")
-  } else {
-    c("i" = "No one dropped column tells them apart: they differed in columns \
-             dropped together, or in values coerced or mapped to the same value.")
-  }
+  why <- c(
+    if (length(dropped) > 0L) {
+      c("i" = "Rows differed in {.field {shown_dropped}}, which {?is/are} not carried through.")
+    },
+    if (length(normalised) > 0L) {
+      c("i" = "Rows differed in {.field {shown_normalised}}, whose values were \
+               coerced or mapped to the same value.")
+    },
+    if (length(splits) == 0L) {
+      c("i" = "No one source column tells them apart: they differed in several \
+               columns at once.")
+    }
+  )
   cli::cli_warn(c(
     "{table}: the fetch made {n_created} row{?s} exact duplicate{?s} of another \
      ({n_rows} rows, {n_result} distinct).",
@@ -705,9 +719,22 @@
       "If the source is long format (one row per interview and answer), ",
       "collapse to one row per interview before {.fn tidycreel::add_interviews}."
     )
-  ), class = c("creel_warning_rows_duplicated_by_drop", "creel_warning"))
+  ), class = c("creel_warning_fetch_created_duplicates", "creel_warning"))
   invisible(NULL)
 }
+
+# Internal: a column duplicated() can compare. Atomic columns pass through; a
+# list or data.frame column becomes one string per row.
+.comparable <- function(x) {
+  if (is.atomic(x)) {
+    return(x)
+  }
+  if (is.data.frame(x)) {
+    return(do.call(paste, c(unname(lapply(x, .comparable)), sep = "\x1f")))
+  }
+  vapply(x, function(el) paste(deparse(el), collapse = ""), character(1L))
+}
+
 
 #' Load interview data from a creel connection
 #'
@@ -781,8 +808,10 @@ fetch_interviews.creel_connection_csv <- function(conn, ...) {
   df <- .rename_to_canonical(
     df, conn$schema, rename_map, "interviews",
     direct_map = .strata_direct_map(conn$schema),
-    conn = conn
+    conn = conn, keep_source = TRUE
   )
+  carried <- attr(df, "source_cols")
+  attr(df, "source_cols") <- NULL
   if ("date"        %in% names(df)) df$date        <- .coerce_date(df$date, "date")
   if ("catch_count" %in% names(df)) df$catch_count <- .coerce_numeric(df$catch_count, "catch_count")
   if ("effort"      %in% names(df)) df$effort      <- .coerce_numeric(df$effort, "effort")
@@ -803,7 +832,7 @@ fetch_interviews.creel_connection_csv <- function(conn, ...) {
   validate_fetch_interviews(df) # nolint: object_usage_linter
   # After validation: a fetch that maps nothing has no columns left, every row
   # "duplicates" every other, and the abort above is the message that matters.
-  .warn_created_duplicates(source_df, df, "interviews")
+  .warn_created_duplicates(source_df, df, carried, "interviews")
   df
 }
 
@@ -831,8 +860,10 @@ fetch_interviews.creel_connection_dbi <- function(conn, ...) {
   df <- .rename_to_canonical(
     df, conn$schema, rename_map, "interviews",
     direct_map = .strata_direct_map(conn$schema),
-    conn = conn
+    conn = conn, keep_source = TRUE
   )
+  carried <- attr(df, "source_cols")
+  attr(df, "source_cols") <- NULL
   if ("date"        %in% names(df)) df$date        <- .coerce_date(df$date, "date")
   if ("catch_count" %in% names(df)) df$catch_count <- .coerce_numeric(df$catch_count, "catch_count")
   if ("effort"      %in% names(df)) df$effort      <- .coerce_numeric(df$effort, "effort")
@@ -850,7 +881,7 @@ fetch_interviews.creel_connection_dbi <- function(conn, ...) {
   validate_fetch_interviews(df) # nolint: object_usage_linter
   # After validation: a fetch that maps nothing has no columns left, every row
   # "duplicates" every other, and the abort above is the message that matters.
-  .warn_created_duplicates(source_df, df, "interviews")
+  .warn_created_duplicates(source_df, df, carried, "interviews")
   df
 }
 
@@ -909,8 +940,10 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
   effort_used <- unlist(c(hours_col, minutes_col))
   df <- .rename_api_to_canonical(
     raw_df, api_rename_map, "interviews",
-    also_used = effort_used, conn = conn
+    also_used = effort_used, conn = conn, keep_source = TRUE
   )
+  carried <- attr(df, "source_cols")
+  attr(df, "source_cols") <- NULL
 
   if (!is.null(hours_col) && nzchar(hours_col) && hours_col %in% names(raw_df)) {
     df$effort <- .coerce_numeric(raw_df[[hours_col]], hours_col)
@@ -941,7 +974,7 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
   validate_fetch_interviews_api(df) # nolint: object_usage_linter
   # After validation: a fetch that maps nothing has no columns left, every row
   # "duplicates" every other, and the abort above is the message that matters.
-  .warn_created_duplicates(raw_df, df, "interviews")
+  .warn_created_duplicates(raw_df, df, carried, "interviews")
   df
 }
 
