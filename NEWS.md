@@ -1,5 +1,17 @@
 # tidycreel.connect (development version)
 
+* An API connection to several creels no longer pools them (#2). Every UID
+  in `creel_uids` was sent in one request, and no canonical column took the
+  creel id the payload carried, so several waters' interviews, counts and
+  catch reached a design as one creel. Each UID is now requested on its own,
+  and every API `fetch_*()` returns a `creel_uid` column naming the UID each
+  row was fetched for, on every endpoint, including those whose payload
+  names no creel. A field one creel's payload omits is `NA` for that creel's
+  rows. The column is present on single-UID connections too, so the frame's
+  shape does not depend on how many creels were asked for. Several UIDs now
+  cost one request, and its pages, per UID. A UID named twice in
+  `creel_uids` is refused, since it would be fetched twice.
+
 * A YAML profile can name the water's time zone with a top-level `tz:` key
   (#5), one IANA name from `OlsonNames()`, which night designs need
   (tidycreel#407). `creel_connect_from_yaml()` checks it when the profile is

@@ -35,7 +35,7 @@ test_that("fetch_counts.creel_connection_api() returns canonical columns (API-02
   conn   <- make_api_conn()
   result <- fetch_counts(conn)
   expect_true(is.data.frame(result))
-  expect_equal(sort(names(result)), sort(EXPECTED_COLS))
+  expect_equal(sort(names(result)), sort(c("creel_uid", EXPECTED_COLS)))
   expect_true(inherits(result$date, "Date"))
   expect_true(is.numeric(result$bank_anglers))
   expect_equal(result$bank_anglers, 12)
@@ -50,7 +50,7 @@ test_that("fetch_counts.creel_connection_api() handles empty API response (API-0
   conn   <- make_api_conn()
   result <- fetch_counts(conn)
   expect_equal(nrow(result), 0L)
-  expect_equal(sort(names(result)), sort(EXPECTED_COLS))
+  expect_equal(sort(names(result)), sort(c("creel_uid", EXPECTED_COLS)))
   expect_true(inherits(result$date, "Date"))
 })
 

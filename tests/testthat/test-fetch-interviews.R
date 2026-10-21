@@ -78,7 +78,7 @@ test_that("fetch_interviews.creel_connection_api() returns canonical columns (AP
   expect_true(is.data.frame(result))
   expect_equal(
     sort(names(result)),
-    sort(c("interview_uid", "date", "effort", "trip_status"))
+    sort(c("creel_uid", "interview_uid", "date", "effort", "trip_status"))
   )
   expect_equal(result$interview_uid, "A1")
   expect_true(inherits(result$date, "Date"))

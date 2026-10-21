@@ -20,7 +20,9 @@ default:
   # tz: "America/Chicago"
 
   # Base URL and the query parameter your API filters surveys by:
-  #   GET {base_url}/{endpoint}?{uid_param}={creel_uids joined by commas}
+  #   GET {base_url}/{endpoint}?{uid_param}={one creel uid}
+  # One request (and its pages) per creel uid; every fetched row carries its
+  # uid as `creel_uid`.
   base_url: "https://api.example.org/creel/"
   uid_param: "survey_id"
   creel_uids:

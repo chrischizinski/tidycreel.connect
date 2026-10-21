@@ -142,7 +142,7 @@ live_http_field_map <- function() {
 live_http_conn <- function(base_url, pagination = NULL, token = "live-http-test-token") {
   tidycreel.connect::creel_connect_api(
     base_url      = base_url,
-    creel_uids    = c("calamus-2016-a", "calamus-2016-b"),
+    creel_uids    = "calamus-2016",
     schema        = tidycreel::creel_schema(survey_type = "bus_route"),
     uid_param     = "survey_id",
     endpoints     = list(

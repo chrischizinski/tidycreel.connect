@@ -53,7 +53,7 @@ test_that("fetch_catch.creel_connection_api() returns canonical columns (API-03)
   expect_true(is.data.frame(result))
   expect_equal(
     sort(names(result)),
-    sort(c("catch_uid", "interview_uid", "species", "catch_count", "catch_type"))
+    sort(c("creel_uid", "catch_uid", "interview_uid", "species", "catch_count", "catch_type"))
   )
   expect_equal(result$interview_uid, "A1")
   expect_true(is.character(result$species))

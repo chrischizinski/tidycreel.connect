@@ -39,6 +39,10 @@ On CSV and SQL, \code{\link[tidycreel:creel_schema]{tidycreel::creel_schema()}} 
 
 Source columns outside the map are dropped, and each fetch reports which
 ones by name.
+
+On the API backend every row also carries \code{creel_uid} (character), the
+creel UID it was fetched for, so a connection to several creels returns
+them labelled rather than pooled.
 }
 \description{
 Reads the interviews table from a creel data source, renames columns to

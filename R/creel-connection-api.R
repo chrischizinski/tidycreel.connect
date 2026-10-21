@@ -91,8 +91,12 @@
 #' @param base_url Base URL of the API, with or without a trailing slash.
 #'   Example: `"https://api.example.org/creel/"`.
 #' @param creel_uids Character vector of one or more creel UIDs to query.
+#'   Each UID is requested on its own, and every row a `fetch_*()` returns
+#'   carries it as `creel_uid`, so several creels arrive labelled rather than
+#'   pooled. Several UIDs cost one request (and its pages) per UID.
 #' @param schema A `creel_schema` object created by [tidycreel::creel_schema()].
-#' @param uid_param Query parameter name for the creel UID list. Example:
+#' @param uid_param Query parameter name for the creel UID, sent with one UID
+#'   per request. Example:
 #'   `"survey_id"`.
 #' @param endpoints Named list of endpoint paths, relative to `base_url`.
 #'   **Required.** Valid names: `interviews`, `counts`, `catch`,
@@ -241,6 +245,15 @@ creel_connect_api <- function(
   }
   if (!is.character(creel_uids) || length(creel_uids) == 0L || !all(nzchar(creel_uids))) {
     cli::cli_abort("{.arg creel_uids} must be a non-empty character vector with no blank entries.")
+  }
+  # Each UID is its own request (GH #2), so a repeat would fetch, and bind,
+  # that creel's records twice.
+  if (anyDuplicated(creel_uids) > 0L) {
+    dup <- unique(creel_uids[duplicated(creel_uids)]) # nolint: object_usage_linter
+    cli::cli_abort(c(
+      "{.arg creel_uids} names {cli::qty(dup)}{?a/some} UID{?s} more than once: {.val {dup}}.",
+      "x" = "Each UID is fetched on its own, so a repeat would return its records twice."
+    ))
   }
   # uid_param, endpoints and api_field_map all describe one deployment's API.
   # They are required rather than defaulted: a default would be one
@@ -732,8 +745,60 @@ creel_connect_api <- function(
 # that it is only part of the data -- see .api_assert_untruncated().
 #
 # Returns a 0-row data.frame if the API returns an empty array.
+#
+# One creel UID per request, each block stamped with the UID it was asked for
+# in the reserved column `.creel_uid`, which the fetchers carry as `creel_uid`
+# (GH #2). A single request for every UID returned the creels pooled, and no
+# canonical column took the creel id the payload carried, so several waters
+# reached a design as one. The stamp comes from the request rather than the
+# payload because it is then true on every endpoint, mapped or not.
 #' @noRd
 .api_fetch <- function(con_info, endpoint_key, no_uid_filter = FALSE) {
+  if (no_uid_filter) {
+    return(.api_fetch_one(con_info, endpoint_key, uid = NULL))
+  }
+  blocks <- lapply(con_info$creel_uids, function(uid) {
+    df <- .api_fetch_one(con_info, endpoint_key, uid = uid)
+    # Refused rather than overwritten: a source field of that name may be one
+    # the field map reads.
+    if (".creel_uid" %in% names(df)) {
+      cli::cli_abort(c(
+        "The {.val {endpoint_key}} response has a field named {.field .creel_uid}.",
+        "x" = "That name is reserved for the creel UID each row is fetched for."
+      ))
+    }
+    if (nrow(df) > 0L) df[[".creel_uid"]] <- uid
+    df
+  })
+  .api_rbind_creels(blocks)
+}
+
+# Bind the per-creel blocks, aligned by name.
+#
+# Unlike pages, two creels may honestly describe different fields: a survey
+# that never recorded a quantity omits its key. A field absent from one creel
+# is filled with NA there. Aligning by name is what keeps values under the
+# right column; filling is safe because the creel column says whose rows
+# lack it.
+#' @noRd
+.api_rbind_creels <- function(blocks) {
+  filled <- Filter(function(d) nrow(d) > 0L, blocks)
+  if (length(filled) == 0L) {
+    return(data.frame())
+  }
+  cols <- unique(unlist(lapply(filled, names)))
+  aligned <- lapply(filled, function(d) {
+    for (nm in setdiff(cols, names(d))) d[[nm]] <- NA
+    d[, cols, drop = FALSE]
+  })
+  out <- do.call(rbind, aligned)
+  row.names(out) <- NULL
+  out
+}
+
+# One endpoint for one creel UID (or, for discovery, with no UID filter).
+#' @noRd
+.api_fetch_one <- function(con_info, endpoint_key, uid) {
   endpoint <- con_info$endpoints[[endpoint_key]]
   if (is.null(endpoint)) {
     cli::cli_abort(c(
@@ -756,9 +821,8 @@ creel_connect_api <- function(
   url <- paste0(con_info$base_url, endpoint)
 
   base_req <- httr2::request(url)
-  if (!no_uid_filter) {
-    uid_str    <- paste(con_info$creel_uids, collapse = ",")
-    query_args <- stats::setNames(list(uid_str), con_info$uid_param)
+  if (!is.null(uid)) {
+    query_args <- stats::setNames(list(uid), con_info$uid_param)
     base_req   <- do.call(httr2::req_url_query, c(list(base_req), query_args))
   }
 
@@ -1296,16 +1360,17 @@ creel_connect_api <- function(
 
 # The `rel="next"` URL from an RFC 8288 Link header, or NULL.
 #
-# Split on a comma only where the next link element starts, because a creel
-# request's own query string joins uids with commas and a plain split would cut
-# the URL in half.
+# Split on a comma only where the next link element starts, because a query
+# string may itself carry commas -- a UID or another parameter value can hold
+# one -- and a plain split would cut the URL in half.
 #
 # Not httr2::resp_link_url(), which exists and parses the same header: it fails
 # on exactly that shape. Given
 #   Link: <...?survey_id=u-1,u-2&page=1>; rel="prev", <...&page=2>; rel="next"
 # it aborts with "values must be length 1, but FUN(X[[1]]) result is length 0".
-# A comma-joined uid list is this package's normal request, so the general
-# parser is the wrong one here. Do not simplify this away.
+# Until GH #2 a comma-joined uid list was this package's normal request, and a
+# server is free to build its links that way still, so the general parser is
+# the wrong one here. Do not simplify this away.
 #' @noRd
 .api_next_link <- function(resp) {
   link <- tryCatch(httr2::resp_header(resp, "Link"), error = function(e) NULL)
