@@ -12,6 +12,17 @@
   cost one request, and its pages, per UID. A UID named twice in
   `creel_uids` is refused, since it would be fetched twice.
 
+* A YAML profile can name the water's time zone with a top-level `tz:` key
+  (#5), one IANA name from `OlsonNames()`, which night designs need
+  (tidycreel#407). `creel_connect_from_yaml()` checks it when the profile is
+  read, keeps it on the connection as `conn$tz`, and sets
+  `options(tidycreel.tz)` for the session when that option is unset, with a
+  one-line message (`creel_message_tz_option_set`). An option already set to
+  a different zone is kept, with a warning
+  (`creel_warning_tz_option_differs`): replacing it could move another
+  water's night designs into this one's zone. A `tz =` argument to
+  `tidycreel::creel_design()` still wins over both.
+
 * Date parsing no longer depends on row order (#13). An unreadable date in
   the first row aborted the fetch with an unclassed "character string is not
   in a standard unambiguous format", because `as.Date()` takes its format

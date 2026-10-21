@@ -80,6 +80,27 @@
 #' `harvest_lengths_table` / `release_lengths_table` (both falling back to
 #' `lengths_table`).
 #'
+#' ## Time zone
+#'
+#' An optional top-level `tz:` key names the time zone of the water, as one
+#' IANA name from [OlsonNames()]:
+#' ```yaml
+#' tz: America/Chicago
+#' ```
+#' Night designs need one (see [tidycreel::creel_design()]), and the profile is
+#' where the water is described, so it saves repeating the zone in every
+#' script. The value is checked when the profile is read, kept on the
+#' connection as `conn$tz`, and, when the `tidycreel.tz` option is unset, set
+#' as that option for the session, with a one-line message saying so.
+#' tidycreel reads a `tz =` argument before the option, so an explicit
+#' argument always wins.
+#'
+#' An option already set to a different zone is kept, with a warning: it was
+#' set on purpose, perhaps by another profile, and replacing it silently would
+#' move that water's night designs into this one's zone. Pass
+#' `tz = conn$tz` to [tidycreel::creel_design()] for the water this profile
+#' describes.
+#'
 #' @param path Path to the YAML config file. Must exist.
 #' @param config Environment block to use (default: `"default"`). Passed to
 #'   `config::get(config = ...)`. Common values: `"default"`, `"production"`,
@@ -113,7 +134,42 @@ creel_connect_from_yaml <- function(path, config = "default") {
   # Pre-validate all required keys and types before any connection attempt
   .validate_yaml_config(cfg, path)
   # Build connection from validated config
-  .build_creel_conn(cfg)
+  conn <- .build_creel_conn(cfg)
+  # After the build, so a profile that fails to connect leaves the session's
+  # options as they were.
+  if (!is.null(cfg$tz)) {
+    conn$tz <- cfg$tz
+    .apply_profile_tz(cfg$tz, path)
+  }
+  conn
+}
+
+# Internal: set options(tidycreel.tz) from a profile's tz, when unset
+# (tidycreel#407 decision, 2026-10-06). A different value already set is kept
+# and warned about, never replaced silently.
+#' @noRd
+.apply_profile_tz <- function(tz, path) {
+  current <- getOption("tidycreel.tz")
+  if (is.null(current)) {
+    options(tidycreel.tz = tz)
+    connect_inform( # nolint: object_usage_linter
+      c("i" = "Set {.code options(tidycreel.tz = \"{tz}\")} for this session, \\
+               from {.file {path}}."),
+      class = "creel_message_tz_option_set"
+    )
+  } else if (!identical(current, tz)) {
+    cli::cli_warn(
+      c(
+        "The profile's time zone {.val {tz}} differs from the \\
+         {.field tidycreel.tz} option, {.val {current}}, which is kept.",
+        "i" = "Night designs are read in {.val {current}} unless given \\
+               {.arg tz}. For this profile's water, pass \\
+               {.code tz = conn$tz} to {.fn tidycreel::creel_design}."
+      ),
+      class = c("creel_warning_tz_option_differs", "creel_warning")
+    )
+  }
+  invisible(NULL)
 }
 
 # Internal: validate required YAML keys before any connection attempt
@@ -221,6 +277,21 @@ creel_connect_from_yaml <- function(path, config = "default") {
           rep("x", length(empty_creds))
         ),
         "i" = "Use {.code !expr Sys.getenv('VAR_NAME')} and ensure the variable is exported."
+      ))
+    }
+  }
+
+  # 5. Optional tz: one IANA name. Checked here, so a typo aborts before any
+  # connection is made rather than at the first night design.
+  if (!is.null(cfg$tz)) {
+    tz <- cfg$tz
+    if (!is.character(tz) || length(tz) != 1L || is.na(tz) ||
+          !tz %in% OlsonNames()) {
+      cli::cli_abort(c(
+        "{.field tz} must be one time zone name from {.fn OlsonNames}: \\
+         {.file {path}}",
+        "x" = "Got {.val {tz}}.",
+        "i" = "For example {.code tz: America/Chicago}."
       ))
     }
   }

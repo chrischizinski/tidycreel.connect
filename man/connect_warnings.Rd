@@ -54,6 +54,10 @@ again: usually by dropping unmapped columns of a long-format source,
 sometimes by coercing or mapping values to the same value.}
 \item{\code{creel_warning_repeated_sampling_units}}{Tier 1. Counts have
 repeated dates with no count time to tell them apart.}
+\item{\code{creel_warning_tz_option_differs}}{Tier 1. A profile's \verb{tz:}
+differs from the \code{tidycreel.tz} option already set, which is kept, so a
+night design given no \code{tz} is read in the option's zone, not the
+profile's. See \code{\link[=creel_connect_from_yaml]{creel_connect_from_yaml()}}.}
 \item{\code{creel_warning_bins_without_count}}{Tier 1. Length bins were
 fetched without a fish count, so a distribution built from them is
 weighted by rows, not fish.}
@@ -74,6 +78,8 @@ source columns were taken because they already carry a canonical name.
 Once per connection.}
 \item{\code{creel_message_columns_dropped}}{Tier 3. Source columns not
 mapped are not carried through. Once per connection.}
+\item{\code{creel_message_tz_option_set}}{Tier 3. A profile's \verb{tz:} set
+the \code{tidycreel.tz} option, which was unset, for the session.}
 }
 }
 
