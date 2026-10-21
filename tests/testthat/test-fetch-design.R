@@ -172,3 +172,53 @@ test_that("a non-API connection is refused", {
   conn <- creel_connect(make_test_csv(), make_test_schema())
   expect_error(fetch_design(conn), "API connection")
 })
+
+test_that("an impossible or missing clock time is refused, not read in part", {
+  # Matched anywhere inside the value, 25:10:00 read as 10:00 and gave the
+  # shift a wrong length with nothing said.
+  clock <- tidycreel.connect:::.clock_minutes
+  expect_error(clock("25:10:00", "start_time"), "not a clock time")
+  expect_error(clock(c("06:00", NA), "start_time"), "not a clock time")
+  expect_identical(
+    clock(c("6:05", "19:30:00", "1900-01-01T00:30:00", "2025-04-01 13:30:00Z"), "x"),
+    c(365L, 1170L, 30L, 810L)
+  )
+})
+
+test_that("a missing probability or season date is refused", {
+  bodies <- day_shift_bodies()
+  bodies$periods <- sub('"Prob":0.5}]', '"Prob":null}]', bodies$periods, fixed = TRUE)
+  mock_design(bodies)
+  expect_error(suppressMessages(fetch_design(design_conn())), "missing or outside")
+
+  bodies <- day_shift_bodies()
+  bodies$general <- sub('"2025-10-31T00:00:00"', 'null', bodies$general, fixed = TRUE)
+  mock_design(bodies)
+  expect_error(
+    suppressWarnings(suppressMessages(fetch_design(design_conn()))),
+    "season start or end"
+  )
+})
+
+test_that("every creel on the connection needs its own season", {
+  # Empty blocks drop out when creels are bound, so creel-b's missing season
+  # vanished while its periods stayed.
+  httr2::local_mocked_responses(function(req) {
+    q <- httr2::url_parse(req$url)
+    body <- day_shift_bodies()[[basename(q$path)]]
+    if (basename(q$path) == "general" && q$query$survey_id == "creel-b") body <- "[]"
+    httr2::response(200, headers = "Content-Type: application/json", body = charToRaw(body))
+  })
+  expect_error(
+    suppressMessages(fetch_design(design_conn(c("creel-a", "creel-b")))),
+    "no rows for creel \"creel-b\""
+  )
+})
+
+test_that("an empty special-dates table keeps a mapped group column", {
+  bodies <- day_shift_bodies()
+  bodies$special <- "[]"
+  mock_design(bodies)
+  d <- suppressMessages(fetch_design(design_conn()))
+  expect_true("group" %in% names(d$special_dates))
+})

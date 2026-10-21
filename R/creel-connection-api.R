@@ -103,7 +103,9 @@
 #'   `harvest_lengths`, `release_lengths`, `discovery`, and the design tables
 #'   read by [fetch_design()]: `design_general`, `design_periods`,
 #'   `design_sections`, `design_special_dates`. Supply the endpoints you
-#'   intend to fetch; the matching `fetch_*()` aborts for any you omit.
+#'   intend to fetch; the matching `fetch_*()` aborts for any you omit,
+#'   except `design_sections` and `design_special_dates`, which
+#'   [fetch_design()] returns as `NULL` when absent.
 #' @param auth Authentication spec (see Description). Default: `NULL`.
 #' @param api_field_map Named list of raw JSON field names, keyed by endpoint
 #'   (the same names as `endpoints`). **Required.** Within each endpoint, name the raw field that

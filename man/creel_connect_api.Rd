@@ -37,7 +37,9 @@ per request. Example:
 \code{harvest_lengths}, \code{release_lengths}, \code{discovery}, and the design tables
 read by \code{\link[=fetch_design]{fetch_design()}}: \code{design_general}, \code{design_periods},
 \code{design_sections}, \code{design_special_dates}. Supply the endpoints you
-intend to fetch; the matching \verb{fetch_*()} aborts for any you omit.}
+intend to fetch; the matching \verb{fetch_*()} aborts for any you omit,
+except \code{design_sections} and \code{design_special_dates}, which
+\code{\link[=fetch_design]{fetch_design()}} returns as \code{NULL} when absent.}
 
 \item{auth}{Authentication spec (see Description). Default: \code{NULL}.}
 

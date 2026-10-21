@@ -94,8 +94,13 @@ fetch_design.creel_connection_api <- function(conn, ...) {
     c("season_start", "season_end", "special_as_stratum", "special_as_weekend")
   )
   .require_design_cols(df, c("season_start", "season_end"), "design_general")
+  .require_every_creel(df, conn, "design_general")
   df$season_start <- .parse_api_date(df$season_start, "season_start")
   df$season_end <- .parse_api_date(df$season_end, "season_end")
+  # A season with no start or end has no days to build a calendar from.
+  if (anyNA(df$season_start) || anyNA(df$season_end)) {
+    cli::cli_abort("design_general: the season start or end is missing or unreadable.")
+  }
   for (nm in c("special_as_stratum", "special_as_weekend")) {
     if (nm %in% names(df)) df[[nm]] <- .coerce_flag(df[[nm]], "design_general", nm)
   }
@@ -110,13 +115,15 @@ fetch_design.creel_connection_api <- function(conn, ...) {
   .require_design_cols(
     df, c("month", "period_id", "start_time", "end_time", "p_period"), "design_periods"
   )
+  .require_every_creel(df, conn, "design_periods")
   df$month <- as.integer(.coerce_numeric(df$month, "month"))
   df$period_id <- as.character(df$period_id)
   df$p_period <- .coerce_numeric(df$p_period, "p_period")
-  bad_p <- !is.na(df$p_period) & (df$p_period <= 0 | df$p_period > 1)
+  # Missing is refused with out-of-range: tidycreel divides by it.
+  bad_p <- is.na(df$p_period) | df$p_period <= 0 | df$p_period > 1
   if (any(bad_p)) {
     cli::cli_abort(c(
-      "design_periods: {.field p_period} is outside (0, 1] on {sum(bad_p)} row{?s}.",
+      "design_periods: {.field p_period} is missing or outside (0, 1] on {sum(bad_p)} row{?s}.",
       "i" = "It is the probability that the period is the one worked on a sampled day."
     ))
   }
@@ -147,7 +154,12 @@ fetch_design.creel_connection_api <- function(conn, ...) {
   df <- .fetch_design_table(conn, "design_special_dates", c("date", "group"))
   # Most seasons have none.
   if (nrow(df) == 0L) {
-    return(data.frame(creel_uid = character(0), date = as.Date(character(0))))
+    empty <- data.frame(creel_uid = character(0), date = as.Date(character(0)))
+    # Same shape as a season with special dates: a mapped group stays.
+    if (.field_named(conn$con$api_field_map$design_special_dates$group)) {
+      empty$group <- character(0)
+    }
+    return(empty)
   }
   .require_design_cols(df, "date", "design_special_dates")
   df$date <- .parse_api_date(df$date)
@@ -176,21 +188,41 @@ fetch_design.creel_connection_api <- function(conn, ...) {
   invisible(NULL)
 }
 
+# Internal: every requested creel must have rows in a required design table.
+# Empty blocks are dropped when creels are bound, so a creel with no season
+# would otherwise vanish from `general` while its periods remain.
+.require_every_creel <- function(df, conn, endpoint) {
+  absent <- setdiff(conn$con$creel_uids, df$creel_uid)
+  if (length(absent) > 0L) {
+    cli::cli_abort(c(
+      "{endpoint}: the API returned no rows for creel{?s} {.val {absent}}.",
+      "i" = "A creel with no design cannot be built into a calendar."
+    ))
+  }
+  invisible(NULL)
+}
+
 # Internal: minutes after midnight from a clock time in any of the shapes an
 # API sends one -- "19:30", "19:30:00", "1900-01-01T19:30:00" -- taking the
 # first HH:MM. Unreadable values abort: a shift with no window has no length.
 .clock_minutes <- function(x, field) {
-  x <- as.character(x)
-  hit <- regmatches(x, regexpr("(?<![0-9])([01]?[0-9]|2[0-3]):[0-5][0-9]", x, perl = TRUE))
-  ok <- grepl("(?<![0-9])([01]?[0-9]|2[0-3]):[0-5][0-9]", x, perl = TRUE)
+  x <- trimws(as.character(x))
+  # The whole value must be a time, optionally after a date and with seconds
+  # or a zone: matching anywhere inside it read 25:10:00 as 10:00.
+  pattern <- paste0(
+    "^(\\d{4}-\\d{2}-\\d{2}[T ])?([01]?[0-9]|2[0-3]):([0-5][0-9])",
+    "(:[0-5][0-9](\\.[0-9]+)?)?(Z|[+-][0-9]{2}:?[0-9]{2})?$"
+  )
+  ok <- !is.na(x) & grepl(pattern, x, perl = TRUE)
   if (!all(ok)) {
     cli::cli_abort(c(
       "design_periods: {.field {field}} is not a clock time on {sum(!ok)} row{?s}.",
-      "i" = "Expected a time such as 19:30, 19:30:00 or 1900-01-01T19:30:00."
+      "i" = "Expected a time such as 19:30, 19:30:00 or 1900-01-01T19:30:00; a missing time has no length."
     ))
   }
-  parts <- strsplit(hit, ":", fixed = TRUE)
-  vapply(parts, function(p) as.integer(p[[1L]]) * 60L + as.integer(p[[2L]]), integer(1L))
+  hh <- as.integer(sub(pattern, "\\2", x, perl = TRUE))
+  mm <- as.integer(sub(pattern, "\\3", x, perl = TRUE))
+  hh * 60L + mm
 }
 
 .format_clock <- function(minutes) sprintf("%02d:%02d", minutes %/% 60L, minutes %% 60L)
