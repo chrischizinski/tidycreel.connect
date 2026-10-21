@@ -54,3 +54,7 @@ column already named `zip_code`.
 
 Source columns outside the map are dropped, and each fetch reports which
 ones by name.
+
+On the API backend every row also carries `creel_uid` (character), the
+creel UID it was fetched for, so a connection to several creels returns
+them labelled rather than pooled.

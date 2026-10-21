@@ -320,7 +320,10 @@ Example: <code>"https://api.example.org/creel/"</code>.</p></dd>
 
 
 <dt id="arg-creel-uids">creel_uids<a class="anchor" aria-label="anchor" href="#arg-creel-uids"></a></dt>
-<dd><p>Character vector of one or more creel UIDs to query.</p></dd>
+<dd><p>Character vector of one or more creel UIDs to query.
+Each UID is requested on its own, and every row a <code>fetch_*()</code> returns
+carries it as <code>creel_uid</code>, so several creels arrive labelled rather than
+pooled. Several UIDs cost one request (and its pages) per UID.</p></dd>
 
 
 <dt id="arg-schema">schema<a class="anchor" aria-label="anchor" href="#arg-schema"></a></dt>
@@ -328,7 +331,8 @@ Example: <code>"https://api.example.org/creel/"</code>.</p></dd>
 
 
 <dt id="arg-uid-param">uid_param<a class="anchor" aria-label="anchor" href="#arg-uid-param"></a></dt>
-<dd><p>Query parameter name for the creel UID list. Example:
+<dd><p>Query parameter name for the creel UID, sent with one UID
+per request. Example:
 <code>"survey_id"</code>.</p></dd>
 
 

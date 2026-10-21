@@ -52,6 +52,10 @@ A data frame with canonical columns: `date` (Date), `bank_anglers`
 `count_time` (character) and any stratum columns the schema maps.
 Unmapped source columns are dropped.
 
+On the API backend every row also carries `creel_uid` (character), the
+creel UID it was fetched for, so a connection to several creels returns
+them labelled rather than pooled.
+
 ## The grain of a count row
 
 One row is one count observation, not a day's total. Sources commonly

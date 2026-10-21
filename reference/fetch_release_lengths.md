@@ -30,3 +30,7 @@ A data frame with canonical columns: `length_uid`, `interview_uid`,
 with `count` (numeric) for binned rows. At least one of the two must be
 mapped; the binned pair is carried only when the source names it (GH
 \#127). Extra CSV columns are dropped.
+
+On the API backend every row also carries `creel_uid` (character), the
+creel UID it was fetched for, so a connection to several creels returns
+them labelled rather than pooled.

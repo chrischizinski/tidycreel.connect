@@ -71,6 +71,9 @@ data frame ready for <code><a href="https://chrischizinski.com/tidycreel/referen
 (numeric) for binned rows. At least one of the two must be mapped; the
 binned pair is carried only when the source names it (GH #127). Extra CSV
 columns are dropped.</p>
+<p>On the API backend every row also carries <code>creel_uid</code> (character), the
+creel UID it was fetched for, so a connection to several creels returns
+them labelled rather than pooled.</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

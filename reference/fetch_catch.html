@@ -68,6 +68,9 @@ validates, and returns a data frame ready for <code><a href="https://chrischizin
     <p>A data frame with canonical columns: <code>catch_uid</code>, <code>interview_uid</code>,
 <code>species</code> (character), <code>catch_count</code> (numeric), <code>catch_type</code> (character).
 Extra CSV columns are dropped.</p>
+<p>On the API backend every row also carries <code>creel_uid</code> (character), the
+creel UID it was fetched for, so a connection to several creels returns
+them labelled rather than pooled.</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

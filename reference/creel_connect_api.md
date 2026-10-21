@@ -114,7 +114,10 @@ creel_connect_api(
 
 - creel_uids:
 
-  Character vector of one or more creel UIDs to query.
+  Character vector of one or more creel UIDs to query. Each UID is
+  requested on its own, and every row a `fetch_*()` returns carries it
+  as `creel_uid`, so several creels arrive labelled rather than pooled.
+  Several UIDs cost one request (and its pages) per UID.
 
 - schema:
 
@@ -123,7 +126,8 @@ creel_connect_api(
 
 - uid_param:
 
-  Query parameter name for the creel UID list. Example: `"survey_id"`.
+  Query parameter name for the creel UID, sent with one UID per request.
+  Example: `"survey_id"`.
 
 - endpoints:
 

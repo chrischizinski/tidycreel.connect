@@ -27,3 +27,7 @@ fetch_catch(conn, ...)
 A data frame with canonical columns: `catch_uid`, `interview_uid`,
 `species` (character), `catch_count` (numeric), `catch_type`
 (character). Extra CSV columns are dropped.
+
+On the API backend every row also carries `creel_uid` (character), the
+creel UID it was fetched for, so a connection to several creels returns
+them labelled rather than pooled.

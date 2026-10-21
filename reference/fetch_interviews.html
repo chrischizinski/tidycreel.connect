@@ -89,6 +89,9 @@ On CSV and SQL, <code><a href="https://chrischizinski.com/tidycreel/reference/cr
 <code>zip_code</code> is carried only from a source column already named <code>zip_code</code>.</p>
 <p>Source columns outside the map are dropped, and each fetch reports which
 ones by name.</p>
+<p>On the API backend every row also carries <code>creel_uid</code> (character), the
+creel UID it was fetched for, so a connection to several creels returns
+them labelled rather than pooled.</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
