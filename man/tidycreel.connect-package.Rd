@@ -6,7 +6,18 @@
 \alias{tidycreel.connect-package}
 \title{tidycreel.connect: Database and File Connections for Tidycreel}
 \description{
+\if{html}{\figure{logo.png}{options: style='float: right' alt='logo' width='120'}}
+
 Provides connection objects and data loaders for the tidycreel creel survey analysis package. Loads data from flat CSV files, from DBI-compliant databases including SQL Server via ODBC, and from REST APIs described by a caller-supplied profile.
+}
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/chrischizinski/tidycreel.connect}
+  \item \url{https://chrischizinski.com/tidycreel.connect/}
+  \item Report bugs at \url{https://github.com/chrischizinski/tidycreel.connect/issues}
+}
+
 }
 \author{
 \strong{Maintainer}: Christopher Chizinski \email{cchizinski2@unl.edu}
