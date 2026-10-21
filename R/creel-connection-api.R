@@ -246,6 +246,15 @@ creel_connect_api <- function(
   if (!is.character(creel_uids) || length(creel_uids) == 0L || !all(nzchar(creel_uids))) {
     cli::cli_abort("{.arg creel_uids} must be a non-empty character vector with no blank entries.")
   }
+  # Each UID is its own request (GH #2), so a repeat would fetch, and bind,
+  # that creel's records twice.
+  if (anyDuplicated(creel_uids) > 0L) {
+    dup <- unique(creel_uids[duplicated(creel_uids)]) # nolint: object_usage_linter
+    cli::cli_abort(c(
+      "{.arg creel_uids} names {cli::qty(dup)}{?a/some} UID{?s} more than once: {.val {dup}}.",
+      "x" = "Each UID is fetched on its own, so a repeat would return its records twice."
+    ))
+  }
   # uid_param, endpoints and api_field_map all describe one deployment's API.
   # They are required rather than defaulted: a default would be one
   # organisation's contract shipped as though it were everyone's, and it would
@@ -750,6 +759,14 @@ creel_connect_api <- function(
   }
   blocks <- lapply(con_info$creel_uids, function(uid) {
     df <- .api_fetch_one(con_info, endpoint_key, uid = uid)
+    # Refused rather than overwritten: a source field of that name may be one
+    # the field map reads.
+    if (".creel_uid" %in% names(df)) {
+      cli::cli_abort(c(
+        "The {.val {endpoint_key}} response has a field named {.field .creel_uid}.",
+        "x" = "That name is reserved for the creel UID each row is fetched for."
+      ))
+    }
     if (nrow(df) > 0L) df[[".creel_uid"]] <- uid
     df
   })

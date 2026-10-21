@@ -9,7 +9,8 @@
   names no creel. A field one creel's payload omits is `NA` for that creel's
   rows. The column is present on single-UID connections too, so the frame's
   shape does not depend on how many creels were asked for. Several UIDs now
-  cost one request, and its pages, per UID.
+  cost one request, and its pages, per UID. A UID named twice in
+  `creel_uids` is refused, since it would be fetched twice.
 
 * Date parsing no longer depends on row order (#13). An unreadable date in
   the first row aborted the fetch with an unclassed "character string is not

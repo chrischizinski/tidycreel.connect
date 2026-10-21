@@ -173,3 +173,18 @@ test_that("two creels counted on one date are not called repeat counts", {
     class = "creel_warning_repeated_sampling_units"
   )
 })
+
+test_that("a UID named twice is refused, not fetched twice", {
+  # One request per UID means a repeat binds that creel's records again, and
+  # catch then gets fresh synthetic ids that make the copies look distinct.
+  expect_error(two_creel_conn(c("creel-a", "creel-a")), "more than once")
+})
+
+test_that("a source field named like the stamp is refused, not overwritten", {
+  # The field map may read it; overwriting would replace its values with the
+  # request's UID.
+  httr2::local_mocked_responses(function(req) {
+    json_response('[{"SurveyDate":"2016-03-28",".creel_uid":"x"}]')
+  })
+  expect_error(fetch_counts(two_creel_conn()), "reserved")
+})
