@@ -18,6 +18,10 @@ A data frame with canonical columns: \code{length_uid}, \code{interview_uid},
 (numeric) for binned rows. At least one of the two must be mapped; the
 binned pair is carried only when the source names it (GH #127). Extra CSV
 columns are dropped.
+
+On the API backend every row also carries \code{creel_uid} (character), the
+creel UID it was fetched for, so a connection to several creels returns
+them labelled rather than pooled.
 }
 \description{
 Reads the harvest lengths table from a creel data source, renames columns

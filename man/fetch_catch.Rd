@@ -15,6 +15,10 @@ fetch_catch(conn, ...)
 A data frame with canonical columns: \code{catch_uid}, \code{interview_uid},
 \code{species} (character), \code{catch_count} (numeric), \code{catch_type} (character).
 Extra CSV columns are dropped.
+
+On the API backend every row also carries \code{creel_uid} (character), the
+creel UID it was fetched for, so a connection to several creels returns
+them labelled rather than pooled.
 }
 \description{
 Reads the catch table from a creel data source, renames columns to

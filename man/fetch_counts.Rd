@@ -16,6 +16,10 @@ A data frame with canonical columns: \code{date} (Date),
 \code{bank_anglers} (numeric), \code{angler_boats} (numeric), \code{non_ang_boats}
 (numeric), plus \code{count_time} (character) and any stratum columns the
 schema maps. Unmapped source columns are dropped.
+
+On the API backend every row also carries \code{creel_uid} (character), the
+creel UID it was fetched for, so a connection to several creels returns
+them labelled rather than pooled.
 }
 \description{
 Reads the counts table from a creel data source, renames columns to

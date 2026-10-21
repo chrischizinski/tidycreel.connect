@@ -66,7 +66,7 @@ test_that("fetch_harvest_lengths.creel_connection_api() returns canonical column
   expect_true(is.data.frame(result))
   expect_equal(
     sort(names(result)),
-    sort(c("length_uid", "interview_uid", "species", "length_mm", "length_type"))
+    sort(c("creel_uid", "length_uid", "interview_uid", "species", "length_mm", "length_type"))
   )
   expect_equal(result$interview_uid, "A1")
   expect_true(is.character(result$species))
@@ -102,7 +102,7 @@ test_that("fetch_release_lengths.creel_connection_api() returns canonical column
   expect_true(is.data.frame(result))
   expect_equal(
     sort(names(result)),
-    sort(c("length_uid", "interview_uid", "species", "length_mm", "length_type"))
+    sort(c("creel_uid", "length_uid", "interview_uid", "species", "length_mm", "length_type"))
   )
   expect_equal(result$interview_uid, "A1")
   expect_true(is.character(result$species))

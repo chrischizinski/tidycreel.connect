@@ -21,7 +21,10 @@ creel_connect_api(
 \item{base_url}{Base URL of the API, with or without a trailing slash.
 Example: \code{"https://api.example.org/creel/"}.}
 
-\item{creel_uids}{Character vector of one or more creel UIDs to query.}
+\item{creel_uids}{Character vector of one or more creel UIDs to query.
+Each UID is requested on its own, and every row a \verb{fetch_*()} returns
+carries it as \code{creel_uid}, so several creels arrive labelled rather than
+pooled. Several UIDs cost one request (and its pages) per UID.}
 
 \item{schema}{A \code{creel_schema} object created by \code{\link[tidycreel:creel_schema]{tidycreel::creel_schema()}}.}
 

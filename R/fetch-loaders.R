@@ -282,6 +282,7 @@
 # binned still selects `length_bin`/`count` on a quiet day (GH #127).
 .empty_lengths_frame <- function(fm) {
   df <- data.frame(
+    creel_uid        = character(0),
     length_uid       = character(0),
     interview_uid    = character(0),
     species          = character(0),
@@ -804,6 +805,10 @@
 #'
 #'   Source columns outside the map are dropped, and each fetch reports which
 #'   ones by name.
+#'
+#'   On the API backend every row also carries `creel_uid` (character), the
+#'   creel UID it was fetched for, so a connection to several creels returns
+#'   them labelled rather than pooled.
 #' @export
 fetch_interviews <- function(conn, ...) UseMethod("fetch_interviews")
 
@@ -923,6 +928,7 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
   # Early return for empty API response -- avoids logical-typed columns failing validation
   if (nrow(raw_df) == 0L) {
     return(data.frame(
+      creel_uid        = character(0),
       interview_uid    = character(0),
       date             = as.Date(character(0)),
       effort           = numeric(0),
@@ -943,7 +949,11 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
   # unaffected -- but one that returns them is no longer silently stripped of a
   # party size (party-hours read as angler-hours) or of the columns a bus-route
   # design joins its inclusion probabilities on.
+  # creel_uid is stamped by .api_fetch() from the UID each request asked for,
+  # on every API endpoint, so a multi-creel frame always says whose rows are
+  # whose (GH #2).
   api_rename_map <- c(
+    creel_uid     = ".creel_uid",
     interview_uid = fm$interview_uid,
     date          = fm$date,
     catch_count   = fm$catch_count,
@@ -1067,6 +1077,10 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
 #'   `bank_anglers` (numeric), `angler_boats` (numeric), `non_ang_boats`
 #'   (numeric), plus `count_time` (character) and any stratum columns the
 #'   schema maps. Unmapped source columns are dropped.
+#'
+#'   On the API backend every row also carries `creel_uid` (character), the
+#'   creel UID it was fetched for, so a connection to several creels returns
+#'   them labelled rather than pooled.
 #' @export
 fetch_counts <- function(conn, ...) UseMethod("fetch_counts")
 
@@ -1132,6 +1146,7 @@ fetch_counts.creel_connection_api <- function(conn, ...) {
   # Early return for empty API response
   if (nrow(raw_df) == 0L) {
     empty <- data.frame(
+      creel_uid        = character(0),
       date             = as.Date(character(0)),
       bank_anglers     = numeric(0),
       angler_boats     = numeric(0),
@@ -1150,6 +1165,7 @@ fetch_counts.creel_connection_api <- function(conn, ...) {
   # bank_anglers = anglers on shore; angler_boats = boats with anglers; non_ang_boats = boats without anglers
   # boat angler count derived from angler_boats * mean(anglers/boat) from interviews -- not a raw field
   api_rename_map <- c(
+    creel_uid     = ".creel_uid",
     date          = fm$date,
     count_time    = fm$count_time,
     bank_anglers  = fm$bank_anglers,
@@ -1185,6 +1201,10 @@ fetch_counts.creel_connection_api <- function(conn, ...) {
 #' @return A data frame with canonical columns: `catch_uid`, `interview_uid`,
 #'   `species` (character), `catch_count` (numeric), `catch_type` (character).
 #'   Extra CSV columns are dropped.
+#'
+#'   On the API backend every row also carries `creel_uid` (character), the
+#'   creel UID it was fetched for, so a connection to several creels returns
+#'   them labelled rather than pooled.
 #' @export
 fetch_catch <- function(conn, ...) UseMethod("fetch_catch")
 
@@ -1239,6 +1259,7 @@ fetch_catch.creel_connection_api <- function(conn, ...) {
   # Early return for empty API response
   if (nrow(raw_df) == 0L) {
     return(data.frame(
+      creel_uid        = character(0),
       catch_uid        = character(0),
       interview_uid    = character(0),
       species          = character(0),
@@ -1250,6 +1271,7 @@ fetch_catch.creel_connection_api <- function(conn, ...) {
 
   fm <- conn$con$api_field_map$catch
   api_rename_map <- c(
+    creel_uid     = ".creel_uid",
     interview_uid = fm$interview_uid,
     species       = fm$species,
     catch_count   = fm$catch_count,
@@ -1291,6 +1313,10 @@ fetch_catch.creel_connection_api <- function(conn, ...) {
 #'   (numeric) for binned rows. At least one of the two must be mapped; the
 #'   binned pair is carried only when the source names it (GH #127). Extra CSV
 #'   columns are dropped.
+#'
+#'   On the API backend every row also carries `creel_uid` (character), the
+#'   creel UID it was fetched for, so a connection to several creels returns
+#'   them labelled rather than pooled.
 #' @export
 fetch_harvest_lengths <- function(conn, ...) UseMethod("fetch_harvest_lengths")
 
@@ -1336,6 +1362,7 @@ fetch_harvest_lengths.creel_connection_api <- function(conn, ...) {
   # NOTE: an API may spell the interview UID differently on this endpoint than
   # on interviews/catch, which is why it is named per endpoint.
   api_rename_map <- c(
+    creel_uid     = ".creel_uid",
     interview_uid = fm$interview_uid,
     species       = fm$species,
     length_mm     = fm$length_mm,
@@ -1378,6 +1405,10 @@ fetch_harvest_lengths.creel_connection_api <- function(conn, ...) {
 #'   (numeric) for binned rows. At least one of the two must be mapped; the
 #'   binned pair is carried only when the source names it (GH #127). Extra CSV
 #'   columns are dropped.
+#'
+#'   On the API backend every row also carries `creel_uid` (character), the
+#'   creel UID it was fetched for, so a connection to several creels returns
+#'   them labelled rather than pooled.
 #' @export
 fetch_release_lengths <- function(conn, ...) UseMethod("fetch_release_lengths")
 
@@ -1425,6 +1456,7 @@ fetch_release_lengths.creel_connection_api <- function(conn, ...) {
   # a bin label and a number of fish per bin names both here, and both reach
   # add_lengths() (GH #127). A source that measures every fish names neither.
   api_rename_map <- c(
+    creel_uid     = ".creel_uid",
     interview_uid = fm$interview_uid,
     species       = fm$species,
     length_mm     = fm$length_mm,

@@ -1,5 +1,16 @@
 # tidycreel.connect (development version)
 
+* An API connection to several creels no longer pools them (#2). Every UID
+  in `creel_uids` was sent in one request, and no canonical column took the
+  creel id the payload carried, so several waters' interviews, counts and
+  catch reached a design as one creel. Each UID is now requested on its own,
+  and every API `fetch_*()` returns a `creel_uid` column naming the UID each
+  row was fetched for, on every endpoint, including those whose payload
+  names no creel. A field one creel's payload omits is `NA` for that creel's
+  rows. The column is present on single-UID connections too, so the frame's
+  shape does not depend on how many creels were asked for. Several UIDs now
+  cost one request, and its pages, per UID.
+
 * Date parsing no longer depends on row order (#13). An unreadable date in
   the first row aborted the fetch with an unclassed "character string is not
   in a standard unambiguous format", because `as.Date()` takes its format
