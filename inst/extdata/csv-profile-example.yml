@@ -19,6 +19,11 @@
 default:
   backend: csv
 
+  # Optional: the water's time zone, one name from OlsonNames(). Night designs
+  # need one. Sets options(tidycreel.tz) for the session when it is unset; a
+  # different value already set is kept, with a warning.
+  # tz: "America/Chicago"
+
   # One path per table. All five keys are required; point the length tables at
   # an empty CSV with the right headers when the survey collected no lengths.
   files:

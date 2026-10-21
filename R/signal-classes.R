@@ -49,6 +49,10 @@
 #'     sometimes by coercing or mapping values to the same value.}
 #'   \item{\code{creel_warning_repeated_sampling_units}}{Tier 1. Counts have
 #'     repeated dates with no count time to tell them apart.}
+#'   \item{\code{creel_warning_tz_option_differs}}{Tier 1. A profile's `tz:`
+#'     differs from the `tidycreel.tz` option already set, which is kept, so a
+#'     night design given no `tz` is read in the option's zone, not the
+#'     profile's. See [creel_connect_from_yaml()].}
 #'   \item{\code{creel_warning_bins_without_count}}{Tier 1. Length bins were
 #'     fetched without a fish count, so a distribution built from them is
 #'     weighted by rows, not fish.}
@@ -67,6 +71,8 @@
 #'     Once per connection.}
 #'   \item{\code{creel_message_columns_dropped}}{Tier 3. Source columns not
 #'     mapped are not carried through. Once per connection.}
+#'   \item{\code{creel_message_tz_option_set}}{Tier 3. A profile's `tz:` set
+#'     the `tidycreel.tz` option, which was unset, for the session.}
 #' }
 #'
 #' @name connect_warnings
@@ -81,13 +87,15 @@ connect_signal_tiers <- c(
   creel_warning_fetch_created_duplicates = 1L,
   creel_warning_numeric_coerced_na = 1L,
   creel_warning_repeated_sampling_units = 1L,
+  creel_warning_tz_option_differs = 1L,
   # Tier 2
   creel_warning_discovery_field_missing = 2L,
   creel_warning_odbc_drivers_unlisted = 2L,
   # Tier 3
   creel_message_argument_ignored = 3L,
   creel_message_columns_by_canonical_name = 3L,
-  creel_message_columns_dropped = 3L
+  creel_message_columns_dropped = 3L,
+  creel_message_tz_option_set = 3L
 )
 
 # Notes about the source's shape. They are the same on every fetch of a table
