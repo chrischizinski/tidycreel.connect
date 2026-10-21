@@ -38,14 +38,15 @@ holds.
 
   Information, raised as a message rather than a warning.
 
-Warnings (tiers 1 and 2) print on every call. The two tier-3 notes about
-the source's columns, `creel_message_columns_dropped` and
-`creel_message_columns_by_canonical_name`, describe the source rather
-than one fetch, so they print once per connection: the first fetch of a
-table prints them, later fetches of that table on the same connection do
-not, unless the columns differ. A new connection prints them again.
-Other tier-3 messages print on every call. Unlike tidycreel, connect
-returns data frames rather than designs, so nothing is recorded for
+Warnings (tiers 1 and 2) print on every call. The tier-3 notes about the
+source, `creel_message_columns_dropped`,
+`creel_message_columns_by_canonical_name` and
+`creel_message_corrections_applied`, describe the source rather than one
+fetch, so they print once per connection: the first fetch of a table
+prints them, later fetches of that table on the same connection do not,
+unless the columns differ. A new connection prints them again. Other
+tier-3 messages print on every call. Unlike tidycreel, connect returns
+data frames rather than designs, so nothing is recorded for
 [`tidycreel::get_warnings()`](https://chrischizinski.com/tidycreel/reference/get_warnings.html).
 
 ## Warnings
@@ -110,6 +111,13 @@ returns data frames rather than designs, so nothing is recorded for
 
   Tier 3. Source columns not mapped are not carried through. Once per
   connection.
+
+- `creel_message_corrections_applied`:
+
+  Tier 3. A profile's corrections file changed fetched values; each
+  change is listed. Once per connection. The result also carries them as
+  `attr(x, "corrections")`. See
+  [`creel_connect_from_yaml()`](https://chrischizinski.com/tidycreel.connect/reference/creel_connect_from_yaml.md).
 
 - `creel_message_tz_option_set`:
 

@@ -71,6 +71,37 @@ lengths_table).
 
 
 
+Corrections
+
+
+An optional top-level corrections: key names a CSV of documented fixes to
+the fetched data, read relative to the profile's directory:
+corrections: corrections.csv
+
+creel_uid,table,date,field,from,to,reason
+,counts,2025-06-14,period,1,2,Section 3 counted PM; sheet says AM
+
+Each row changes field from from to to on the table records of that
+date (interviews or counts; catch and lengths carry no date). Names
+and values are tidycreel's, after field_map/columns and value_maps.
+Every row needs a reason. Leave creel_uid blank on a CSV or SQL Server
+profile, or on an API profile with one creel; name the creel on an API
+profile with several. Rows for creels the profile does not fetch are
+ignored, so one file can serve them all.
+NA in from matches a missing value and in to writes one. Quote a
+value that contains a comma.
+fetch_interviews() and fetch_counts() apply them in file order, before
+validation, and list each change once per connection
+(creel_message_corrections_applied) by line, date, field and count. The
+values themselves are not printed, since one can be personal (a ZIP code);
+keep the reason free of them too. The result carries the rows applied,
+with the number of records each changed, as attr(x, &quot;corrections&quot;), for a
+report to list. A correction that matches no record is an error
+(creel_error_correction_unmatched): the data changed underneath it, and it
+has to be checked again rather than silently do nothing.
+
+
+
 Time zone
 
 
@@ -160,6 +191,37 @@ the table names, which the same schema: block carries as
 interviews_table, counts_table, catch_table and
 harvest_lengths_table / release_lengths_table (both falling back to
 lengths_table).
+
+
+
+Corrections
+
+
+An optional top-level corrections: key names a CSV of documented fixes to
+the fetched data, read relative to the profile's directory:
+corrections: corrections.csv
+
+creel_uid,table,date,field,from,to,reason
+,counts,2025-06-14,period,1,2,Section 3 counted PM; sheet says AM
+
+Each row changes field from from to to on the table records of that
+date (interviews or counts; catch and lengths carry no date). Names
+and values are tidycreel's, after field_map/columns and value_maps.
+Every row needs a reason. Leave creel_uid blank on a CSV or SQL Server
+profile, or on an API profile with one creel; name the creel on an API
+profile with several. Rows for creels the profile does not fetch are
+ignored, so one file can serve them all.
+NA in from matches a missing value and in to writes one. Quote a
+value that contains a comma.
+fetch_interviews() and fetch_counts() apply them in file order, before
+validation, and list each change once per connection
+(creel_message_corrections_applied) by line, date, field and count. The
+values themselves are not printed, since one can be personal (a ZIP code);
+keep the reason free of them too. The result carries the rows applied,
+with the number of records each changed, as attr(x, &quot;corrections&quot;), for a
+report to list. A correction that matches no record is an error
+(creel_error_correction_unmatched): the data changed underneath it, and it
+has to be checked again rather than silently do nothing.
 
 
 
@@ -285,6 +347,35 @@ the table names, which the same <code>schema:</code> block carries as
 <code>interviews_table</code>, <code>counts_table</code>, <code>catch_table</code> and
 <code>harvest_lengths_table</code> / <code>release_lengths_table</code> (both falling back to
 <code>lengths_table</code>).</p>
+</div>
+
+<div class="section">
+<h3 id="corrections">Corrections<a class="anchor" aria-label="anchor" href="#corrections"></a></h3>
+
+
+<p>An optional top-level <code>corrections:</code> key names a CSV of documented fixes to
+the fetched data, read relative to the profile's directory:</p>
+<p></p><div class="sourceCode yaml"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">corrections</span><span class="kw">:</span><span class="at"> corrections.csv</span></span></code></pre><p></p></div>
+<p></p><div class="sourceCode"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a>creel_uid,table,date,field,from,to,reason</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>,counts,<span class="dv">2025-06-14</span>,period,<span class="dv">1</span>,<span class="dv">2</span>,Section <span class="dv">3</span> counted PM; sheet says AM</span></code></pre><p></p></div>
+<p>Each row changes <code>field</code> from <code>from</code> to <code>to</code> on the <code>table</code> records of that
+<code>date</code> (<code>interviews</code> or <code>counts</code>; catch and lengths carry no date). Names
+and values are tidycreel's, after <code>field_map</code>/<code>columns</code> and <code>value_maps</code>.
+Every row needs a <code>reason</code>. Leave <code>creel_uid</code> blank on a CSV or SQL Server
+profile, or on an API profile with one creel; name the creel on an API
+profile with several. Rows for creels the profile does not fetch are
+ignored, so one file can serve them all.</p>
+<p><code>NA</code> in <code>from</code> matches a missing value and in <code>to</code> writes one. Quote a
+value that contains a comma.</p>
+<p><code><a href="fetch_interviews.html">fetch_interviews()</a></code> and <code><a href="fetch_counts.html">fetch_counts()</a></code> apply them in file order, before
+validation, and list each change once per connection
+(<code>creel_message_corrections_applied</code>) by line, date, field and count. The
+values themselves are not printed, since one can be personal (a ZIP code);
+keep the <code>reason</code> free of them too. The result carries the rows applied,
+with the number of records each changed, as <code>attr(x, "corrections")</code>, for a
+report to list. A correction that matches no record is an error
+(<code>creel_error_correction_unmatched</code>): the data changed underneath it, and it
+has to be checked again rather than silently do nothing.</p>
 </div>
 
 <div class="section">
