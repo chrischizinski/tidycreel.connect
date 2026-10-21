@@ -27,10 +27,11 @@
 #'   \item{Tier 2}{Worth a look; no estimate is affected.}
 #'   \item{Tier 3}{Information, raised as a message rather than a warning.}
 #' }
-#' Warnings (tiers 1 and 2) print on every call. The two tier-3 notes about
-#' the source's columns, \code{creel_message_columns_dropped} and
-#' \code{creel_message_columns_by_canonical_name}, describe the source rather
-#' than one fetch, so they print once per connection: the first fetch of a
+#' Warnings (tiers 1 and 2) print on every call. The tier-3 notes about the
+#' source, \code{creel_message_columns_dropped},
+#' \code{creel_message_columns_by_canonical_name} and
+#' \code{creel_message_corrections_applied}, describe the source rather than
+#' one fetch, so they print once per connection: the first fetch of a
 #' table prints them, later fetches of that table on the same connection do
 #' not, unless the columns differ. A new connection prints them again. Other
 #' tier-3 messages print on every call. Unlike tidycreel, connect returns data
@@ -71,6 +72,10 @@
 #'     Once per connection.}
 #'   \item{\code{creel_message_columns_dropped}}{Tier 3. Source columns not
 #'     mapped are not carried through. Once per connection.}
+#'   \item{\code{creel_message_corrections_applied}}{Tier 3. A profile's
+#'     corrections file changed fetched values; each change is listed. Once
+#'     per connection. The result also carries them as
+#'     `attr(x, "corrections")`. See [creel_connect_from_yaml()].}
 #'   \item{\code{creel_message_tz_option_set}}{Tier 3. A profile's `tz:` set
 #'     the `tidycreel.tz` option, which was unset, for the session.}
 #' }
@@ -95,6 +100,7 @@ connect_signal_tiers <- c(
   creel_message_argument_ignored = 3L,
   creel_message_columns_by_canonical_name = 3L,
   creel_message_columns_dropped = 3L,
+  creel_message_corrections_applied = 3L,
   creel_message_tz_option_set = 3L
 )
 
@@ -102,7 +108,8 @@ connect_signal_tiers <- c(
 # from one source, so repeating them buries the warnings that matter.
 connect_once_per_connection <- c(
   "creel_message_columns_by_canonical_name",
-  "creel_message_columns_dropped"
+  "creel_message_columns_dropped",
+  "creel_message_corrections_applied"
 )
 
 #' Raise a tier-3 note as a classed message

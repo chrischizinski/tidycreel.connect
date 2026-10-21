@@ -98,6 +98,35 @@ the table names, which the same \verb{schema:} block carries as
 \code{lengths_table}).
 }
 
+\subsection{Corrections}{
+
+An optional top-level \verb{corrections:} key names a CSV of documented fixes to
+the fetched data, read relative to the profile's directory:
+
+\if{html}{\out{<div class="sourceCode yaml">}}\preformatted{corrections: corrections.csv
+}\if{html}{\out{</div>}}
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{creel_uid,table,date,field,from,to,reason
+,counts,2025-06-14,period,1,2,Section 3 counted PM; sheet says AM
+}\if{html}{\out{</div>}}
+
+Each row changes \code{field} from \code{from} to \code{to} on the \code{table} records of that
+\code{date} (\code{interviews} or \code{counts}; catch and lengths carry no date). Names
+and values are tidycreel's, after \code{field_map}/\code{columns} and \code{value_maps}.
+Every row needs a \code{reason}. Leave \code{creel_uid} blank on a CSV or SQL Server
+profile, or on an API profile with one creel; name the creel on an API
+profile with several. Rows for creels the profile does not fetch are
+ignored, so one file can serve them all.
+
+\code{fetch_interviews()} and \code{fetch_counts()} apply them in file order, before
+validation, and list each change once per connection
+(\code{creel_message_corrections_applied}). The result carries the rows applied,
+with the number of records each changed, as \code{attr(x, "corrections")}, for a
+report to list. A correction that matches no record is an error
+(\code{creel_error_correction_unmatched}): the data changed underneath it, and it
+has to be checked again rather than silently do nothing.
+}
+
 \subsection{Time zone}{
 
 An optional top-level \verb{tz:} key names the time zone of the water, as one
