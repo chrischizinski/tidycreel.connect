@@ -26,12 +26,22 @@
   if (!file.exists(path)) {
     cli::cli_abort("The corrections file does not exist: {.file {path}}")
   }
+  # One entry per physical line: NA where a quoted value runs onto the next
+  # line, 0 for a blank line, otherwise the record's field count on its last
+  # line. Used for the ragged-row check and to report real line numbers.
+  n_fields <- utils::count.fields(path, sep = ",", quote = "\"", blank.lines.skip = FALSE)
+  if (length(n_fields) == 0L || is.na(n_fields[[1L]]) || n_fields[[1L]] == 0L) {
+    cli::cli_abort(c(
+      "The corrections file is empty or has no header on line 1: {.file {path}}",
+      "i" = "Line 1 is {.code {paste(.correction_cols(), collapse = \",\")}}."
+    ))
+  }
   # A row with more fields than the header -- a reason with an unquoted
   # comma -- would otherwise be read with its first field as a row name and
   # every value shifted one column left.
-  n_fields <- utils::count.fields(path, sep = ",", quote = "\"", blank.lines.skip = TRUE)
-  if (any(n_fields != n_fields[[1L]])) {
-    lines <- which(n_fields != n_fields[[1L]]) # nolint: object_usage_linter
+  ragged <- !is.na(n_fields) & n_fields != 0L & n_fields != n_fields[[1L]]
+  if (any(ragged)) {
+    lines <- which(ragged) # nolint: object_usage_linter
     cli::cli_abort(c(
       "The corrections file has a different number of fields on \\
        {cli::qty(length(lines))}line{?s} {lines}: {.file {path}}",
@@ -51,7 +61,14 @@
     ))
   }
   cx <- cx[.correction_cols()]
-  row <- seq_len(nrow(cx)) + 1L # the line in the file, after the header
+  # The line each record starts on, counting blank lines and the continuation
+  # lines of a quoted multi-line value, so an error points at the right row.
+  ends <- which(!is.na(n_fields) & n_fields > 0L)[-1L]
+  row <- vapply(ends, function(e) {
+    while (e > 2L && is.na(n_fields[[e - 1L]])) e <- e - 1L
+    e
+  }, integer(1L))
+  cx$line <- row
 
   .refuse_rows <- function(bad, what, hint) {
     if (any(bad)) {
@@ -95,6 +112,10 @@
   cx
 }
 
+# Internal: the literal NA in a corrections file stands for a missing value,
+# so a correction can fill a missing value or clear a wrong one.
+.correction_is_na <- function(x) identical(x, "NA")
+
 # Internal: apply a connection's corrections for one table, in file order.
 # Runs on canonical names and values (after rename and value maps), before
 # validation, so a correction is written in tidycreel's terms and its result is
@@ -113,31 +134,39 @@
     field <- cx$field[[i]]
     if (!field %in% names(df)) {
       cli::cli_abort(c(
-        "A correction names {.field {field}}, which the fetched {table} does not have.",
+        "The correction on line {cx$line[[i]]} names {.field {field}}, which the fetched {table} does not have.",
         "i" = "Corrections use tidycreel's column names, after the field map."
       ), class = "creel_error_correction_unmatched")
     }
-    hit <- as.character(df$date) == cx$date[[i]] & as.character(df[[field]]) == cx$from[[i]]
+    from_hit <- if (.correction_is_na(cx$from[[i]])) {
+      is.na(df[[field]])
+    } else {
+      as.character(df[[field]]) == cx$from[[i]]
+    }
+    hit <- as.character(df$date) == cx$date[[i]] & from_hit
     if (nzchar(cx$creel_uid[[i]]) && "creel_uid" %in% names(df)) {
       hit <- hit & df$creel_uid == cx$creel_uid[[i]]
     }
     hit <- hit %in% TRUE
     if (!any(hit)) {
       cli::cli_abort(c(
-        "A correction to {table} matched no rows: {.field {field}} {.val {cx$from[[i]]}} on {cx$date[[i]]}.",
+        "The correction on line {cx$line[[i]]} matched no {table} rows ({.field {field}} on {cx$date[[i]]}).",
         "x" = "The data changed underneath it, so it can no longer be applied as written.",
         "i" = "Check the record, then update or remove the correction."
       ), class = "creel_error_correction_unmatched")
     }
-    df[[field]][hit] <- .correction_value(cx$to[[i]], df[[field]], field)
+    df[[field]][hit] <- .correction_value(cx$to[[i]], df[[field]], field, cx$line[[i]])
     n_rows[[i]] <- sum(hit)
   }
 
   applied <- cbind(cx, n_rows = n_rows)
+  # Names, dates and counts only: a value can be personal (a ZIP code), and
+  # this message reaches console logs and rendered reports. The values are in
+  # the attribute, for whoever is entitled to see them.
   lines <- sprintf(
-    "%s%s: %s %s -> %s on %d row%s (%s)",
-    ifelse(nzchar(cx$creel_uid), paste0(cx$creel_uid, " "), ""),
-    cx$date, cx$field, cx$from, cx$to, n_rows, ifelse(n_rows == 1L, "", "s"), cx$reason
+    "line %d, %s%s: %s on %d row%s (%s)",
+    cx$line, ifelse(nzchar(cx$creel_uid), paste0(cx$creel_uid, " "), ""),
+    cx$date, cx$field, n_rows, ifelse(n_rows == 1L, "", "s"), cx$reason
   )
   # Values come from the file; doubled braces keep cli from reading them as code.
   lines <- gsub("([{}])", "\\1\\1", lines)
@@ -148,7 +177,7 @@
     ),
     class = "creel_message_corrections_applied",
     conn = conn,
-    key = c(table, lines)
+    key = c(table, lines, cx$from, cx$to)
   )
   attr(df, "corrections") <- applied
   df
@@ -156,7 +185,10 @@
 
 # Internal: a correction's `to`, as the column's type. A value the type cannot
 # hold aborts rather than writing NA over a record.
-.correction_value <- function(to, column, field) {
+.correction_value <- function(to, column, field, line) {
+  if (.correction_is_na(to)) {
+    return(column[NA_integer_])
+  }
   out <- if (inherits(column, "Date")) {
     as.Date(to, format = "%Y-%m-%d")
   } else if (is.numeric(column)) {
@@ -169,7 +201,7 @@
   if (is.na(out)) {
     type <- class(column)[[1L]] # nolint: object_usage_linter
     cli::cli_abort(
-      "A correction's {.field to} value {.val {to}} cannot be read as {type} for {.field {field}}."
+      "The correction on line {line}: its {.field to} cannot be read as {type} for {.field {field}}."
     )
   }
   out

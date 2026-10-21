@@ -99,9 +99,14 @@
 #' profile with several. Rows for creels the profile does not fetch are
 #' ignored, so one file can serve them all.
 #'
+#' `NA` in `from` matches a missing value and in `to` writes one. Quote a
+#' value that contains a comma.
+#'
 #' `fetch_interviews()` and `fetch_counts()` apply them in file order, before
 #' validation, and list each change once per connection
-#' (`creel_message_corrections_applied`). The result carries the rows applied,
+#' (`creel_message_corrections_applied`) by line, date, field and count. The
+#' values themselves are not printed, since one can be personal (a ZIP code);
+#' keep the `reason` free of them too. The result carries the rows applied,
 #' with the number of records each changed, as `attr(x, "corrections")`, for a
 #' report to list. A correction that matches no record is an error
 #' (`creel_error_correction_unmatched`): the data changed underneath it, and it
@@ -179,7 +184,9 @@ creel_connect_from_yaml <- function(path, config = "default") {
 # directory unless absolute, so the profile and its files move together.
 #' @noRd
 .profile_relative <- function(p, path) {
-  if (grepl("^(/|~|[A-Za-z]:[/\\\\])", p)) p else file.path(dirname(path), p)
+  # Absolute: `/`, `~`, a drive (`C:/`, `C:\`) or a UNC share (`\\server`).
+  absolute <- grepl("^(/|~|[A-Za-z]:[/\\\\]|\\\\\\\\)", p)
+  if (absolute) p else file.path(dirname(path), p)
 }
 
 # Internal: set options(tidycreel.tz) from a profile's tz, when unset

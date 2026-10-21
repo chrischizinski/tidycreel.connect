@@ -8,6 +8,8 @@
   values, and list each change once per connection
   (`creel_message_corrections_applied`); the result carries the rows
   applied, with how many records each changed, as `attr(x, "corrections")`.
+  The note names line, date, field and count, never the values, which can
+  be personal. `NA` in `from` or `to` stands for a missing value.
   A correction that matches no record stops the fetch
   (`creel_error_correction_unmatched`), because the data changed underneath
   it. Every row needs a reason; malformed rows, including a reason with an

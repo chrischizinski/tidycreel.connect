@@ -35,7 +35,7 @@ test_that("a correction changes exactly the matching rows, and says so", {
   ))
   expect_message(
     counts <- fetch_counts(conn),
-    "bank_anglers 12 -> 14 on 1 row",
+    "line 2, 2024-06-01: bank_anglers on 1 row",
     class = "creel_message_corrections_applied"
   )
   expect_equal(counts$bank_anglers, c(14, 8))
@@ -82,7 +82,7 @@ test_that("a correction that matches nothing stops the fetch", {
   ))
   expect_error(
     quiet_fetch(fetch_counts, conn),
-    "matched no rows",
+    "line 2 matched no counts rows",
     class = "creel_error_correction_unmatched"
   )
 })
@@ -147,6 +147,83 @@ test_that("an unquoted comma in a reason is refused, not read shifted", {
     )),
     "different number of fields on line 2"
   )
+})
+
+test_that("the note names fields and counts, never the values", {
+  skip_if_not_installed("config")
+  skip_if_not_installed("withr")
+  # A value can be personal (a ZIP code), and the note reaches logs and
+  # rendered reports. The values stay in the attribute.
+  conn <- creel_connect_from_yaml(corrections_profile(
+    make_test_csv(), ",counts,2024-06-01,bank_anglers,12,14567,Recount"
+  ))
+  msg <- NULL
+  counts <- withCallingHandlers(
+    fetch_counts(conn),
+    creel_message_columns_by_canonical_name = function(m) invokeRestart("muffleMessage"),
+    creel_message_corrections_applied = function(m) {
+      msg <<- conditionMessage(m)
+      invokeRestart("muffleMessage")
+    }
+  )
+  expect_match(msg, "bank_anglers")
+  expect_no_match(msg, "14567")
+  expect_identical(attr(counts, "corrections")$to, "14567")
+})
+
+test_that("NA in a correction stands for a missing value", {
+  skip_if_not_installed("config")
+  skip_if_not_installed("withr")
+  paths <- make_test_csv()
+  ct <- utils::read.csv(paths$counts)
+  ct$angler_boats[[2]] <- NA
+  utils::write.csv(ct, paths$counts, row.names = FALSE)
+  conn <- creel_connect_from_yaml(corrections_profile(paths, c(
+    ",counts,2024-06-02,angler_boats,NA,3,Filled from the boat log",
+    ",counts,2024-06-01,non_ang_boats,0,NA,Sheet illegible"
+  )))
+  counts <- quiet_fetch(fetch_counts, conn)
+  expect_equal(counts$angler_boats, c(0, 3))
+  expect_equal(counts$non_ang_boats, c(NA, 0))
+})
+
+test_that("line numbers count blank lines and multi-line reasons", {
+  skip_if_not_installed("config")
+  skip_if_not_installed("withr")
+  # The row at fault is on line 6: header, a two-line quoted reason, a blank
+  # line, then a valid row, then the one with no reason.
+  expect_error(
+    creel_connect_from_yaml(corrections_profile(make_test_csv(), c(
+      ',counts,2024-06-01,bank_anglers,12,14,"Recount,',
+      'second line"',
+      "",
+      ",counts,2024-06-02,bank_anglers,8,9,Recount",
+      ",counts,2024-06-02,angler_boats,0,1,"
+    ))),
+    "no reason on line 6"
+  )
+  # And a multi-line reason on its own is read, not refused.
+  conn <- creel_connect_from_yaml(corrections_profile(
+    make_test_csv(),
+    c(',counts,2024-06-01,bank_anglers,12,14,"Recount,', 'second line"')
+  ))
+  expect_equal(quiet_fetch(fetch_counts, conn)$bank_anglers, c(14, 8))
+})
+
+test_that("an empty corrections file is refused with a reason", {
+  skip_if_not_installed("config")
+  skip_if_not_installed("withr")
+  yaml_path <- corrections_profile(make_test_csv(), character(0))
+  writeLines(character(0), file.path(dirname(yaml_path), "corrections.csv"))
+  expect_error(creel_connect_from_yaml(yaml_path), "empty or has no header")
+})
+
+test_that("absolute corrections paths are not read relative to the profile", {
+  rel <- tidycreel.connect:::.profile_relative
+  expect_identical(rel("/srv/c.csv", "/p/x.yml"), "/srv/c.csv")
+  expect_identical(rel("C:/c.csv", "/p/x.yml"), "C:/c.csv")
+  expect_identical(rel("\\\\server\\share\\c.csv", "/p/x.yml"), "\\\\server\\share\\c.csv")
+  expect_identical(rel("c.csv", "/p/x.yml"), file.path("/p", "c.csv"))
 })
 
 test_that("a value the column cannot hold is refused, not written as NA", {
