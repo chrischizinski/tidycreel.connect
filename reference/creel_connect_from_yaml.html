@@ -69,6 +69,28 @@ interviews_table, counts_table, catch_table and
 harvest_lengths_table / release_lengths_table (both falling back to
 lengths_table).
 
+
+
+Time zone
+
+
+An optional top-level tz: key names the time zone of the water, as one
+IANA name from OlsonNames():
+tz: America/Chicago
+
+Night designs need one (see tidycreel::creel_design()), and the profile is
+where the water is described, so it saves repeating the zone in every
+script. The value is checked when the profile is read, kept on the
+connection as conn$tz, and, when the tidycreel.tz option is unset, set
+as that option for the session, with a one-line message saying so.
+tidycreel reads a tz = argument before the option, so an explicit
+argument always wins.
+An option already set to a different zone is kept, with a warning: it was
+set on purpose, perhaps by another profile, and replacing it silently would
+move that water's night designs into this one's zone. Pass
+tz = conn$tz to tidycreel::creel_design() for the water this profile
+describes.
+
 "><meta property="og:description" content="creel_connect_from_yaml() reads a YAML configuration file and creates a
 validated creel_connection object. All required keys and types are
 validated before any connection is attempted (fail-fast).
@@ -138,6 +160,28 @@ the table names, which the same schema: block carries as
 interviews_table, counts_table, catch_table and
 harvest_lengths_table / release_lengths_table (both falling back to
 lengths_table).
+
+
+
+Time zone
+
+
+An optional top-level tz: key names the time zone of the water, as one
+IANA name from OlsonNames():
+tz: America/Chicago
+
+Night designs need one (see tidycreel::creel_design()), and the profile is
+where the water is described, so it saves repeating the zone in every
+script. The value is checked when the profile is read, kept on the
+connection as conn$tz, and, when the tidycreel.tz option is unset, set
+as that option for the session, with a one-line message saying so.
+tidycreel reads a tz = argument before the option, so an explicit
+argument always wins.
+An option already set to a different zone is kept, with a warning: it was
+set on purpose, perhaps by another profile, and replacing it silently would
+move that water's night designs into this one's zone. Pass
+tz = conn$tz to tidycreel::creel_design() for the water this profile
+describes.
 
 "><meta property="og:image" content="https://chrischizinski.com/tidycreel.connect/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -241,6 +285,27 @@ the table names, which the same <code>schema:</code> block carries as
 <code>interviews_table</code>, <code>counts_table</code>, <code>catch_table</code> and
 <code>harvest_lengths_table</code> / <code>release_lengths_table</code> (both falling back to
 <code>lengths_table</code>).</p>
+</div>
+
+<div class="section">
+<h3 id="time-zone">Time zone<a class="anchor" aria-label="anchor" href="#time-zone"></a></h3>
+
+
+<p>An optional top-level <code>tz:</code> key names the time zone of the water, as one
+IANA name from <code><a href="https://rdrr.io/r/base/timezones.html" class="external-link">OlsonNames()</a></code>:</p>
+<p></p><div class="sourceCode yaml"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">tz</span><span class="kw">:</span><span class="at"> America/Chicago</span></span></code></pre><p></p></div>
+<p>Night designs need one (see <code><a href="https://chrischizinski.com/tidycreel/reference/creel_design.html" class="external-link">tidycreel::creel_design()</a></code>), and the profile is
+where the water is described, so it saves repeating the zone in every
+script. The value is checked when the profile is read, kept on the
+connection as <code>conn$tz</code>, and, when the <code>tidycreel.tz</code> option is unset, set
+as that option for the session, with a one-line message saying so.
+tidycreel reads a <code>tz =</code> argument before the option, so an explicit
+argument always wins.</p>
+<p>An option already set to a different zone is kept, with a warning: it was
+set on purpose, perhaps by another profile, and replacing it silently would
+move that water's night designs into this one's zone. Pass
+<code>tz = conn$tz</code> to <code><a href="https://chrischizinski.com/tidycreel/reference/creel_design.html" class="external-link">tidycreel::creel_design()</a></code> for the water this profile
+describes.</p>
 </div>
 
     </div>

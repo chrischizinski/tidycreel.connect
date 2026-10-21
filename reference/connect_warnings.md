@@ -71,6 +71,13 @@ returns data frames rather than designs, so nothing is recorded for
   Tier 1. Counts have repeated dates with no count time to tell them
   apart.
 
+- `creel_warning_tz_option_differs`:
+
+  Tier 1. A profile's `tz:` differs from the `tidycreel.tz` option
+  already set, which is kept, so a night design given no `tz` is read in
+  the option's zone, not the profile's. See
+  [`creel_connect_from_yaml()`](https://chrischizinski.com/tidycreel.connect/reference/creel_connect_from_yaml.md).
+
 - `creel_warning_bins_without_count`:
 
   Tier 1. Length bins were fetched without a fish count, so a
@@ -103,3 +110,8 @@ returns data frames rather than designs, so nothing is recorded for
 
   Tier 3. Source columns not mapped are not carried through. Once per
   connection.
+
+- `creel_message_tz_option_set`:
+
+  Tier 3. A profile's `tz:` set the `tidycreel.tz` option, which was
+  unset, for the session.

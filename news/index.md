@@ -2,6 +2,23 @@
 
 ## tidycreel.connect (development version)
 
+- A YAML profile can name the water’s time zone with a top-level `tz:`
+  key
+  ([\#5](https://github.com/chrischizinski/tidycreel.connect/issues/5)),
+  one IANA name from
+  [`OlsonNames()`](https://rdrr.io/r/base/timezones.html), which night
+  designs need (tidycreel#407).
+  [`creel_connect_from_yaml()`](https://chrischizinski.com/tidycreel.connect/reference/creel_connect_from_yaml.md)
+  checks it when the profile is read, keeps it on the connection as
+  `conn$tz`, and sets `options(tidycreel.tz)` for the session when that
+  option is unset, with a one-line message
+  (`creel_message_tz_option_set`). An option already set to a different
+  zone is kept, with a warning (`creel_warning_tz_option_differs`):
+  replacing it could move another water’s night designs into this one’s
+  zone. A `tz =` argument to
+  [`tidycreel::creel_design()`](https://chrischizinski.com/tidycreel/reference/creel_design.html)
+  still wins over both.
+
 - Date parsing no longer depends on row order
   ([\#13](https://github.com/chrischizinski/tidycreel.connect/issues/13)).
   An unreadable date in the first row aborted the fetch with an

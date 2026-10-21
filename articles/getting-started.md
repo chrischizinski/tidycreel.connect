@@ -362,11 +362,11 @@ conn
 #> <creel_connection: csv>
 #> Status: ready
 #> Backend: CSV
-#> interviews → /tmp/RtmpM3M75w/file1f4136a0a668/interviews.csv
-#> counts → /tmp/RtmpM3M75w/file1f4136a0a668/counts.csv
-#> catch → /tmp/RtmpM3M75w/file1f4136a0a668/catch.csv
-#> harvest_lengths → /tmp/RtmpM3M75w/file1f4136a0a668/lengths.csv
-#> release_lengths → /tmp/RtmpM3M75w/file1f4136a0a668/lengths.csv
+#> interviews → /tmp/RtmpGgc594/file1e4f3c28e73c/interviews.csv
+#> counts → /tmp/RtmpGgc594/file1e4f3c28e73c/counts.csv
+#> catch → /tmp/RtmpGgc594/file1e4f3c28e73c/catch.csv
+#> harvest_lengths → /tmp/RtmpGgc594/file1e4f3c28e73c/lengths.csv
+#> release_lengths → /tmp/RtmpGgc594/file1e4f3c28e73c/lengths.csv
 #> Schema: <creel_schema: instantaneous>
 #> 
 #> ── interviews: vwInterviews ──

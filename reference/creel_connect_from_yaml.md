@@ -83,6 +83,29 @@ carries as `interviews_table`, `counts_table`, `catch_table` and
 `harvest_lengths_table` / `release_lengths_table` (both falling back to
 `lengths_table`).
 
+### Time zone
+
+An optional top-level `tz:` key names the time zone of the water, as one
+IANA name from [`OlsonNames()`](https://rdrr.io/r/base/timezones.html):
+
+    tz: America/Chicago
+
+Night designs need one (see
+[`tidycreel::creel_design()`](https://chrischizinski.com/tidycreel/reference/creel_design.html)),
+and the profile is where the water is described, so it saves repeating
+the zone in every script. The value is checked when the profile is read,
+kept on the connection as `conn$tz`, and, when the `tidycreel.tz` option
+is unset, set as that option for the session, with a one-line message
+saying so. tidycreel reads a `tz =` argument before the option, so an
+explicit argument always wins.
+
+An option already set to a different zone is kept, with a warning: it
+was set on purpose, perhaps by another profile, and replacing it
+silently would move that water's night designs into this one's zone.
+Pass `tz = conn$tz` to
+[`tidycreel::creel_design()`](https://chrischizinski.com/tidycreel/reference/creel_design.html)
+for the water this profile describes.
+
 ## Usage
 
 ``` r

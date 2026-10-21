@@ -128,6 +128,12 @@ sometimes by coercing or mapping values to the same value.</p></dd>
 <dd><p>Tier 1. Counts have
 repeated dates with no count time to tell them apart.</p></dd>
 
+<dt><code>creel_warning_tz_option_differs</code></dt>
+<dd><p>Tier 1. A profile's <code>tz:</code>
+differs from the <code>tidycreel.tz</code> option already set, which is kept, so a
+night design given no <code>tz</code> is read in the option's zone, not the
+profile's. See <code><a href="creel_connect_from_yaml.html">creel_connect_from_yaml()</a></code>.</p></dd>
+
 <dt><code>creel_warning_bins_without_count</code></dt>
 <dd><p>Tier 1. Length bins were
 fetched without a fish count, so a distribution built from them is
@@ -159,6 +165,10 @@ Once per connection.</p></dd>
 <dt><code>creel_message_columns_dropped</code></dt>
 <dd><p>Tier 3. Source columns not
 mapped are not carried through. Once per connection.</p></dd>
+
+<dt><code>creel_message_tz_option_set</code></dt>
+<dd><p>Tier 3. A profile's <code>tz:</code> set
+the <code>tidycreel.tz</code> option, which was unset, for the session.</p></dd>
 
 
 </dl></div>
