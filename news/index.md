@@ -2,6 +2,19 @@
 
 ## tidycreel.connect (development version)
 
+- Date parsing no longer depends on row order
+  ([\#13](https://github.com/chrischizinski/tidycreel.connect/issues/13)).
+  An unreadable date in the first row aborted the fetch with an
+  unclassed “character string is not in a standard unambiguous format”,
+  because [`as.Date()`](https://rdrr.io/r/base/as.Date.html) takes its
+  format from the first value; the same value further down became `NA`
+  with a warning. The format is now taken from the first value that
+  reads, so an unreadable value is `NA` with
+  `creel_warning_dates_coerced_na` wherever it sits. Columns that
+  already parsed are read exactly as before. On the API backend an
+  unreadable date below the first row used to become `NA` with no
+  warning at all; it now warns too.
+
 - [`fetch_interviews()`](https://chrischizinski.com/tidycreel.connect/reference/fetch_interviews.md)
   warns when the fetch itself makes rows exact duplicates
   ([\#1](https://github.com/chrischizinski/tidycreel.connect/issues/1)),
