@@ -66,3 +66,4 @@ the day's effort is summed rather than averaged to a daily mean, and the
 within-day variance component is never computed (GH #129). \code{fetch_counts()}
 warns when it returns repeat rows and no count time was mapped.
 }
+
