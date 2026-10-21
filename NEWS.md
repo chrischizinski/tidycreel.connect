@@ -1,5 +1,14 @@
 # tidycreel.connect (development version)
 
+* An empty API response to `fetch_interviews()` now has the same columns as
+  one with rows (#19). It carried only the five core columns, while a
+  response with rows also carries every optional field `api_field_map`
+  names (`n_anglers`, `site`, `refused`, ...) and any strata, so a script
+  that selected one of them failed only on a day with no interviews. Each
+  optional column is now present, empty and typed as on the non-empty path,
+  whenever the field map names it, as the counts and lengths fetches already
+  did.
+
 * An API connection to several creels no longer pools them (#2). Every UID
   in `creel_uids` was sent in one request, and no canonical column took the
   creel id the payload carried, so several waters' interviews, counts and
