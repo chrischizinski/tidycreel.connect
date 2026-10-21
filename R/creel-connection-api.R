@@ -95,7 +95,8 @@
 #'   carries it as `creel_uid`, so several creels arrive labelled rather than
 #'   pooled. Several UIDs cost one request (and its pages) per UID.
 #' @param schema A `creel_schema` object created by [tidycreel::creel_schema()].
-#' @param uid_param Query parameter name for the creel UID list. Example:
+#' @param uid_param Query parameter name for the creel UID, sent with one UID
+#'   per request. Example:
 #'   `"survey_id"`.
 #' @param endpoints Named list of endpoint paths, relative to `base_url`.
 #'   **Required.** Valid names: `interviews`, `counts`, `catch`,

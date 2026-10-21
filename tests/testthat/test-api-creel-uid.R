@@ -145,3 +145,31 @@ test_that("discovery is not split by creel and gains no label", {
   expect_identical(n, 1L)
   expect_false(".creel_uid" %in% names(got))
 })
+
+test_that("two creels counted on one date are not called repeat counts", {
+  # The repeat warning says a day was looked at twice. Two creels on one date
+  # are two days on two waters; the label is what tells them apart.
+  httr2::local_mocked_responses(function(req) {
+    json_response(paste0(
+      '[{"SurveyDate":"2016-03-28","ShoreAnglers":12,',
+      '"FishingBoats":2,"OtherBoats":1}]'
+    ))
+  })
+  expect_no_warning(
+    fetch_counts(two_creel_conn()),
+    class = "creel_warning_repeated_sampling_units"
+  )
+  # Within one creel a repeated date still warns.
+  httr2::local_mocked_responses(function(req) {
+    json_response(paste0(
+      '[{"SurveyDate":"2016-03-28","ShoreAnglers":12,',
+      '"FishingBoats":2,"OtherBoats":1},',
+      '{"SurveyDate":"2016-03-28","ShoreAnglers":9,',
+      '"FishingBoats":1,"OtherBoats":0}]'
+    ))
+  })
+  expect_warning(
+    fetch_counts(two_creel_conn("creel-a")),
+    class = "creel_warning_repeated_sampling_units"
+  )
+})

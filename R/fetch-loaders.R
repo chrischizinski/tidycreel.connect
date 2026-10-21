@@ -411,8 +411,12 @@
   }
   # Keyed on date plus whatever strata came through, which is how add_counts()
   # keys its own sampling unit. Two rows on one date in different strata are two
-  # units, not a repeat, and warning about those would be noise.
-  key_cols <- c("date", intersect(names(schema$strata_cols), names(df)))
+  # units, not a repeat, and warning about those would be noise. The same holds
+  # for two creels counted on one date: their rows are labelled apart (GH #2).
+  key_cols <- c(
+    intersect("creel_uid", names(df)), "date",
+    intersect(names(schema$strata_cols), names(df))
+  )
   n_repeat <- sum(duplicated(df[, key_cols, drop = FALSE]))
   if (n_repeat == 0L) {
     return(invisible(NULL))

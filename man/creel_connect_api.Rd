@@ -28,7 +28,8 @@ pooled. Several UIDs cost one request (and its pages) per UID.}
 
 \item{schema}{A \code{creel_schema} object created by \code{\link[tidycreel:creel_schema]{tidycreel::creel_schema()}}.}
 
-\item{uid_param}{Query parameter name for the creel UID list. Example:
+\item{uid_param}{Query parameter name for the creel UID, sent with one UID
+per request. Example:
 \code{"survey_id"}.}
 
 \item{endpoints}{Named list of endpoint paths, relative to \code{base_url}.
