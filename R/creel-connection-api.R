@@ -1559,13 +1559,20 @@ creel_connect_api <- function(
 # Parse a date column that may arrive as "YYYY-MM-DD", "YYYY-MM-DDTHH:MM:SS",
 # or ISO 8601 with timezone suffix ("...Z" or "...+HH:MM" / "...-HH:MM").
 #' @noRd
-.parse_api_date <- function(x) {
+.parse_api_date <- function(x, col_name = "date") {
   # Strip trailing timezone suffix from datetime strings before parsing
   x_clean <- sub("T(\\d{2}:\\d{2}:\\d{2})([Zz]|[+-]\\d{2}:\\d{2})$", "T\\1", x)
-  result  <- suppressWarnings(as.Date(x_clean, tryFormats = c("%Y-%m-%d", "%m/%d/%Y")))
+  # Same one-format rule as the CSV path (#13): an unreadable first value no
+  # longer aborts the fetch.
+  result  <- .parse_date_formats(
+    as.character(x_clean), c("%Y-%m-%d", "%m/%d/%Y")
+  )
   na_mask <- is.na(result) & !is.na(x_clean)
   if (any(na_mask)) {
     result[na_mask] <- as.Date(strptime(x_clean[na_mask], "%Y-%m-%dT%H:%M:%S"))
   }
+  # Without this an unreadable API date became NA silently, where the CSV path
+  # warned.
+  .warn_dates_coerced_na(result, x, col_name)
   result
 }

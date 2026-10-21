@@ -125,8 +125,6 @@ test_that("a classed note can be handled alone, leaving the warnings", {
   # fetch: that is what suppressMessages()-style silencing gets wrong.
   conn <- dropping_conn(make_test_csv())
   iv <- utils::read.csv(conn$con$interviews)
-  # Row 2: as.Date() picks its format from the first value, so a bad first
-  # date is a different (unclassed) error, not this warning.
   iv$date[[2]] <- "not a date"
   utils::write.csv(iv, conn$con$interviews, row.names = FALSE)
   expect_warning(
