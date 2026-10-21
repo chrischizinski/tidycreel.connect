@@ -97,6 +97,29 @@ the table names, which the same \verb{schema:} block carries as
 \code{harvest_lengths_table} / \code{release_lengths_table} (both falling back to
 \code{lengths_table}).
 }
+
+\subsection{Time zone}{
+
+An optional top-level \verb{tz:} key names the time zone of the water, as one
+IANA name from \code{\link[=OlsonNames]{OlsonNames()}}:
+
+\if{html}{\out{<div class="sourceCode yaml">}}\preformatted{tz: America/Chicago
+}\if{html}{\out{</div>}}
+
+Night designs need one (see \code{\link[tidycreel:creel_design]{tidycreel::creel_design()}}), and the profile is
+where the water is described, so it saves repeating the zone in every
+script. The value is checked when the profile is read, kept on the
+connection as \code{conn$tz}, and, when the \code{tidycreel.tz} option is unset, set
+as that option for the session, with a one-line message saying so.
+tidycreel reads a \verb{tz =} argument before the option, so an explicit
+argument always wins.
+
+An option already set to a different zone is kept, with a warning: it was
+set on purpose, perhaps by another profile, and replacing it silently would
+move that water's night designs into this one's zone. Pass
+\code{tz = conn$tz} to \code{\link[tidycreel:creel_design]{tidycreel::creel_design()}} for the water this profile
+describes.
+}
 }
 \examples{
 \dontrun{

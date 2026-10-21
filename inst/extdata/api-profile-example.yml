@@ -14,6 +14,11 @@
 default:
   backend: api
 
+  # Optional: the water's time zone, one name from OlsonNames(). Night designs
+  # need one. Sets options(tidycreel.tz) for the session when it is unset; a
+  # different value already set is kept, with a warning.
+  # tz: "America/Chicago"
+
   # Base URL and the query parameter your API filters surveys by:
   #   GET {base_url}/{endpoint}?{uid_param}={creel_uids joined by commas}
   base_url: "https://api.example.org/creel/"
