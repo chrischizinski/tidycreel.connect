@@ -210,6 +210,18 @@ test_that("line numbers count blank lines and multi-line reasons", {
   expect_equal(quiet_fetch(fetch_counts, conn)$bank_anglers, c(14, 8))
 })
 
+test_that("numbers match by value and # is not a comment", {
+  skip_if_not_installed("config")
+  skip_if_not_installed("withr")
+  # `12.0` is the stored 12; matched as text it was "the data changed".
+  conn <- creel_connect_from_yaml(corrections_profile(
+    make_test_csv(), ",counts,2024-06-01,bank_anglers,12.0,14,Recount at Dock#1"
+  ))
+  counts <- quiet_fetch(fetch_counts, conn)
+  expect_equal(counts$bank_anglers, c(14, 8))
+  expect_identical(attr(counts, "corrections")$reason, "Recount at Dock#1")
+})
+
 test_that("an empty corrections file is refused with a reason", {
   skip_if_not_installed("config")
   skip_if_not_installed("withr")

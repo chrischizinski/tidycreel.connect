@@ -29,7 +29,10 @@
   # One entry per physical line: NA where a quoted value runs onto the next
   # line, 0 for a blank line, otherwise the record's field count on its last
   # line. Used for the ragged-row check and to report real line numbers.
-  n_fields <- utils::count.fields(path, sep = ",", quote = "\"", blank.lines.skip = FALSE)
+  # comment.char = "" as read.csv() has it: a value like Dock#1 is not a comment.
+  n_fields <- utils::count.fields(
+    path, sep = ",", quote = "\"", comment.char = "", blank.lines.skip = FALSE
+  )
   if (length(n_fields) == 0L || is.na(n_fields[[1L]]) || n_fields[[1L]] == 0L) {
     cli::cli_abort(c(
       "The corrections file is empty or has no header on line 1: {.file {path}}",
@@ -141,7 +144,9 @@
     from_hit <- if (.correction_is_na(cx$from[[i]])) {
       is.na(df[[field]])
     } else {
-      as.character(df[[field]]) == cx$from[[i]]
+      # Compared in the column's type, so `12.0` matches a stored 12; text
+      # would not.
+      df[[field]] == .correction_value(cx$from[[i]], df[[field]], field, cx$line[[i]], "from")
     }
     hit <- as.character(df$date) == cx$date[[i]] & from_hit
     if (nzchar(cx$creel_uid[[i]]) && "creel_uid" %in% names(df)) {
@@ -185,7 +190,7 @@
 
 # Internal: a correction's `to`, as the column's type. A value the type cannot
 # hold aborts rather than writing NA over a record.
-.correction_value <- function(to, column, field, line) {
+.correction_value <- function(to, column, field, line, which = "to") {
   if (.correction_is_na(to)) {
     return(column[NA_integer_])
   }
@@ -201,7 +206,7 @@
   if (is.na(out)) {
     type <- class(column)[[1L]] # nolint: object_usage_linter
     cli::cli_abort(
-      "The correction on line {line}: its {.field to} cannot be read as {type} for {.field {field}}."
+      "The correction on line {line}: its {.field {which}} cannot be read as {type} for {.field {field}}."
     )
   }
   out
