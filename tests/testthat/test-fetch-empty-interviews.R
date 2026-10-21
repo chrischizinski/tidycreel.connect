@@ -61,9 +61,10 @@ test_that("an empty response has the same columns and types as a full one", {
 
   expect_identical(nrow(empty), 0L)
   # Compared against the fetch with rows rather than a list written here, so
-  # a type changed on one path and not the other fails this test.
-  expect_identical(sort(names(empty)), sort(names(full)))
-  classes <- function(df) lapply(df[sort(names(df))], class)
+  # a type changed on one path and not the other fails this test. Strata
+  # excepted: see the next test.
+  expect_identical(sort(names(empty)), sort(setdiff(names(full), "day_type")))
+  classes <- function(df) lapply(df[sort(names(empty))], class)
   expect_identical(classes(empty), classes(full))
 })
 
@@ -75,5 +76,19 @@ test_that("an empty response omits the optional fields the map does not name", {
   mock_body("[]")
   empty <- fetch_interviews(full_conn(fm))
   expect_false(any(unnamed %in% names(empty)))
-  expect_true(all(c("site", "refused", "day_type") %in% names(empty)))
+  expect_true(all(c("site", "refused") %in% names(empty)))
+})
+
+test_that("strata stay out of an empty response rather than guess a type", {
+  # A stratum keeps the source's type: a numeric code here. A zero-length
+  # column of any one type would refuse to bind with some source's populated
+  # fetch, so the column is left out, as before #19.
+  mock_body(paste0(
+    '[{"InterviewID":"A1","SurveyDate":"2016-03-28","TripStatus":"complete",',
+    '"HoursFished":2,"DayType":1}]'
+  ))
+  full <- suppressMessages(fetch_interviews(full_conn()))
+  expect_type(full$day_type, "integer")
+  mock_body("[]")
+  expect_false("day_type" %in% names(fetch_interviews(full_conn())))
 })
