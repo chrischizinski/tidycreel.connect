@@ -34,14 +34,15 @@ per request. Example:
 
 \item{endpoints}{Named list of endpoint paths, relative to \code{base_url}.
 \strong{Required.} Valid names: \code{interviews}, \code{counts}, \code{catch},
-\code{harvest_lengths}, \code{release_lengths}, \code{discovery}. Supply the endpoints
-you intend to fetch; the matching \verb{fetch_*()} aborts for any you omit.}
+\code{harvest_lengths}, \code{release_lengths}, \code{discovery}, and the design tables
+read by \code{\link[=fetch_design]{fetch_design()}}: \code{design_general}, \code{design_periods},
+\code{design_sections}, \code{design_special_dates}. Supply the endpoints you
+intend to fetch; the matching \verb{fetch_*()} aborts for any you omit.}
 
 \item{auth}{Authentication spec (see Description). Default: \code{NULL}.}
 
 \item{api_field_map}{Named list of raw JSON field names, keyed by endpoint
-(\code{interviews}, \code{counts}, \code{catch}, \code{harvest_lengths}, \code{release_lengths},
-\code{discovery}). \strong{Required.} Within each endpoint, name the raw field that
+(the same names as \code{endpoints}). \strong{Required.} Within each endpoint, name the raw field that
 holds each canonical quantity, e.g.
 \code{list(interviews = list(date = "SurveyDate", n_anglers = "PartySize"))}.
 The optional interview fields -- \code{n_anglers}, \code{angler_type}, \code{site},

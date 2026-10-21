@@ -42,6 +42,9 @@
 #' \describe{
 #'   \item{\code{creel_warning_dates_coerced_na}}{Tier 1. Some dates could not
 #'     be parsed and became `NA`.}
+#'   \item{\code{creel_warning_design_length_disagrees}}{Tier 1. A design
+#'     table's stored shift length disagrees with its clock window. See
+#'     [fetch_design()].}
 #'   \item{\code{creel_warning_numeric_coerced_na}}{Tier 1. Some values of a
 #'     numeric column could not be read as numbers and became `NA`.}
 #'   \item{\code{creel_warning_fetch_created_duplicates}}{Tier 1. The fetch
@@ -89,6 +92,7 @@ connect_signal_tiers <- c(
   # Tier 1
   creel_warning_bins_without_count = 1L,
   creel_warning_dates_coerced_na = 1L,
+  creel_warning_design_length_disagrees = 1L,
   creel_warning_fetch_created_duplicates = 1L,
   creel_warning_numeric_coerced_na = 1L,
   creel_warning_repeated_sampling_units = 1L,

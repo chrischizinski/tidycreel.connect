@@ -47,6 +47,9 @@ frames rather than designs, so nothing is recorded for
 \describe{
 \item{\code{creel_warning_dates_coerced_na}}{Tier 1. Some dates could not
 be parsed and became \code{NA}.}
+\item{\code{creel_warning_design_length_disagrees}}{Tier 1. A design
+table's stored shift length disagrees with its clock window. See
+\code{\link[=fetch_design]{fetch_design()}}.}
 \item{\code{creel_warning_numeric_coerced_na}}{Tier 1. Some values of a
 numeric column could not be read as numbers and became \code{NA}.}
 \item{\code{creel_warning_fetch_created_duplicates}}{Tier 1. The fetch
