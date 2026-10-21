@@ -24,6 +24,10 @@ default:
   # different value already set is kept, with a warning.
   # tz: "America/Chicago"
 
+  # Optional: documented fixes to the fetched data, a CSV beside this profile
+  # (creel_uid,table,date,field,from,to,reason). See ?creel_connect_from_yaml.
+  # corrections: "corrections.csv"
+
   # One path per table. All five keys are required; point the length tables at
   # an empty CSV with the right headers when the survey collected no lengths.
   files:

@@ -907,6 +907,7 @@ fetch_interviews.creel_connection_csv <- function(conn, ...) {
   df <- .apply_value_maps(df, conn$schema, "interviews")
 
   df <- .coerce_uid_cols(df)
+  df <- .apply_corrections(df, conn, "interviews")
   validate_fetch_interviews(df) # nolint: object_usage_linter
   # After validation: a fetch that maps nothing has no columns left, every row
   # "duplicates" every other, and the abort above is the message that matters.
@@ -956,6 +957,7 @@ fetch_interviews.creel_connection_dbi <- function(conn, ...) {
   df <- .apply_value_maps(df, conn$schema, "interviews")
 
   df <- .coerce_uid_cols(df)
+  df <- .apply_corrections(df, conn, "interviews")
   validate_fetch_interviews(df) # nolint: object_usage_linter
   # After validation: a fetch that maps nothing has no columns left, every row
   # "duplicates" every other, and the abort above is the message that matters.
@@ -969,7 +971,9 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
 
   # Early return for empty API response -- avoids logical-typed columns failing validation
   if (nrow(raw_df) == 0L) {
-    return(.empty_interviews_frame(conn))
+    # Through the corrections too: one for a table that came back empty matches
+    # nothing, and must say so rather than be skipped.
+    return(.apply_corrections(.empty_interviews_frame(conn), conn, "interviews"))
   }
 
   fm <- conn$con$api_field_map$interviews
@@ -1047,6 +1051,7 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
   df <- .apply_value_maps(df, conn$schema, "interviews")
 
   df <- .coerce_uid_cols(df)
+  df <- .apply_corrections(df, conn, "interviews")
   validate_fetch_interviews_api(df) # nolint: object_usage_linter
   # After validation: a fetch that maps nothing has no columns left, every row
   # "duplicates" every other, and the abort above is the message that matters.
@@ -1139,6 +1144,9 @@ fetch_counts.creel_connection_csv <- function(conn, ...) {
   if ("angler_boats"  %in% names(df)) df$angler_boats  <- .coerce_numeric(df$angler_boats, "angler_boats")
   if ("non_ang_boats" %in% names(df)) df$non_ang_boats <- .coerce_numeric(df$non_ang_boats, "non_ang_boats")
   df <- .coerce_count_time(df)
+  # Before the repeat check: a correction may fix the stratum or time that
+  # tells two rows apart.
+  df <- .apply_corrections(df, conn, "counts")
   .warn_repeat_counts_no_time(df, conn$schema)
   validate_fetch_counts(df) # nolint: object_usage_linter
   df
@@ -1169,6 +1177,9 @@ fetch_counts.creel_connection_dbi <- function(conn, ...) {
   # the difftime duckdb returns would store "59400" (GH #129, GH #185).
   if ("count_time" %in% names(df)) df$count_time <- .format_db_time(df$count_time)
   df <- .coerce_count_time(df)
+  # Before the repeat check: a correction may fix the stratum or time that
+  # tells two rows apart.
+  df <- .apply_corrections(df, conn, "counts")
   .warn_repeat_counts_no_time(df, conn$schema)
   validate_fetch_counts(df) # nolint: object_usage_linter
   df
@@ -1193,7 +1204,7 @@ fetch_counts.creel_connection_api <- function(conn, ...) {
     # response must not change the frame's shape (GH #129).
     fm_empty <- conn$con$api_field_map$counts
     if (.field_named(fm_empty$count_time)) empty$count_time <- character(0)
-    return(empty)
+    return(.apply_corrections(empty, conn, "counts"))
   }
 
   fm <- conn$con$api_field_map$counts
@@ -1216,6 +1227,9 @@ fetch_counts.creel_connection_api <- function(conn, ...) {
   if ("angler_boats"  %in% names(df)) df$angler_boats  <- .coerce_numeric(df$angler_boats, "angler_boats")
   if ("non_ang_boats" %in% names(df)) df$non_ang_boats <- .coerce_numeric(df$non_ang_boats, "non_ang_boats")
   df <- .coerce_count_time(df)
+  # Before the repeat check: a correction may fix the stratum or time that
+  # tells two rows apart.
+  df <- .apply_corrections(df, conn, "counts")
   .warn_repeat_counts_no_time(df, conn$schema)
 
   validate_fetch_counts(df) # nolint: object_usage_linter

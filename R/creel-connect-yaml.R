@@ -80,6 +80,38 @@
 #' `harvest_lengths_table` / `release_lengths_table` (both falling back to
 #' `lengths_table`).
 #'
+#' ## Corrections
+#'
+#' An optional top-level `corrections:` key names a CSV of documented fixes to
+#' the fetched data, read relative to the profile's directory:
+#' ```yaml
+#' corrections: corrections.csv
+#' ```
+#' ```
+#' creel_uid,table,date,field,from,to,reason
+#' ,counts,2025-06-14,period,1,2,Section 3 counted PM; sheet says AM
+#' ```
+#' Each row changes `field` from `from` to `to` on the `table` records of that
+#' `date` (`interviews` or `counts`; catch and lengths carry no date). Names
+#' and values are tidycreel's, after `field_map`/`columns` and `value_maps`.
+#' Every row needs a `reason`. Leave `creel_uid` blank on a CSV or SQL Server
+#' profile, or on an API profile with one creel; name the creel on an API
+#' profile with several. Rows for creels the profile does not fetch are
+#' ignored, so one file can serve them all.
+#'
+#' `NA` in `from` matches a missing value and in `to` writes one. Quote a
+#' value that contains a comma.
+#'
+#' `fetch_interviews()` and `fetch_counts()` apply them in file order, before
+#' validation, and list each change once per connection
+#' (`creel_message_corrections_applied`) by line, date, field and count. The
+#' values themselves are not printed, since one can be personal (a ZIP code);
+#' keep the `reason` free of them too. The result carries the rows applied,
+#' with the number of records each changed, as `attr(x, "corrections")`, for a
+#' report to list. A correction that matches no record is an error
+#' (`creel_error_correction_unmatched`): the data changed underneath it, and it
+#' has to be checked again rather than silently do nothing.
+#'
 #' ## Time zone
 #'
 #' An optional top-level `tz:` key names the time zone of the water, as one
@@ -137,11 +169,24 @@ creel_connect_from_yaml <- function(path, config = "default") {
   conn <- .build_creel_conn(cfg)
   # After the build, so a profile that fails to connect leaves the session's
   # options as they were.
+  if (!is.null(cfg$corrections)) {
+    cx_path <- .profile_relative(cfg$corrections, path)
+    conn$corrections <- .read_corrections(cx_path, conn) # nolint: object_usage_linter
+  }
   if (!is.null(cfg$tz)) {
     conn$tz <- cfg$tz
     .apply_profile_tz(cfg$tz, path)
   }
   conn
+}
+
+# Internal: a path named in a profile, read relative to the profile's own
+# directory unless absolute, so the profile and its files move together.
+#' @noRd
+.profile_relative <- function(p, path) {
+  # Absolute: `/`, `~`, a drive (`C:/`, `C:\`) or a UNC share (`\\server`).
+  absolute <- grepl("^(/|~|[A-Za-z]:[/\\\\]|\\\\\\\\)", p)
+  if (absolute) p else file.path(dirname(path), p)
 }
 
 # Internal: set options(tidycreel.tz) from a profile's tz, when unset
@@ -281,7 +326,15 @@ creel_connect_from_yaml <- function(path, config = "default") {
     }
   }
 
-  # 5. Optional tz: one IANA name. Checked here, so a typo aborts before any
+  # 5. Optional corrections: one path. Its contents are checked when read,
+  # against the connection it applies to.
+  if (!is.null(cfg$corrections) &&
+        (!is.character(cfg$corrections) || length(cfg$corrections) != 1L ||
+           !nzchar(cfg$corrections))) {
+    cli::cli_abort("{.field corrections} must be one file path: {.file {path}}")
+  }
+
+  # 6. Optional tz: one IANA name. Checked here, so a typo aborts before any
   # connection is made rather than at the first night design.
   if (!is.null(cfg$tz)) {
     tz <- cfg$tz

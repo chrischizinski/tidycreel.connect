@@ -19,6 +19,10 @@ default:
   # different value already set is kept, with a warning.
   # tz: "America/Chicago"
 
+  # Optional: documented fixes to the fetched data, a CSV beside this profile
+  # (creel_uid,table,date,field,from,to,reason). See ?creel_connect_from_yaml.
+  # corrections: "corrections.csv"
+
   # Base URL and the query parameter your API filters surveys by:
   #   GET {base_url}/{endpoint}?{uid_param}={one creel uid}
   # One request (and its pages) per creel uid; every fetched row carries its

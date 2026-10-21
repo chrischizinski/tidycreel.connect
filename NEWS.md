@@ -1,5 +1,22 @@
 # tidycreel.connect (development version)
 
+* A YAML profile can name a corrections file (#4, part A): documented
+  fixes to the fetched data, one per row as
+  `creel_uid,table,date,field,from,to,reason`, read relative to the
+  profile. `fetch_interviews()` and `fetch_counts()` apply them after the
+  field map and value maps and before validation, in tidycreel's names and
+  values, and list each change once per connection
+  (`creel_message_corrections_applied`); the result carries the rows
+  applied, with how many records each changed, as `attr(x, "corrections")`.
+  The note names line, date, field and count, never the values, which can
+  be personal. `NA` in `from` or `to` stands for a missing value.
+  A correction that matches no record stops the fetch
+  (`creel_error_correction_unmatched`), because the data changed underneath
+  it. Every row needs a reason; malformed rows, including a reason with an
+  unquoted comma, are refused when the profile is read. `creel_uid` is left
+  blank on CSV and SQL Server profiles and on single-creel API profiles, and
+  names the creel on a multi-creel one.
+
 * An empty API response to `fetch_interviews()` now has the same columns as
   one with rows (#19). It carried only the five core columns, while a
   response with rows also carries every optional field `api_field_map`
