@@ -295,6 +295,44 @@
   df
 }
 
+# Internal: the zero-row interviews frame for an empty API response. It carries
+# every optional field the field map names, typed as the non-empty path coerces
+# it, so a quiet day does not change the frame's shape: a script that binds
+# fetches or selects `n_anglers` would otherwise fail only on that day (GH #19).
+# The same reasoning as .empty_lengths_frame() and the counts frame.
+.empty_interviews_frame <- function(conn) {
+  df <- data.frame(
+    creel_uid        = character(0),
+    interview_uid    = character(0),
+    date             = as.Date(character(0)),
+    effort           = numeric(0),
+    trip_status      = character(0),
+    stringsAsFactors = FALSE
+  )
+  fm <- conn$con$api_field_map$interviews
+  optional <- list(
+    catch_count    = numeric(0),
+    n_anglers      = numeric(0),
+    angler_type    = character(0),
+    site           = character(0),
+    circuit        = character(0),
+    n_counted      = numeric(0),
+    n_interviewed  = numeric(0),
+    angler_method  = character(0),
+    species_sought = character(0),
+    refused        = logical(0),
+    zip_code       = character(0)
+  )
+  for (nm in names(optional)) {
+    if (.field_named(fm[[nm]])) df[[nm]] <- optional[[nm]]
+  }
+  # Strata are left out. The non-empty path carries them in the source's own
+  # type, which a response with no rows does not reveal, and no zero-length
+  # guess binds with every type: character(0) refuses a numeric code in
+  # dplyr::bind_rows(), logical(0) a text label.
+  df
+}
+
 # Internal: a bin without a count is the GH #127 defect in the making, so say so
 # where it happens rather than leaving add_lengths() to abort later or, worse,
 # leaving a distribution weighted by rows.
@@ -931,14 +969,7 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
 
   # Early return for empty API response -- avoids logical-typed columns failing validation
   if (nrow(raw_df) == 0L) {
-    return(data.frame(
-      creel_uid        = character(0),
-      interview_uid    = character(0),
-      date             = as.Date(character(0)),
-      effort           = numeric(0),
-      trip_status      = character(0),
-      stringsAsFactors = FALSE
-    ))
+    return(.empty_interviews_frame(conn))
   }
 
   fm <- conn$con$api_field_map$interviews
