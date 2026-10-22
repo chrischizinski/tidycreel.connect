@@ -364,3 +364,13 @@ test_that("a season with no counts has a calendar and no worked day", {
   night <- design_calendar(cal_design(periods = night_periods()), empty)
   expect_true(all(is.na(night$shift_hours)))
 })
+
+test_that("counts of other creels only leave this creel's season unworked", {
+  # Filtered first: the other creel's rows, with no clock times, cannot
+  # refuse a night calendar that has no counts of its own.
+  other <- cal_counts()
+  other$creel_uid <- "creel-b"
+  other$count_time <- NULL
+  night <- design_calendar(cal_design(periods = night_periods()), other)
+  expect_true(all(is.na(night$period_id)))
+})

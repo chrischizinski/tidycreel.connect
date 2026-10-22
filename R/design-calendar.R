@@ -362,6 +362,9 @@ design_calendar <- function(design, counts, period_col = "period",
         !inherits(counts$date, "Date")) {
     cli::cli_abort("{.arg counts} must be the data frame {.fn fetch_counts} returns, with a {.cls Date} {.field date}.")
   }
+  # Only this creel's counts: another creel's cannot make it worked, or
+  # refuse it.
+  if ("creel_uid" %in% names(counts)) counts <- counts[counts$creel_uid %in% uid, , drop = FALSE]
   # A season with no counts has no worked day. An empty fetch carries no
   # strata columns, so the shift column is not required of it.
   if (nrow(counts) == 0L) {
@@ -376,7 +379,6 @@ design_calendar <- function(design, counts, period_col = "period",
       "i" = "Carry it through the profile's {.field strata_cols:}, or name it with {.arg period_col}."
     ))
   }
-  if ("creel_uid" %in% names(counts)) counts <- counts[counts$creel_uid %in% uid, , drop = FALSE]
   date <- counts$date
   if (!is.null(day_start)) date <- .calendar_survey_day(counts, day_start)
   days <- unique(data.frame(date = date, period_id = as.character(counts[[period_col]])))
