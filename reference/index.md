@@ -16,6 +16,8 @@
   : Load catch data from a creel connection
 - [`fetch_counts()`](https://chrischizinski.com/tidycreel.connect/reference/fetch_counts.md)
   : Load count data from a creel connection
+- [`fetch_design()`](https://chrischizinski.com/tidycreel.connect/reference/fetch_design.md)
+  : Load a creel's design tables from an API connection
 - [`fetch_harvest_lengths()`](https://chrischizinski.com/tidycreel.connect/reference/fetch_harvest_lengths.md)
   : Load harvest length data from a creel connection
 - [`fetch_interviews()`](https://chrischizinski.com/tidycreel.connect/reference/fetch_interviews.md)

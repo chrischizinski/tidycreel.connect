@@ -55,6 +55,12 @@ data frames rather than designs, so nothing is recorded for
 
   Tier 1. Some dates could not be parsed and became `NA`.
 
+- `creel_warning_design_length_disagrees`:
+
+  Tier 1. A design table's stored shift length disagrees with its clock
+  window. See
+  [`fetch_design()`](https://chrischizinski.com/tidycreel.connect/reference/fetch_design.md).
+
 - `creel_warning_numeric_coerced_na`:
 
   Tier 1. Some values of a numeric column could not be read as numbers

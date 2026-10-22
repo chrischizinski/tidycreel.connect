@@ -133,8 +133,14 @@ creel_connect_api(
 
   Named list of endpoint paths, relative to `base_url`. **Required.**
   Valid names: `interviews`, `counts`, `catch`, `harvest_lengths`,
-  `release_lengths`, `discovery`. Supply the endpoints you intend to
-  fetch; the matching `fetch_*()` aborts for any you omit.
+  `release_lengths`, `discovery`, and the design tables read by
+  [`fetch_design()`](https://chrischizinski.com/tidycreel.connect/reference/fetch_design.md):
+  `design_general`, `design_periods`, `design_sections`,
+  `design_special_dates`. Supply the endpoints you intend to fetch; the
+  matching `fetch_*()` aborts for any you omit, except `design_sections`
+  and `design_special_dates`, which
+  [`fetch_design()`](https://chrischizinski.com/tidycreel.connect/reference/fetch_design.md)
+  returns as `NULL` when absent.
 
 - auth:
 
@@ -142,10 +148,9 @@ creel_connect_api(
 
 - api_field_map:
 
-  Named list of raw JSON field names, keyed by endpoint (`interviews`,
-  `counts`, `catch`, `harvest_lengths`, `release_lengths`, `discovery`).
-  **Required.** Within each endpoint, name the raw field that holds each
-  canonical quantity, e.g.
+  Named list of raw JSON field names, keyed by endpoint (the same names
+  as `endpoints`). **Required.** Within each endpoint, name the raw
+  field that holds each canonical quantity, e.g.
   `list(interviews = list(date = "SurveyDate", n_anglers = "PartySize"))`.
   The optional interview fields – `n_anglers`, `angler_type`, `site`,
   `circuit`, `n_counted`, `n_interviewed`, `angler_method`,

@@ -339,8 +339,12 @@ per request. Example:
 <dt id="arg-endpoints">endpoints<a class="anchor" aria-label="anchor" href="#arg-endpoints"></a></dt>
 <dd><p>Named list of endpoint paths, relative to <code>base_url</code>.
 <strong>Required.</strong> Valid names: <code>interviews</code>, <code>counts</code>, <code>catch</code>,
-<code>harvest_lengths</code>, <code>release_lengths</code>, <code>discovery</code>. Supply the endpoints
-you intend to fetch; the matching <code>fetch_*()</code> aborts for any you omit.</p></dd>
+<code>harvest_lengths</code>, <code>release_lengths</code>, <code>discovery</code>, and the design tables
+read by <code><a href="fetch_design.html">fetch_design()</a></code>: <code>design_general</code>, <code>design_periods</code>,
+<code>design_sections</code>, <code>design_special_dates</code>. Supply the endpoints you
+intend to fetch; the matching <code>fetch_*()</code> aborts for any you omit,
+except <code>design_sections</code> and <code>design_special_dates</code>, which
+<code><a href="fetch_design.html">fetch_design()</a></code> returns as <code>NULL</code> when absent.</p></dd>
 
 
 <dt id="arg-auth">auth<a class="anchor" aria-label="anchor" href="#arg-auth"></a></dt>
@@ -349,8 +353,7 @@ you intend to fetch; the matching <code>fetch_*()</code> aborts for any you omit
 
 <dt id="arg-api-field-map">api_field_map<a class="anchor" aria-label="anchor" href="#arg-api-field-map"></a></dt>
 <dd><p>Named list of raw JSON field names, keyed by endpoint
-(<code>interviews</code>, <code>counts</code>, <code>catch</code>, <code>harvest_lengths</code>, <code>release_lengths</code>,
-<code>discovery</code>). <strong>Required.</strong> Within each endpoint, name the raw field that
+(the same names as <code>endpoints</code>). <strong>Required.</strong> Within each endpoint, name the raw field that
 holds each canonical quantity, e.g.
 <code>list(interviews = list(date = "SurveyDate", n_anglers = "PartySize"))</code>.
 The optional interview fields – <code>n_anglers</code>, <code>angler_type</code>, <code>site</code>,

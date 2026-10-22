@@ -2,6 +2,23 @@
 
 ## tidycreel.connect (development version)
 
+- New
+  [`fetch_design()`](https://chrischizinski.com/tidycreel.connect/reference/fetch_design.md)
+  reads a creel’s own design tables from an API connection
+  ([\#4](https://github.com/chrischizinski/tidycreel.connect/issues/4),
+  part B): the season, the shift periods with their selection
+  probabilities by month, and optionally the sections and special dates,
+  through `design_*` endpoints and field maps declared like any other.
+  Each table carries `creel_uid`. Shift lengths are computed from the
+  start and end clock times, a shift that ends at or before it starts
+  crossing midnight (`crosses_midnight`); a length the source stores is
+  kept as `stored_length_hours`, and every period where it disagrees
+  with the window is reported (`creel_warning_design_length_disagrees`).
+  A design table that stores a 19:30-00:30 shift as -19 h is caught
+  here. A probability outside (0, 1\], an unreadable clock time, or an
+  empty season or period table is refused. The lengths are real hours:
+  tidycreel divides by `p_period` itself.
+
 - A YAML profile can name a corrections file
   ([\#4](https://github.com/chrischizinski/tidycreel.connect/issues/4),
   part A): documented fixes to the fetched data, one per row as
