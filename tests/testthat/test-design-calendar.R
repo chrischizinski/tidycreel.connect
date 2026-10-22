@@ -311,3 +311,56 @@ test_that("conflicting definitions in the design are refused, not chosen by row 
     "more than one group"
   )
 })
+
+test_that("a design with a shift from midnight gets a survey day tidycreel reads as a night", {
+  # 00:00-06:00 and 18:00-00:00: the earliest start is midnight, which
+  # tidycreel takes for a day design and then refuses the 18:00 shift.
+  p <- cal_periods(start = c("00:00", "18:00"), end = c("06:00", "00:00"), p = c(0.5, 0.5))
+  cn <- cal_counts()
+  cn$count_time <- ifelse(cn$period == "1", c("01:00", "05:00"), c("19:00", "23:00"))
+  # Shift 1 of a night is worked the next morning, dated as it was made.
+  cn$date[cn$period == "1"] <- cn$date[cn$period == "1"] + 1
+  cal <- design_calendar(cal_design(periods = p), cn, tz = "America/Chicago")
+  expect_identical(unique(cal$day_start), "18:00")
+  expect_identical(unique(cal$shift_hours[!is.na(cal$shift_hours)]), 6)
+
+  # The 01:00 counts of shift 1 belong to the night before their date.
+  i <- match(cn$date - as.integer(cn$period == "1"), cal$date)
+  expect_false(anyNA(cal$period_id[i]))
+  cn$stratum <- cal$stratum[i]
+  cn$hours <- cal$shift_hours[i]
+  d <- suppressMessages(tidycreel::creel_design(cal, date = date, strata = stratum, tz = "America/Chicago"))
+  expect_no_error(suppressWarnings(suppressMessages(tidycreel::add_counts(
+    d, cn,
+    count_col = bank_anglers, count_time_col = count_time, period_length_col = hours
+  ))))
+
+  expect_error(design_calendar(cal_design(periods = p), cn, tz = "UTC", day_start = "00:00"), "day design")
+})
+
+test_that("a repeated time is found whatever the size of the clock change", {
+  # Lord Howe Island sets its clocks back 30 minutes: 01:45 on 6 April 2025
+  # happens twice, so a 19:00-01:45 night is 6.75 h or 7.25 h.
+  d <- cal_design(periods = cal_periods(start = "19:00", end = "01:45", p = 1))
+  d$general$season_start <- as.Date("2025-04-04")
+  d$general$season_end <- as.Date("2025-04-06")
+  d$periods$month <- c(4L, 5L)
+  cn <- data.frame(
+    date = as.Date(c("2025-04-05", "2025-04-06")), count_time = c("20:00", "01:00"),
+    bank_anglers = 1, period = "1"
+  )
+  expect_error(design_calendar(d, cn, tz = "Australia/Lord_Howe"), "skipped or repeated")
+  cn$date <- cn$date - 1
+  expect_identical(design_calendar(d, cn, tz = "Australia/Lord_Howe")$shift_hours[1], 6.75)
+})
+
+test_that("a season with no counts has a calendar and no worked day", {
+  # An empty fetch carries no strata columns, the shift column among them.
+  empty <- data.frame(creel_uid = character(0), date = as.Date(character(0)), bank_anglers = numeric(0))
+  cal <- design_calendar(cal_design(), empty)
+  expect_identical(nrow(cal), 9L)
+  expect_true(all(is.na(cal$p_period)))
+  expect_true(all(is.na(cal$shift_hours)))
+  night <- design_calendar(cal_design(periods = night_periods()), empty)
+  expect_true(all(is.na(night$shift_hours)))
+})

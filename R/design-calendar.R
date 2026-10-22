@@ -47,11 +47,12 @@
 #' When a shift crosses midnight the design is a night design, and the
 #' calendar carries `day_start`, the clock time at which each survey day
 #' begins (see [tidycreel::creel_design()]). It defaults to the earliest shift
-#' start in the design; every shift must fit inside one survey day.
+#' start, other than midnight, that every shift fits inside a survey day
+#' from; tidycreel reads a survey day starting at 00:00 as a day design.
 #' `shift_hours` is then each night's elapsed time in `tz`, so a night across
-#' a daylight-saving change is an hour longer or shorter than its clock
-#' times, as tidycreel computes it; a shift that starts or ends in a skipped
-#' or repeated hour is refused.
+#' a daylight-saving change is longer or shorter than its clock times, as
+#' tidycreel computes it; a shift that starts or ends in a skipped or
+#' repeated time is refused.
 #'
 #' A night is labelled by the date it began, and a count's `date` and
 #' `count_time` are when it was made, as tidycreel reads them: a count before
@@ -73,8 +74,9 @@
 #' @param special_dates The special-date rule: `"stratum"`, `"weekend"` or
 #'   `"ignore"`, or `NULL` to take it from the design.
 #' @param day_start For a night design, the clock time (`"HH:MM"`) at which
-#'   a survey day begins, or `NULL` for the earliest shift start. Ignored for
-#'   a design with no shift crossing midnight.
+#'   a survey day begins, or `NULL` for the earliest shift start every shift
+#'   fits after. Not `"00:00"`. Ignored for a design with no shift crossing
+#'   midnight.
 #' @param tz For a night design, the time zone of the water, one name from
 #'   [OlsonNames()]: a night across a daylight-saving change is an hour longer
 #'   or shorter than its clock times. Defaults to the `tidycreel.tz` option,
@@ -123,7 +125,7 @@ design_calendar <- function(design, counts, period_col = "period",
     # tidycreel takes a calendar's shift_hours as given, so on a night design
     # it must be the elapsed time of that night, not the month's clock length.
     on <- !is.na(cal$period_id)
-    cal$shift_hours[on] <- .calendar_night_hours(cal[on, ], day_start, .calendar_tz(tz))
+    if (any(on)) cal$shift_hours[on] <- .calendar_night_hours(cal[on, ], day_start, .calendar_tz(tz))
   }
   cal
 }
@@ -168,7 +170,12 @@ design_calendar <- function(design, counts, period_col = "period",
     stamp <- paste(format(cal$date + as.numeric(ds + off >= 1440L)), clock)
     x <- as.POSIXct(stamp, tz = tz, format = "%Y-%m-%d %H:%M")
     fmt <- function(y) format(y, "%Y-%m-%d %H:%M", tz = tz)
-    bad <- is.na(x) | fmt(x) != stamp | fmt(x - 3600) == stamp | fmt(x + 3600) == stamp
+    # Repeated: another instant up to 2 h away shows the same clock time.
+    # Changes are not all an hour (Lord Howe Island's is 30 minutes).
+    bad <- is.na(x) | fmt(x) != stamp
+    for (d in seq(900, 7200, by = 900)) {
+      bad <- bad | fmt(x - d) == stamp | fmt(x + d) == stamp
+    }
     list(x = x, bad = bad)
   }
   s <- instant(cal$shift_start, FALSE)
@@ -282,31 +289,52 @@ design_calendar <- function(design, counts, period_col = "period",
 # start at or after it and end by the next one, or its counts would fall on
 # two survey days.
 .calendar_day_start <- function(periods, day_start) {
-  if (is.null(day_start)) {
-    ds <- min(.clock_minutes(periods$start_time, "start_time")) # nolint: object_usage_linter
-  } else {
-    ok <- is.character(day_start) && length(day_start) == 1L &&
-      grepl("^([01][0-9]|2[0-3]):[0-5][0-9]$", day_start)
-    if (!ok) cli::cli_abort("{.arg day_start} must be one clock time such as {.val 12:00}.")
-    ds <- .clock_minutes(day_start, "day_start") # nolint: object_usage_linter
+  start_min <- .clock_minutes(periods$start_time, "start_time") # nolint: object_usage_linter
+  end_min <- .clock_minutes(periods$end_time, "end_time") # nolint: object_usage_linter
+  # The shifts that leave a survey day starting `ds` minutes after midnight.
+  leaves <- function(ds) {
+    start <- (start_min - ds) %% 1440L
+    end <- (end_min - ds) %% 1440L
+    end[end == 0L] <- 1440L
+    end <= start
   }
-  start <- (.clock_minutes(periods$start_time, "start_time") - ds) %% 1440L # nolint: object_usage_linter
-  end <- (.clock_minutes(periods$end_time, "end_time") - ds) %% 1440L # nolint: object_usage_linter
-  end[end == 0L] <- 1440L
-  leaves <- end <= start
-  if (any(leaves)) {
-    rows <- sprintf(
-      "month %s, period %s (%s-%s)", periods$month[leaves], periods$period_id[leaves],
-      periods$start_time[leaves], periods$end_time[leaves]
-    )
-    ds_clock <- .format_clock(ds) # nolint: object_usage_linter
+  if (is.null(day_start)) {
+    # The earliest shift start every shift fits after. Midnight is passed
+    # over: tidycreel reads a 00:00 survey day as a day design, which refuses
+    # a shift that crosses midnight.
+    candidates <- setdiff(sort(unique(start_min)), 0L)
+    fits <- vapply(candidates, function(ds) !any(leaves(ds)), logical(1))
+    if (!any(fits)) {
+      cli::cli_abort(c(
+        "No shift start is a survey-day boundary that every shift fits inside.",
+        "i" = "Set {.arg day_start} to a time no shift spans."
+      ))
+    }
+    return(.format_clock(candidates[fits][1])) # nolint: object_usage_linter
+  }
+  ok <- is.character(day_start) && length(day_start) == 1L &&
+    grepl("^([01][0-9]|2[0-3]):[0-5][0-9]$", day_start)
+  if (!ok) cli::cli_abort("{.arg day_start} must be one clock time such as {.val 12:00}.")
+  if (day_start == "00:00") {
     cli::cli_abort(c(
-      "A shift does not fit inside one survey day starting at {.val {ds_clock}}.",
+      "{.arg day_start} cannot be {.val 00:00} on a design with a shift across midnight.",
+      "i" = "tidycreel reads a survey day starting at midnight as a day design."
+    ))
+  }
+  ds <- .clock_minutes(day_start, "day_start") # nolint: object_usage_linter
+  out <- leaves(ds)
+  if (any(out)) {
+    rows <- sprintf(
+      "month %s, period %s (%s-%s)", periods$month[out], periods$period_id[out],
+      periods$start_time[out], periods$end_time[out]
+    )
+    cli::cli_abort(c(
+      "A shift does not fit inside one survey day starting at {.val {day_start}}.",
       stats::setNames(gsub("([{}])", "\\1\\1", rows), rep("*", length(rows))),
       "i" = "Set {.arg day_start} to a time no shift spans."
     ))
   }
-  .format_clock(ds) # nolint: object_usage_linter
+  day_start
 }
 
 # Internal: the survey day of each count on a night design. As in tidycreel,
@@ -333,6 +361,14 @@ design_calendar <- function(design, counts, period_col = "period",
   if (!is.data.frame(counts) || !"date" %in% names(counts) ||
         !inherits(counts$date, "Date")) {
     cli::cli_abort("{.arg counts} must be the data frame {.fn fetch_counts} returns, with a {.cls Date} {.field date}.")
+  }
+  # A season with no counts has no worked day. An empty fetch carries no
+  # strata columns, so the shift column is not required of it.
+  if (nrow(counts) == 0L) {
+    return(data.frame(
+      date = as.Date(character(0)), period_id = character(0), p_period = numeric(0),
+      start_time = character(0), end_time = character(0), length_hours = numeric(0)
+    ))
   }
   if (!is.character(period_col) || length(period_col) != 1L || !period_col %in% names(counts)) {
     cli::cli_abort(c(

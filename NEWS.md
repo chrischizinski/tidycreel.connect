@@ -10,11 +10,11 @@
   `p_period` itself. A day with counts in two shifts
   (`creel_error_calendar_two_shifts`), a count with no shift or a shift the
   month does not have, and a count outside the season are refused. A design
-  with a shift across midnight gets `day_start` (the earliest shift start by
-  default), its counts are placed on survey nights from their clock times,
-  as tidycreel reads them, and each night's `shift_hours` is its elapsed
-  time in `tz`, so a night across a daylight-saving change is an hour
-  longer or shorter. A month's period defined twice differently, or a
+  with a shift across midnight gets `day_start` (by default the earliest
+  shift start other than midnight), its counts are placed on survey nights
+  from their clock times, as tidycreel reads them, and each night's
+  `shift_hours` is its elapsed time in `tz`, so a night across a
+  daylight-saving change is longer or shorter than its clock times. A month's period defined twice differently, or a
   special date in two groups, is refused. rlang is now imported.
 
 * New `fetch_design()` reads a creel's own design tables from an API
