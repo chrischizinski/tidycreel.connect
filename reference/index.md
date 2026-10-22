@@ -12,6 +12,8 @@
   : Create a creel REST API connection
 - [`creel_connect_from_yaml()`](https://chrischizinski.com/tidycreel.connect/reference/creel_connect_from_yaml.md)
   : Create a creel connection from a YAML config file
+- [`design_calendar()`](https://chrischizinski.com/tidycreel.connect/reference/design_calendar.md)
+  : Build a design calendar from a creel's design tables and counts
 - [`fetch_catch()`](https://chrischizinski.com/tidycreel.connect/reference/fetch_catch.md)
   : Load catch data from a creel connection
 - [`fetch_counts()`](https://chrischizinski.com/tidycreel.connect/reference/fetch_counts.md)
