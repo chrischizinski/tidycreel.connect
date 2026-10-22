@@ -159,6 +159,11 @@ default:
     harvest_lengths: "v2/lengths/harvest"
     release_lengths: "v2/lengths/release"
     discovery: "v2/surveys"
+    # Optional: the creel's own design tables, read by fetch_design().
+    # design_general: "v2/design/general"
+    # design_periods: "v2/design/periods"
+    # design_sections: "v2/design/sections"
+    # design_special_dates: "v2/design/special-dates"
 
   field_map:
     interviews:
@@ -237,3 +242,22 @@ default:
       active: "IsActive"
       data_complete: "IsComplete"
       comments: "Notes"
+    # For fetch_design(). Shift lengths are computed from start/end times; a
+    # stored length, if named, is kept and checked against them.
+    # design_general:
+    #   season_start: "StartDate"
+    #   season_end: "EndDate"
+    #   special_as_stratum: "UseHighUseDayType"
+    #   special_as_weekend: "UseHolidays"
+    # design_periods:
+    #   month: "Month"
+    #   period_id: "PeriodNumber"
+    #   start_time: "PeriodStart"
+    #   end_time: "PeriodEnd"
+    #   stored_length_hours: "PeriodHours"
+    #   p_period: "PeriodProbability"
+    # design_sections:
+    #   section: "SectionName"
+    # design_special_dates:
+    #   date: "SpecialDate"
+    #   group: "SpecialDateGroup"

@@ -100,12 +100,15 @@
 #'   `"survey_id"`.
 #' @param endpoints Named list of endpoint paths, relative to `base_url`.
 #'   **Required.** Valid names: `interviews`, `counts`, `catch`,
-#'   `harvest_lengths`, `release_lengths`, `discovery`. Supply the endpoints
-#'   you intend to fetch; the matching `fetch_*()` aborts for any you omit.
+#'   `harvest_lengths`, `release_lengths`, `discovery`, and the design tables
+#'   read by [fetch_design()]: `design_general`, `design_periods`,
+#'   `design_sections`, `design_special_dates`. Supply the endpoints you
+#'   intend to fetch; the matching `fetch_*()` aborts for any you omit,
+#'   except `design_sections` and `design_special_dates`, which
+#'   [fetch_design()] returns as `NULL` when absent.
 #' @param auth Authentication spec (see Description). Default: `NULL`.
 #' @param api_field_map Named list of raw JSON field names, keyed by endpoint
-#'   (`interviews`, `counts`, `catch`, `harvest_lengths`, `release_lengths`,
-#'   `discovery`). **Required.** Within each endpoint, name the raw field that
+#'   (the same names as `endpoints`). **Required.** Within each endpoint, name the raw field that
 #'   holds each canonical quantity, e.g.
 #'   `list(interviews = list(date = "SurveyDate", n_anglers = "PartySize"))`.
 #'   The optional interview fields -- `n_anglers`, `angler_type`, `site`,
@@ -371,7 +374,11 @@ creel_connect_api <- function(
 # not a configuration.
 #' @noRd
 .api_endpoint_names <- function() {
-  c("interviews", "counts", "catch", "harvest_lengths", "release_lengths", "discovery")
+  c(
+    "interviews", "counts", "catch", "harvest_lengths", "release_lengths", "discovery",
+    # The creel's own design (GH #4), read by fetch_design().
+    "design_general", "design_periods", "design_sections", "design_special_dates"
+  )
 }
 
 # Shared abort for a missing half of the API contract.
