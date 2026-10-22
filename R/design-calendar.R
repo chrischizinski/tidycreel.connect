@@ -47,8 +47,11 @@
 #' When a shift crosses midnight the design is a night design, and the
 #' calendar carries `day_start`, the clock time at which each survey day
 #' begins (see [tidycreel::creel_design()]). It defaults to the earliest shift
-#' start in the design; every shift must fit inside one survey day. The time
-#' zone is the profile's `tz:`.
+#' start in the design; every shift must fit inside one survey day.
+#' `shift_hours` is then each night's elapsed time in `tz`, so a night across
+#' a daylight-saving change is an hour longer or shorter than its clock
+#' times, as tidycreel computes it; a shift that starts or ends in a skipped
+#' or repeated hour is refused.
 #'
 #' A night is labelled by the date it began, and a count's `date` and
 #' `count_time` are when it was made, as tidycreel reads them: a count before
@@ -72,6 +75,10 @@
 #' @param day_start For a night design, the clock time (`"HH:MM"`) at which
 #'   a survey day begins, or `NULL` for the earliest shift start. Ignored for
 #'   a design with no shift crossing midnight.
+#' @param tz For a night design, the time zone of the water, one name from
+#'   [OlsonNames()]: a night across a daylight-saving change is an hour longer
+#'   or shorter than its clock times. Defaults to the `tidycreel.tz` option,
+#'   which a profile's `tz:` sets.
 #'
 #' @return A data frame with one row per day of the season: `date`, `month`
 #'   (integer), `day_type`, `stratum`, and the drawn shift on worked days
@@ -81,7 +88,7 @@
 #' @export
 design_calendar <- function(design, counts, period_col = "period",
                             creel_uid = NULL, special_dates = NULL,
-                            day_start = NULL) {
+                            day_start = NULL, tz = getOption("tidycreel.tz")) {
   if (!is.list(design) || !all(c("general", "periods") %in% names(design))) {
     cli::cli_abort("{.arg design} must be the list returned by {.fn fetch_design}.")
   }
@@ -93,7 +100,7 @@ design_calendar <- function(design, counts, period_col = "period",
   if (nrow(general) != 1L) {
     cli::cli_abort("design$general: expected one season for creel {.val {uid}}, found {nrow(general)}.")
   }
-  periods <- design$periods[design$periods$creel_uid == uid, , drop = FALSE]
+  periods <- .calendar_periods(design$periods[design$periods$creel_uid == uid, , drop = FALSE])
   special <- design$special_dates
   if (!is.null(special)) special <- special[special$creel_uid == uid, , drop = FALSE]
 
@@ -111,8 +118,71 @@ design_calendar <- function(design, counts, period_col = "period",
   cal$shift_start <- worked$start_time[i]
   cal$shift_end <- worked$end_time[i]
   cal$shift_hours <- worked$length_hours[i]
-  if (night) cal$day_start <- day_start
+  if (night) {
+    cal$day_start <- day_start
+    # tidycreel takes a calendar's shift_hours as given, so on a night design
+    # it must be the elapsed time of that night, not the month's clock length.
+    on <- !is.na(cal$period_id)
+    cal$shift_hours[on] <- .calendar_night_hours(cal[on, ], day_start, .calendar_tz(tz))
+  }
   cal
+}
+
+# Internal: the creel's periods, one definition per month and period. Two
+# rows that disagree would make the probability depend on response order.
+.calendar_periods <- function(periods) {
+  cols <- c("month", "period_id", "start_time", "end_time", "length_hours", "p_period")
+  periods <- unique(periods[c(cols, "crosses_midnight")])
+  key <- paste(periods$month, periods$period_id)
+  clash <- unique(key[duplicated(key)])
+  if (length(clash) > 0L) {
+    rows <- sprintf("month %s", gsub(" ", ", period ", clash))
+    cli::cli_abort(c(
+      "design$periods: {length(clash)} period{?s} defined more than once, differently.",
+      stats::setNames(gsub("([{}])", "\\1\\1", rows), rep("*", length(rows))),
+      "i" = "Each month's period has one window and one probability; fix the design table."
+    ))
+  }
+  periods
+}
+
+.calendar_tz <- function(tz) {
+  if (!is.character(tz) || length(tz) != 1L || !tz %in% OlsonNames()) {
+    cli::cli_abort(c(
+      "A night design needs {.arg tz}, the time zone of the water, from {.fn OlsonNames}.",
+      "i" = "Set the profile's {.field tz:}, the {.code tidycreel.tz} option, or {.arg tz}."
+    ))
+  }
+  tz
+}
+
+# Internal: the elapsed hours of each worked night in `tz`. A shift's clock
+# time falls on the survey date, or the next date when it is past midnight
+# on the survey day's clock. A time a daylight-saving change skipped or
+# repeated has no single instant, so its night is refused rather than guessed.
+.calendar_night_hours <- function(cal, day_start, tz) {
+  ds <- .clock_minutes(day_start, "day_start") # nolint: object_usage_linter
+  instant <- function(clock, end) {
+    off <- (.clock_minutes(clock, "shift") - ds) %% 1440L # nolint: object_usage_linter
+    if (end) off[off == 0L] <- 1440L
+    stamp <- paste(format(cal$date + as.numeric(ds + off >= 1440L)), clock)
+    x <- as.POSIXct(stamp, tz = tz, format = "%Y-%m-%d %H:%M")
+    fmt <- function(y) format(y, "%Y-%m-%d %H:%M", tz = tz)
+    bad <- is.na(x) | fmt(x) != stamp | fmt(x - 3600) == stamp | fmt(x + 3600) == stamp
+    list(x = x, bad = bad)
+  }
+  s <- instant(cal$shift_start, FALSE)
+  e <- instant(cal$shift_end, TRUE)
+  bad <- s$bad | e$bad
+  if (any(bad)) {
+    nights <- format(cal$date[bad]) # nolint: object_usage_linter
+    cli::cli_abort(c(
+      "A shift starts or ends in an hour a daylight-saving change skipped or repeated \\
+       on {length(nights)} night{?s}: {.val {nights}}.",
+      "x" = "Its length in {.val {tz}} is not determined by its clock times."
+    ))
+  }
+  as.numeric(difftime(e$x, s$x, units = "hours"))
 }
 
 # Internal: the creel the calendar is for. One creel in the design needs no
@@ -166,6 +236,14 @@ design_calendar <- function(design, counts, period_col = "period",
       "design$special_dates: special dates form strata of their own, but some have no {.field group}.",
       "i" = "Map {.field group} in the profile's {.field design_special_dates} field map."
     ))
+  }
+  # A date in two groups would land in whichever stratum came first.
+  n_group <- tapply(special$group, format(special$date), function(g) length(unique(g)))
+  two <- names(n_group)[n_group > 1L]
+  if (length(two) > 0L) {
+    cli::cli_abort(
+      "design$special_dates: {length(two)} date{?s} in more than one group: {.val {two}}."
+    )
   }
   group <- special$group[match(cal$date[i], special$date)]
   cal$day_type[i] <- "special"

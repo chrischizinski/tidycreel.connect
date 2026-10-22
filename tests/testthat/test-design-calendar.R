@@ -187,6 +187,7 @@ night_counts <- function() {
 }
 
 test_that("a shift that crosses midnight makes a night calendar", {
+  withr::local_options(tidycreel.tz = "America/Chicago")
   periods <- night_periods()
   cal <- design_calendar(cal_design(periods = periods), night_counts())
   # The 19:30-00:30 shift is 5 h, not the -19 h of end - start.
@@ -207,6 +208,7 @@ test_that("a shift that crosses midnight makes a night calendar", {
 })
 
 test_that("a count after midnight works the night before, as tidycreel reads it", {
+  withr::local_options(tidycreel.tz = "America/Chicago")
   cn <- night_counts()
   cal <- design_calendar(cal_design(periods = night_periods()), cn)
   # Read by date alone, the 00:15 count of 30 June's night would make 1 July
@@ -252,4 +254,60 @@ test_that("a design with several creels needs creel_uid", {
   expect_identical(design_calendar(both, cn, creel_uid = "creel-a"), design_calendar(d, cal_counts()))
   expect_error(design_calendar(both, cn, creel_uid = "creel-b"), "outside the season")
   expect_error(design_calendar(both, cn, creel_uid = "creel-c"), "one of")
+})
+
+test_that("a night's length is its elapsed time across a daylight-saving change", {
+  # tidycreel takes a calendar's shift_hours as given: the month's clock
+  # length (8 h) on the night clocks fall back would understate its effort.
+  d <- cal_design(periods = cal_periods(start = "19:00", end = "03:00", p = 1))
+  d$general$season_start <- as.Date("2025-10-31")
+  d$general$season_end <- as.Date("2025-11-02")
+  d$periods$month <- rep(c(10L, 11L), each = 1)
+  cn <- function(date) {
+    data.frame(date = date + c(0, 1), count_time = c("20:00", "01:00"), bank_anglers = 1, period = "1")
+  }
+  fall <- design_calendar(d, cn(as.Date("2025-11-01")), tz = "America/Chicago")
+  expect_identical(fall$shift_hours[fall$date == as.Date("2025-11-01")], 9)
+  # Elsewhere the night is its clock length.
+  plain <- design_calendar(d, cn(as.Date("2025-10-31")), tz = "America/Chicago")
+  expect_identical(plain$shift_hours[plain$date == as.Date("2025-10-31")], 8)
+  # In a zone without the change it is the clock length too.
+  expect_identical(
+    design_calendar(d, cn(as.Date("2025-11-01")), tz = "UTC")$shift_hours[2],
+    8
+  )
+
+  # A night design without a zone is refused, not read in the computer's.
+  withr::local_options(tidycreel.tz = NULL)
+  expect_error(design_calendar(d, cn(as.Date("2025-11-01"))), "time zone")
+
+  # A shift ending in the repeated hour has no single length.
+  d$periods$end_time <- "01:30"
+  d$periods$length_hours <- 6.5
+  expect_error(
+    design_calendar(d, cn(as.Date("2025-11-01")), tz = "America/Chicago"),
+    "skipped or repeated"
+  )
+})
+
+test_that("conflicting definitions in the design are refused, not chosen by row order", {
+  # Two rows for June period 1 with p 0.6 and 0.25: which one matched first
+  # would change the day's expansion more than twofold.
+  p <- cal_periods()
+  extra <- p[1, ]
+  extra$p_period <- 0.25
+  expect_error(design_calendar(cal_design(periods = rbind(p, extra)), cal_counts()), "month 6, period 1")
+  # An identical repeat is the same definition.
+  expect_identical(
+    design_calendar(cal_design(periods = rbind(p, p[1, ])), cal_counts()),
+    design_calendar(cal_design(), cal_counts())
+  )
+
+  special <- data.frame(
+    creel_uid = "creel-a", date = as.Date(c("2025-07-04", "2025-07-04")), group = c("x", "y")
+  )
+  expect_error(
+    design_calendar(cal_design(special = special), cal_counts(), special_dates = "stratum"),
+    "more than one group"
+  )
 })

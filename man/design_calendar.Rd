@@ -10,7 +10,8 @@ design_calendar(
   period_col = "period",
   creel_uid = NULL,
   special_dates = NULL,
-  day_start = NULL
+  day_start = NULL,
+  tz = getOption("tidycreel.tz")
 )
 }
 \arguments{
@@ -33,6 +34,11 @@ filtered to it.}
 \item{day_start}{For a night design, the clock time (\code{"HH:MM"}) at which
 a survey day begins, or \code{NULL} for the earliest shift start. Ignored for
 a design with no shift crossing midnight.}
+
+\item{tz}{For a night design, the time zone of the water, one name from
+\code{\link[=OlsonNames]{OlsonNames()}}: a night across a daylight-saving change is an hour longer
+or shorter than its clock times. Defaults to the \code{tidycreel.tz} option,
+which a profile's \verb{tz:} sets.}
 }
 \value{
 A data frame with one row per day of the season: \code{date}, \code{month}
@@ -86,8 +92,11 @@ shift the month's design does not have, and a count outside the season.
 When a shift crosses midnight the design is a night design, and the
 calendar carries \code{day_start}, the clock time at which each survey day
 begins (see \code{\link[tidycreel:creel_design]{tidycreel::creel_design()}}). It defaults to the earliest shift
-start in the design; every shift must fit inside one survey day. The time
-zone is the profile's \verb{tz:}.
+start in the design; every shift must fit inside one survey day.
+\code{shift_hours} is then each night's elapsed time in \code{tz}, so a night across
+a daylight-saving change is an hour longer or shorter than its clock
+times, as tidycreel computes it; a shift that starts or ends in a skipped
+or repeated hour is refused.
 
 A night is labelled by the date it began, and a count's \code{date} and
 \code{count_time} are when it was made, as tidycreel reads them: a count before
