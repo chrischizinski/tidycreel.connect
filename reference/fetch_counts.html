@@ -125,6 +125,11 @@ schema maps. Unmapped source columns are dropped.</p>
 <p>On the API backend every row also carries <code>creel_uid</code> (character), the
 creel UID it was fetched for, so a connection to several creels returns
 them labelled rather than pooled.</p>
+<p>When the API returns no rows, the result has no stratum columns. A
+fetch with rows carries each stratum in the source's own type, which an
+empty response does not reveal, and no zero-length guess binds with
+every type in <code><a href="https://dplyr.tidyverse.org/reference/bind_rows.html" class="external-link">dplyr::bind_rows()</a></code>. Check for the column, or for
+<code>nrow() == 0</code>, before selecting a stratum.</p>
     </div>
     <div class="section level2">
     <h2 id="the-grain-of-a-count-row">The grain of a count row<a class="anchor" aria-label="anchor" href="#the-grain-of-a-count-row"></a></h2>
