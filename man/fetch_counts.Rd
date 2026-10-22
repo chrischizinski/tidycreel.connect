@@ -20,6 +20,12 @@ schema maps. Unmapped source columns are dropped.
 On the API backend every row also carries \code{creel_uid} (character), the
 creel UID it was fetched for, so a connection to several creels returns
 them labelled rather than pooled.
+
+When the API returns no rows, the result has no stratum columns. A
+fetch with rows carries each stratum in the source's own type, which an
+empty response does not reveal, and no zero-length guess binds with
+every type in \code{dplyr::bind_rows()}. Check for the column, or for
+\code{nrow() == 0}, before selecting a stratum.
 }
 \description{
 Reads the counts table from a creel data source, renames columns to

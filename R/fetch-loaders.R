@@ -851,6 +851,12 @@
 #'   On the API backend every row also carries `creel_uid` (character), the
 #'   creel UID it was fetched for, so a connection to several creels returns
 #'   them labelled rather than pooled.
+#'
+#'   When the API returns no rows, the result has no stratum columns. A
+#'   fetch with rows carries each stratum in the source's own type, which an
+#'   empty response does not reveal, and no zero-length guess binds with
+#'   every type in `dplyr::bind_rows()`. Check for the column, or for
+#'   `nrow() == 0`, before selecting a stratum.
 #' @export
 fetch_interviews <- function(conn, ...) UseMethod("fetch_interviews")
 
@@ -1121,6 +1127,12 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
 #'   On the API backend every row also carries `creel_uid` (character), the
 #'   creel UID it was fetched for, so a connection to several creels returns
 #'   them labelled rather than pooled.
+#'
+#'   When the API returns no rows, the result has no stratum columns. A
+#'   fetch with rows carries each stratum in the source's own type, which an
+#'   empty response does not reveal, and no zero-length guess binds with
+#'   every type in `dplyr::bind_rows()`. Check for the column, or for
+#'   `nrow() == 0`, before selecting a stratum.
 #' @export
 fetch_counts <- function(conn, ...) UseMethod("fetch_counts")
 
