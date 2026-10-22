@@ -116,7 +116,16 @@ fetch_design.creel_connection_api <- function(conn, ...) {
     df, c("month", "period_id", "start_time", "end_time", "p_period"), "design_periods"
   )
   .require_every_creel(df, conn, "design_periods")
-  df$month <- as.integer(.coerce_numeric(df$month, "month"))
+  # The month keys each period's window and probability, so a value that is
+  # not a whole month 1-12 is refused rather than truncated into one.
+  month <- .coerce_numeric(df$month, "month")
+  bad_month <- is.na(month) | month != round(month) | month < 1 | month > 12
+  if (any(bad_month)) {
+    cli::cli_abort(
+      "design_periods: {.field month} is not a whole month 1-12 on {sum(bad_month)} row{?s}."
+    )
+  }
+  df$month <- as.integer(month)
   df$period_id <- as.character(df$period_id)
   df$p_period <- .coerce_numeric(df$p_period, "p_period")
   # Missing is refused with out-of-range: tidycreel divides by it.
@@ -214,10 +223,15 @@ fetch_design.creel_connection_api <- function(conn, ...) {
     "(:[0-5][0-9](\\.[0-9]+)?)?(Z|[+-][0-9]{2}:?[0-9]{2})?$"
   )
   ok <- !is.na(x) & grepl(pattern, x, perl = TRUE)
+  # Shift windows are whole minutes; seconds other than :00 would be dropped
+  # from the length, so they are refused rather than ignored.
+  secs <- ifelse(ok, sub(pattern, "\\4", x, perl = TRUE), "")
+  ok <- ok & (secs == "" | grepl("^:00(\\.0+)?$", secs))
   if (!all(ok)) {
     cli::cli_abort(c(
       "design_periods: {.field {field}} is not a clock time on {sum(!ok)} row{?s}.",
-      "i" = "Expected a time such as 19:30, 19:30:00 or 1900-01-01T19:30:00; a missing time has no length."
+      "i" = "Expected a whole-minute time such as 19:30, 19:30:00 or 1900-01-01T19:30:00; \\
+             a missing time has no length."
     ))
   }
   hh <- as.integer(sub(pattern, "\\2", x, perl = TRUE))

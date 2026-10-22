@@ -222,3 +222,16 @@ test_that("an empty special-dates table keeps a mapped group column", {
   d <- suppressMessages(fetch_design(design_conn()))
   expect_true("group" %in% names(d$special_dates))
 })
+
+test_that("a month or a time that would be truncated is refused", {
+  # 4.9 read as April, and 06:00:10-06:00:50 as a 24-hour shift, with nothing
+  # said when no stored length was mapped.
+  bodies <- day_shift_bodies()
+  bodies$periods <- sub('"Month":4,"Period":1', '"Month":4.9,"Period":1', bodies$periods, fixed = TRUE)
+  mock_design(bodies)
+  expect_error(suppressMessages(fetch_design(design_conn())), "whole month 1-12")
+
+  clock <- tidycreel.connect:::.clock_minutes
+  expect_error(clock("06:00:10", "start_time"), "not a clock time")
+  expect_identical(clock(c("06:00:00", "06:00:00.000"), "start_time"), c(360L, 360L))
+})
