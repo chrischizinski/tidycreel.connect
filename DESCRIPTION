@@ -22,6 +22,7 @@ Imports:
     DBI,
     httr2 (>= 1.0.0),
     readr,
+    rlang,
     tibble,
     tidycreel (>= 7.0.0)
 Suggests:
