@@ -29,8 +29,9 @@ tables rather than a catalogue.
 
 ``` r
 
+# install.packages("pak")
 # Installs tidycreel from GitHub too, if it is not already installed
-remotes::install_github("chrischizinski/tidycreel.connect")
+pak::pak("chrischizinski/tidycreel.connect")
 ```
 
 ### ODBC prerequisites (SQL Server connections only)
