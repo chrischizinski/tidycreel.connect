@@ -17,6 +17,9 @@ A data frame with canonical columns: \code{date} (Date),
 (numeric), plus \code{count_time} (character) and any stratum columns the
 schema maps. Unmapped source columns are dropped.
 
+A profile's \verb{cleanup:} block can drop placeholder rows, those carrying
+nothing but a date and strata; see \code{\link[=creel_connect_from_yaml]{creel_connect_from_yaml()}}.
+
 On the API backend every row also carries \code{creel_uid} (character), the
 creel UID it was fetched for, so a connection to several creels returns
 them labelled rather than pooled.

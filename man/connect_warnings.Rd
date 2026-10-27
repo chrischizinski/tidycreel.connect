@@ -32,8 +32,9 @@ hide the warnings that mean the fetched data are not what the source holds.
 }
 Warnings (tiers 1 and 2) print on every call. The tier-3 notes about the
 source, \code{creel_message_columns_dropped},
-\code{creel_message_columns_by_canonical_name} and
-\code{creel_message_corrections_applied}, describe the source rather than
+\code{creel_message_columns_by_canonical_name},
+\code{creel_message_corrections_applied} and
+\code{creel_message_rows_cleaned}, describe the source rather than
 one fetch, so they print once per connection: the first fetch of a
 table prints them, later fetches of that table on the same connection do
 not, unless the columns differ. A new connection prints them again. Other
@@ -86,6 +87,10 @@ mapped are not carried through. Once per connection.}
 corrections file changed fetched values; each change is listed. Once
 per connection. The result also carries them as
 \code{attr(x, "corrections")}. See \code{\link[=creel_connect_from_yaml]{creel_connect_from_yaml()}}.}
+\item{\code{creel_message_rows_cleaned}}{Tier 3. A profile's
+\verb{cleanup:} dropped placeholder rows or collapsed exact repeats; says how
+many of each. Once per connection. The result also carries the counts
+as \code{attr(x, "cleanup")}. See \code{\link[=creel_connect_from_yaml]{creel_connect_from_yaml()}}.}
 \item{\code{creel_message_tz_option_set}}{Tier 3. A profile's \verb{tz:} set
 the \code{tidycreel.tz} option, which was unset, for the session.}
 }

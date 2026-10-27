@@ -1,5 +1,23 @@
 # tidycreel.connect (development version)
 
+* A profile's new `cleanup:` block removes rows a source serves that are not
+  records, so every analysis of that source stops writing the same lines to
+  do it (#27). Each step is off unless set to `true`. `interviews:
+  drop_placeholders` and `counts: drop_placeholders` drop rows that carry
+  nothing but `creel_uid`, `date` and the strata; a blank count row is
+  dropped, never read as a zero. `interviews: collapse_repeats` keeps one of
+  each set of rows identical in every fetched column, which is what a
+  long-format source (one row per interview and questionnaire answer) leaves
+  after the fetch drops the answer columns, and replaces the
+  `creel_warning_fetch_created_duplicates` warning those rows raise. Two
+  cases are refused rather than dropped or guessed: an interview row with no
+  `interview_uid` that carries data (`creel_error_cleanup_rows_without_uid`),
+  and an interview whose rows still differ after the collapse
+  (`creel_error_cleanup_conflicting_repeats`, naming the columns). Cleanup
+  runs after corrections; each fetch reports rows in, dropped, collapsed and
+  kept once per connection (`creel_message_rows_cleaned`) and carries them as
+  `attr(x, "cleanup")`.
+
 * New `design_calendar()` builds the calendar `tidycreel::creel_design()`
   takes from `fetch_design()`'s tables and the counts (#4, part C): every day
   of the season with its stratum (month x day type, special dates as a

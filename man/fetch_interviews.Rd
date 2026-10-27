@@ -40,6 +40,11 @@ On CSV and SQL, \code{\link[tidycreel:creel_schema]{tidycreel::creel_schema()}} 
 Source columns outside the map are dropped, and each fetch reports which
 ones by name.
 
+A profile's \verb{cleanup:} block can drop placeholder rows and collapse a
+long-format source's repeated rows to one per interview; see
+\code{\link[=creel_connect_from_yaml]{creel_connect_from_yaml()}}. Without it, rows are returned as the source
+serves them.
+
 On the API backend every row also carries \code{creel_uid} (character), the
 creel UID it was fetched for, so a connection to several creels returns
 them labelled rather than pooled.

@@ -23,6 +23,15 @@ default:
   # (creel_uid,table,date,field,from,to,reason). See ?creel_connect_from_yaml.
   # corrections: "corrections.csv"
 
+  # Optional: drop rows the source serves that are not records. Off unless
+  # true. See ?creel_connect_from_yaml.
+  # cleanup:
+  #   interviews:
+  #     drop_placeholders: true   # no interview_uid, nothing but date/strata
+  #     collapse_repeats: true    # long format: one row per interview x answer
+  #   counts:
+  #     drop_placeholders: true   # nothing but date/strata; never read as zero
+
   # Base URL and the query parameter your API filters surveys by:
   #   GET {base_url}/{endpoint}?{uid_param}={one creel uid}
   # One request (and its pages) per creel uid; every fetched row carries its

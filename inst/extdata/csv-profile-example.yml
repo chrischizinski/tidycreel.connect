@@ -28,6 +28,15 @@ default:
   # (creel_uid,table,date,field,from,to,reason). See ?creel_connect_from_yaml.
   # corrections: "corrections.csv"
 
+  # Optional: drop rows the source serves that are not records. Off unless
+  # true. See ?creel_connect_from_yaml.
+  # cleanup:
+  #   interviews:
+  #     drop_placeholders: true   # no interview_uid, nothing but date/strata
+  #     collapse_repeats: true    # long format: one row per interview x answer
+  #   counts:
+  #     drop_placeholders: true   # nothing but date/strata; never read as zero
+
   # One path per table. All five keys are required; point the length tables at
   # an empty CSV with the right headers when the survey collected no lengths.
   files:
