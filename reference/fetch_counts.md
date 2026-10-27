@@ -52,6 +52,10 @@ A data frame with canonical columns: `date` (Date), `bank_anglers`
 `count_time` (character) and any stratum columns the schema maps.
 Unmapped source columns are dropped.
 
+A profile's `cleanup:` block can drop placeholder rows, those carrying
+nothing but a date and strata; see
+[`creel_connect_from_yaml()`](https://chrischizinski.com/tidycreel.connect/reference/creel_connect_from_yaml.md).
+
 On the API backend every row also carries `creel_uid` (character), the
 creel UID it was fetched for, so a connection to several creels returns
 them labelled rather than pooled.

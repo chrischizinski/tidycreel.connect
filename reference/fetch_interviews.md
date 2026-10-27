@@ -55,6 +55,11 @@ column already named `zip_code`.
 Source columns outside the map are dropped, and each fetch reports which
 ones by name.
 
+A profile's `cleanup:` block can drop placeholder rows and collapse a
+long-format source's repeated rows to one per interview; see
+[`creel_connect_from_yaml()`](https://chrischizinski.com/tidycreel.connect/reference/creel_connect_from_yaml.md).
+Without it, rows are returned as the source serves them.
+
 On the API backend every row also carries `creel_uid` (character), the
 creel UID it was fetched for, so a connection to several creels returns
 them labelled rather than pooled.

@@ -122,6 +122,8 @@ no boat anglers; anywhere else it drops that component of effort silently.</p>
 <code>bank_anglers</code> (numeric), <code>angler_boats</code> (numeric), <code>non_ang_boats</code>
 (numeric), plus <code>count_time</code> (character) and any stratum columns the
 schema maps. Unmapped source columns are dropped.</p>
+<p>A profile's <code>cleanup:</code> block can drop placeholder rows, those carrying
+nothing but a date and strata; see <code><a href="creel_connect_from_yaml.html">creel_connect_from_yaml()</a></code>.</p>
 <p>On the API backend every row also carries <code>creel_uid</code> (character), the
 creel UID it was fetched for, so a connection to several creels returns
 them labelled rather than pooled.</p>
