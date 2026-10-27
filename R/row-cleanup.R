@@ -108,10 +108,17 @@
 # applied to every copy before the copies are compared. Records what it did as
 # `attr(x, "cleanup")`: rows in = placeholders dropped + repeats collapsed +
 # rows kept, so nothing leaves unseen.
-.apply_cleanup <- function(df, conn, table) {
+#
+# `source` and `carried`, when given, are the source rows and the names the
+# rename consumed, for .warn_created_duplicates(). It runs here, on the rows
+# that survive the placeholder drop, and not at all when repeats are collapsed:
+# a warning about rows the caller never receives would send them to fix data
+# that is not there.
+.apply_cleanup <- function(df, conn, table, source = NULL, carried = character(0)) {
   drop_ph <- .cleanup_on(conn, table, "drop_placeholders")
   collapse <- .cleanup_on(conn, table, "collapse_repeats")
   if (!drop_ph && !collapse) {
+    if (!is.null(source)) .warn_created_duplicates(source, df, carried, table)
     return(df)
   }
   kept_attrs <- attributes(df)[setdiff(names(attributes(df)), c("names", "row.names", "class"))]
@@ -126,6 +133,10 @@
     }
     n_placeholders <- sum(placeholder)
     df <- df[!placeholder, , drop = FALSE]
+    if (!is.null(source)) source <- source[!placeholder, , drop = FALSE]
+  }
+  if (!collapse && !is.null(source)) {
+    .warn_created_duplicates(source, df, carried, table)
   }
   if (collapse) {
     repeated <- duplicated(df)

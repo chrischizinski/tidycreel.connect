@@ -285,3 +285,19 @@ test_that("an empty API fetch carries the cleanup accounting too", {
   ct <- suppressMessages(fetch_counts(conn))
   expect_identical(attr(ct, "cleanup")[["rows_in"]], 0L)
 })
+
+test_that("placeholders dropped are not blamed in the duplicate warning", {
+  skip_if_not_installed("config")
+  skip_if_not_installed("withr")
+  # Two placeholder rows on one date that differ only in an unmapped column
+  # become identical when it is dropped. They are dropped too, so a warning
+  # about them would describe rows the caller never receives.
+  iv <- cleanup_interviews()[c(4L, 5L, 5L), ]
+  iv$question_id <- c(10L, 1L, 2L)
+  conn <- cleanup_conn(
+    make_test_csv(), iv,
+    cleanup = c("  cleanup:", "    interviews:", "      drop_placeholders: true")
+  )
+  expect_no_warning(result <- suppressMessages(fetch_interviews(conn)))
+  expect_equal(nrow(result), 1L)
+})

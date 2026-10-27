@@ -34,7 +34,8 @@
 #' \code{creel_message_rows_cleaned}, describe the source rather than
 #' one fetch, so they print once per connection: the first fetch of a
 #' table prints them, later fetches of that table on the same connection do
-#' not, unless the columns differ. A new connection prints them again. Other
+#' not, unless what they report differs (other columns, other corrections,
+#' other cleanup counts). A new connection prints them again. Other
 #' tier-3 messages print on every call. Unlike tidycreel, connect returns data
 #' frames rather than designs, so nothing is recorded for
 #' [tidycreel::get_warnings()].

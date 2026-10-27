@@ -923,12 +923,9 @@ fetch_interviews.creel_connection_csv <- function(conn, ...) {
   validate_fetch_interviews(df) # nolint: object_usage_linter
   # After validation: a fetch that maps nothing has no columns left, every row
   # "duplicates" every other, and the abort above is the message that matters.
-  # Not when the profile collapses the copies: the warning would describe rows
-  # the caller never receives (GH #27).
-  if (!.cleanup_on(conn, "interviews", "collapse_repeats")) {
-    .warn_created_duplicates(source_df, df, carried, "interviews")
-  }
-  .apply_cleanup(df, conn, "interviews")
+  # Inside the cleanup, on the rows it keeps: rows it drops or collapses are
+  # never returned, so a warning about them would mislead (GH #27).
+  .apply_cleanup(df, conn, "interviews", source = source_df, carried = carried)
 }
 
 #' @export
@@ -977,12 +974,9 @@ fetch_interviews.creel_connection_dbi <- function(conn, ...) {
   validate_fetch_interviews(df) # nolint: object_usage_linter
   # After validation: a fetch that maps nothing has no columns left, every row
   # "duplicates" every other, and the abort above is the message that matters.
-  # Not when the profile collapses the copies: the warning would describe rows
-  # the caller never receives (GH #27).
-  if (!.cleanup_on(conn, "interviews", "collapse_repeats")) {
-    .warn_created_duplicates(source_df, df, carried, "interviews")
-  }
-  .apply_cleanup(df, conn, "interviews")
+  # Inside the cleanup, on the rows it keeps: rows it drops or collapses are
+  # never returned, so a warning about them would mislead (GH #27).
+  .apply_cleanup(df, conn, "interviews", source = source_df, carried = carried)
 }
 
 #' @export
@@ -1078,12 +1072,9 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
   validate_fetch_interviews_api(df) # nolint: object_usage_linter
   # After validation: a fetch that maps nothing has no columns left, every row
   # "duplicates" every other, and the abort above is the message that matters.
-  # Not when the profile collapses the copies: the warning would describe rows
-  # the caller never receives (GH #27).
-  if (!.cleanup_on(conn, "interviews", "collapse_repeats")) {
-    .warn_created_duplicates(raw_df, df, carried, "interviews")
-  }
-  .apply_cleanup(df, conn, "interviews")
+  # Inside the cleanup, on the rows it keeps: rows it drops or collapses are
+  # never returned, so a warning about them would mislead (GH #27).
+  .apply_cleanup(df, conn, "interviews", source = raw_df, carried = carried)
 }
 
 
