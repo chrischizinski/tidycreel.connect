@@ -79,13 +79,27 @@
   c("creel_uid", "date", names(conn$schema$strata_cols))
 }
 
+# Internal: a value that records nothing. A blank string counts: a DBI or API
+# source may write a missing id or label as "" rather than null, and treating
+# it as a value would keep a placeholder and wave through an orphan row.
+.cleanup_blank <- function(x) {
+  is.na(x) | (is.character(x) & !nzchar(trimws(x)))
+}
+
 # Internal: rows with a value in no column outside the locating ones.
+#
+# Judged on the fetched columns, not the raw source row. Unmapped source
+# columns are gone by now, and they cannot be told apart from the source's own
+# bookkeeping (row ids, keys, the date and stratum under their raw names),
+# which every placeholder row carries. A source column that holds data the
+# analysis needs is mapped, and then it counts here.
 .placeholder_rows <- function(df, conn) {
   data_cols <- setdiff(names(df), .cleanup_locating_cols(conn))
   if (length(data_cols) == 0L) {
     return(rep(FALSE, nrow(df)))
   }
-  rowSums(!is.na(df[data_cols])) == 0L
+  blank <- vapply(df[data_cols], .cleanup_blank, logical(nrow(df)))
+  rowSums(!matrix(blank, nrow = nrow(df))) == 0L
 }
 
 # Internal: apply a connection's cleanup to one fetched table.
@@ -155,12 +169,14 @@
   if (!"interview_uid" %in% names(df)) {
     return(invisible(NULL))
   }
-  orphan <- is.na(df$interview_uid) & !placeholder
+  orphan <- .cleanup_blank(df$interview_uid) & !placeholder
   if (!any(orphan)) {
     return(invisible(NULL))
   }
   data_cols <- setdiff(names(df), .cleanup_locating_cols(conn))
-  filled <- data_cols[colSums(!is.na(df[orphan, data_cols, drop = FALSE])) > 0L] # nolint: object_usage_linter
+  filled <- data_cols[vapply(data_cols, function(col) { # nolint: object_usage_linter
+    any(!.cleanup_blank(df[[col]][orphan]))
+  }, logical(1L))]
   n_orphan <- sum(orphan) # nolint: object_usage_linter
   cli::cli_abort(c(
     "interviews: {n_orphan} row{?s} ha{?s/ve} no {.field interview_uid} but carr{?ies/y} data.",
@@ -179,7 +195,7 @@
   }
   key <- df$interview_uid
   if ("creel_uid" %in% names(df)) key <- paste(df$creel_uid, key, sep = "\x1f")
-  dup <- !is.na(df$interview_uid) & (duplicated(key) | duplicated(key, fromLast = TRUE))
+  dup <- !.cleanup_blank(df$interview_uid) & (duplicated(key) | duplicated(key, fromLast = TRUE))
   if (!any(dup)) {
     return(invisible(NULL))
   }

@@ -127,7 +127,9 @@
 #' ```
 #' `drop_placeholders` drops rows that carry a value in no column but
 #' `creel_uid`, `date` and the strata: rows a source writes for a sampled date
-#' on which nothing was recorded. A blank count row is dropped, never read as
+#' on which nothing was recorded. A blank string counts as no value. Rows are
+#' judged on the fetched columns, so a source column that holds data the
+#' analysis needs must be mapped to count. A blank count row is dropped, never read as
 #' a zero. An interview row with no `interview_uid` that does carry data is an
 #' error (`creel_error_cleanup_rows_without_uid`), not a placeholder.
 #'

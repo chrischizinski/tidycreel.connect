@@ -236,3 +236,52 @@ test_that("a misspelt or non-logical cleanup step aborts when the profile is rea
     "Unknown table"
   )
 })
+
+cleanup_api_conn <- function(cleanup) {
+  conn <- make_api_conn()
+  conn$cleanup <- cleanup
+  conn
+}
+
+mock_interviews_json <- function(json) {
+  httr2::local_mocked_responses(function(req) {
+    httr2::response(200, headers = "Content-Type: application/json", body = charToRaw(json))
+  }, env = parent.frame())
+}
+
+test_that("a blank-string interview_uid is missing, not an id", {
+  # An API may write a missing id as "" rather than null. Read as an id, the
+  # empty row would be kept and an orphan row with data waved through.
+  mock_interviews_json(paste0(
+    '[{"InterviewID":"A1","SurveyDate":"2016-03-28","TripStatus":"complete",',
+    '"HoursFished":2,"MinutesFished":30},',
+    '{"InterviewID":"","SurveyDate":"2016-03-29","TripStatus":"",',
+    '"HoursFished":null,"MinutesFished":null}]'
+  ))
+  conn <- cleanup_api_conn(list(interviews = list(drop_placeholders = TRUE)))
+  result <- suppressMessages(fetch_interviews(conn))
+  expect_identical(result$interview_uid, "A1")
+
+  mock_interviews_json(paste0(
+    '[{"InterviewID":"","SurveyDate":"2016-03-29","TripStatus":"complete",',
+    '"HoursFished":2,"MinutesFished":0}]'
+  ))
+  conn <- cleanup_api_conn(list(interviews = list(drop_placeholders = TRUE)))
+  expect_error(
+    suppressMessages(fetch_interviews(conn)),
+    class = "creel_error_cleanup_rows_without_uid"
+  )
+})
+
+test_that("an empty API fetch carries the cleanup accounting too", {
+  # A script that reads attr(x, "cleanup") must not fail only on a quiet day.
+  mock_interviews_json("[]")
+  conn <- cleanup_api_conn(list(
+    interviews = list(collapse_repeats = TRUE),
+    counts = list(drop_placeholders = TRUE)
+  ))
+  iv <- suppressMessages(fetch_interviews(conn))
+  expect_identical(attr(iv, "cleanup")[["rows_kept"]], 0L)
+  ct <- suppressMessages(fetch_counts(conn))
+  expect_identical(attr(ct, "cleanup")[["rows_in"]], 0L)
+})

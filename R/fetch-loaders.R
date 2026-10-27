@@ -993,7 +993,10 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
   if (nrow(raw_df) == 0L) {
     # Through the corrections too: one for a table that came back empty matches
     # nothing, and must say so rather than be skipped.
-    return(.apply_corrections(.empty_interviews_frame(conn), conn, "interviews"))
+    # And the cleanup, so an empty fetch carries the same accounting as any
+    # other (GH #27).
+    empty <- .apply_corrections(.empty_interviews_frame(conn), conn, "interviews")
+    return(.apply_cleanup(empty, conn, "interviews"))
   }
 
   fm <- conn$con$api_field_map$interviews
@@ -1243,7 +1246,8 @@ fetch_counts.creel_connection_api <- function(conn, ...) {
     # response must not change the frame's shape (GH #129).
     fm_empty <- conn$con$api_field_map$counts
     if (.field_named(fm_empty$count_time)) empty$count_time <- character(0)
-    return(.apply_corrections(empty, conn, "counts"))
+    empty <- .apply_corrections(empty, conn, "counts")
+    return(.apply_cleanup(empty, conn, "counts"))
   }
 
   fm <- conn$con$api_field_map$counts
