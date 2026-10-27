@@ -12,8 +12,10 @@
   `creel_warning_fetch_created_duplicates` warning those rows raise. Two
   cases are refused rather than dropped or guessed: an interview row with no
   `interview_uid` that carries data (`creel_error_cleanup_rows_without_uid`),
-  and an interview whose rows still differ after the collapse
-  (`creel_error_cleanup_conflicting_repeats`, naming the columns). Cleanup
+  an interview whose rows still differ after the collapse
+  (`creel_error_cleanup_conflicting_repeats`, naming the columns), and,
+  under `collapse_repeats`, any row with no `interview_uid`, since nothing
+  says two identical ones are the same interview. Cleanup
   runs after corrections; each fetch reports rows in, dropped, collapsed and
   kept once per connection (`creel_message_rows_cleaned`) and carries them as
   `attr(x, "cleanup")`.

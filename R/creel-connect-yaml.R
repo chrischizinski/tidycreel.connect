@@ -139,7 +139,10 @@
 #' (`creel_warning_fetch_created_duplicates`) and returns. If one interview
 #' still has two rows that differ, the fetch aborts
 #' (`creel_error_cleanup_conflicting_repeats`) and names the columns, since
-#' choosing one would be a guess. Counts have no `collapse_repeats`: two
+#' choosing one would be a guess. Rows with no `interview_uid` are refused
+#' before collapsing (`creel_error_cleanup_rows_without_uid`), since nothing
+#' says identical ones are one interview; set `drop_placeholders` too when they
+#' are placeholders. Counts have no `collapse_repeats`: two
 #' identical count rows can be two real counts.
 #'
 #' Cleanup runs after corrections. The fetch reports what it removed once per

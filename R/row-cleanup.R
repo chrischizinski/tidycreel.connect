@@ -139,6 +139,7 @@
     .warn_created_duplicates(source, df, carried, table)
   }
   if (collapse) {
+    .abort_uidless_before_collapse(df, drop_ph)
     repeated <- duplicated(df)
     n_repeats <- sum(repeated)
     df <- df[!repeated, , drop = FALSE]
@@ -193,7 +194,30 @@
     "interviews: {n_orphan} row{?s} ha{?s/ve} no {.field interview_uid} but carr{?ies/y} data.",
     "i" = "The data are in {.field {filled}}.",
     "x" = "{.field drop_placeholders} drops only rows that carry nothing but a date and strata.",
-    "i" = "Fix the source or add a correction, or turn {.field drop_placeholders} off to keep them."
+    "i" = "Fix the source or add a correction, or remove the interviews cleanup to keep them as served."
+  ), class = "creel_error_cleanup_rows_without_uid")
+}
+
+# Internal: collapsing assumes identical rows are copies of one interview, and
+# only an interview_uid says so. Rows without one may be different parties
+# that happen to match, or placeholders `drop_placeholders` was not asked to
+# drop; merging them could lose an interview, so they are refused. With
+# `drop_placeholders` on, any left here already aborted above.
+.abort_uidless_before_collapse <- function(df, drop_ph) {
+  if (!"interview_uid" %in% names(df)) {
+    return(invisible(NULL))
+  }
+  n_uidless <- sum(.cleanup_blank(df$interview_uid))
+  if (n_uidless == 0L) {
+    return(invisible(NULL))
+  }
+  cli::cli_abort(c(
+    "interviews: {n_uidless} row{?s} ha{?s/ve} no {.field interview_uid}, so {.field collapse_repeats} cannot tell copies of one interview from different ones.",
+    "i" = if (drop_ph) {
+      "Fix the source or add a correction."
+    } else {
+      "If they carry nothing but a date and strata, also set {.field drop_placeholders}; otherwise fix the source or add a correction."
+    }
   ), class = "creel_error_cleanup_rows_without_uid")
 }
 
@@ -221,6 +245,6 @@
     "{table}: {n_ids} interview{?s} still ha{?s/ve} more than one row after exact repeats were collapsed.",
     "i" = "Their rows differ in {.field {differs}}.",
     "x" = "Picking one row would be a guess, and keeping both counts the interview twice.",
-    "i" = "Fix the source or add a correction, or map the column that tells the rows apart."
+    "i" = "Fix the source or add a correction. A column that rightly holds one value per answer, not per interview, should stay unmapped."
   ), class = "creel_error_cleanup_conflicting_repeats")
 }

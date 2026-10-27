@@ -1174,11 +1174,13 @@ fetch_counts.creel_connection_csv <- function(conn, ...) {
   # Before the repeat check: a correction may fix the stratum or time that
   # tells two rows apart.
   df <- .apply_corrections(df, conn, "counts")
-  # Before the repeat check too: a placeholder row on a counted date is a
-  # repeat of nothing (GH #27).
+  # Validated before the cleanup, as interviews are: a table missing a required
+  # column aborts before any rows are judged empty on the columns it lacks.
+  validate_fetch_counts(df) # nolint: object_usage_linter
+  # Before the repeat check: a placeholder row on a counted date is a repeat
+  # of nothing (GH #27).
   df <- .apply_cleanup(df, conn, "counts")
   .warn_repeat_counts_no_time(df, conn$schema)
-  validate_fetch_counts(df) # nolint: object_usage_linter
   df
 }
 
@@ -1210,11 +1212,13 @@ fetch_counts.creel_connection_dbi <- function(conn, ...) {
   # Before the repeat check: a correction may fix the stratum or time that
   # tells two rows apart.
   df <- .apply_corrections(df, conn, "counts")
-  # Before the repeat check too: a placeholder row on a counted date is a
-  # repeat of nothing (GH #27).
+  # Validated before the cleanup, as interviews are: a table missing a required
+  # column aborts before any rows are judged empty on the columns it lacks.
+  validate_fetch_counts(df) # nolint: object_usage_linter
+  # Before the repeat check: a placeholder row on a counted date is a repeat
+  # of nothing (GH #27).
   df <- .apply_cleanup(df, conn, "counts")
   .warn_repeat_counts_no_time(df, conn$schema)
-  validate_fetch_counts(df) # nolint: object_usage_linter
   df
 }
 
@@ -1264,12 +1268,13 @@ fetch_counts.creel_connection_api <- function(conn, ...) {
   # Before the repeat check: a correction may fix the stratum or time that
   # tells two rows apart.
   df <- .apply_corrections(df, conn, "counts")
-  # Before the repeat check too: a placeholder row on a counted date is a
-  # repeat of nothing (GH #27).
+  # Validated before the cleanup, as interviews are: a table missing a required
+  # column aborts before any rows are judged empty on the columns it lacks.
+  validate_fetch_counts(df) # nolint: object_usage_linter
+  # Before the repeat check: a placeholder row on a counted date is a repeat
+  # of nothing (GH #27).
   df <- .apply_cleanup(df, conn, "counts")
   .warn_repeat_counts_no_time(df, conn$schema)
-
-  validate_fetch_counts(df) # nolint: object_usage_linter
   df
 }
 

@@ -301,3 +301,40 @@ test_that("placeholders dropped are not blamed in the duplicate warning", {
   expect_no_warning(result <- suppressMessages(fetch_interviews(conn)))
   expect_equal(nrow(result), 1L)
 })
+
+test_that("collapse_repeats alone refuses rows without an interview_uid", {
+  skip_if_not_installed("config")
+  skip_if_not_installed("withr")
+  # Two uid-less rows that match may be two parties; merging them could lose
+  # an interview, so nothing is collapsed on a guess.
+  iv <- cleanup_interviews()[c(1L, 5L, 5L), ]
+  conn <- cleanup_conn(
+    make_test_csv(), iv,
+    cleanup = c("  cleanup:", "    interviews:", "      collapse_repeats: true")
+  )
+  expect_error(
+    suppressMessages(fetch_interviews(conn)),
+    "also set drop_placeholders",
+    class = "creel_error_cleanup_rows_without_uid"
+  )
+})
+
+test_that("a placeholder carrying a stratum value is still a placeholder", {
+  skip_if_not_installed("config")
+  skip_if_not_installed("withr")
+  # A source writes the date and stratum it sampled; those place the row and
+  # record nothing, so a row holding only them is dropped, not refused.
+  paths <- make_test_csv()
+  iv <- cleanup_interviews()[c(1L, 4L, 5L), ]
+  iv$question_id <- NULL
+  iv$answer <- NULL
+  iv$section <- c("A", "B", "C")
+  utils::write.csv(iv, paths$interviews, row.names = FALSE)
+  yaml_path <- cleanup_profile(paths, interview_cleanup)
+  lines <- readLines(yaml_path)
+  writeLines(append(lines, c("    strata_cols:", "      - section"), after = length(lines)), yaml_path)
+  conn <- creel_connect_from_yaml(yaml_path)
+  result <- suppressMessages(fetch_interviews(conn))
+  expect_identical(result$section, c("A", "B"))
+  expect_identical(attr(result, "cleanup")[["placeholders_dropped"]], 1L)
+})
