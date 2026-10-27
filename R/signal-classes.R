@@ -29,11 +29,13 @@
 #' }
 #' Warnings (tiers 1 and 2) print on every call. The tier-3 notes about the
 #' source, \code{creel_message_columns_dropped},
-#' \code{creel_message_columns_by_canonical_name} and
-#' \code{creel_message_corrections_applied}, describe the source rather than
+#' \code{creel_message_columns_by_canonical_name},
+#' \code{creel_message_corrections_applied} and
+#' \code{creel_message_rows_cleaned}, describe the source rather than
 #' one fetch, so they print once per connection: the first fetch of a
 #' table prints them, later fetches of that table on the same connection do
-#' not, unless the columns differ. A new connection prints them again. Other
+#' not, unless what they report differs (other columns, other corrections,
+#' other cleanup counts). A new connection prints them again. Other
 #' tier-3 messages print on every call. Unlike tidycreel, connect returns data
 #' frames rather than designs, so nothing is recorded for
 #' [tidycreel::get_warnings()].
@@ -79,6 +81,10 @@
 #'     corrections file changed fetched values; each change is listed. Once
 #'     per connection. The result also carries them as
 #'     `attr(x, "corrections")`. See [creel_connect_from_yaml()].}
+#'   \item{\code{creel_message_rows_cleaned}}{Tier 3. A profile's
+#'     `cleanup:` dropped placeholder rows or collapsed exact repeats; says how
+#'     many of each. Once per connection. The result also carries the counts
+#'     as `attr(x, "cleanup")`. See [creel_connect_from_yaml()].}
 #'   \item{\code{creel_message_tz_option_set}}{Tier 3. A profile's `tz:` set
 #'     the `tidycreel.tz` option, which was unset, for the session.}
 #' }
@@ -105,6 +111,7 @@ connect_signal_tiers <- c(
   creel_message_columns_by_canonical_name = 3L,
   creel_message_columns_dropped = 3L,
   creel_message_corrections_applied = 3L,
+  creel_message_rows_cleaned = 3L,
   creel_message_tz_option_set = 3L
 )
 
@@ -113,7 +120,8 @@ connect_signal_tiers <- c(
 connect_once_per_connection <- c(
   "creel_message_columns_by_canonical_name",
   "creel_message_columns_dropped",
-  "creel_message_corrections_applied"
+  "creel_message_corrections_applied",
+  "creel_message_rows_cleaned"
 )
 
 #' Raise a tier-3 note as a classed message

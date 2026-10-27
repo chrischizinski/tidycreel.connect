@@ -791,7 +791,8 @@
     ),
     "i" = paste0(
       "If the source is long format (one row per interview and answer), ",
-      "collapse to one row per interview before {.fn tidycreel::add_interviews}."
+      "collapse to one row per interview before {.fn tidycreel::add_interviews}, ",
+      "or set {.field collapse_repeats} under {.field cleanup} in the profile."
     )
   ), class = c("creel_warning_fetch_created_duplicates", "creel_warning"))
   invisible(NULL)
@@ -847,6 +848,11 @@
 #'
 #'   Source columns outside the map are dropped, and each fetch reports which
 #'   ones by name.
+#'
+#'   A profile's `cleanup:` block can drop placeholder rows and collapse a
+#'   long-format source's repeated rows to one per interview; see
+#'   [creel_connect_from_yaml()]. Without it, rows are returned as the source
+#'   serves them.
 #'
 #'   On the API backend every row also carries `creel_uid` (character), the
 #'   creel UID it was fetched for, so a connection to several creels returns
@@ -917,8 +923,9 @@ fetch_interviews.creel_connection_csv <- function(conn, ...) {
   validate_fetch_interviews(df) # nolint: object_usage_linter
   # After validation: a fetch that maps nothing has no columns left, every row
   # "duplicates" every other, and the abort above is the message that matters.
-  .warn_created_duplicates(source_df, df, carried, "interviews")
-  df
+  # Inside the cleanup, on the rows it keeps: rows it drops or collapses are
+  # never returned, so a warning about them would mislead (GH #27).
+  .apply_cleanup(df, conn, "interviews", source = source_df, carried = carried)
 }
 
 #' @export
@@ -967,8 +974,9 @@ fetch_interviews.creel_connection_dbi <- function(conn, ...) {
   validate_fetch_interviews(df) # nolint: object_usage_linter
   # After validation: a fetch that maps nothing has no columns left, every row
   # "duplicates" every other, and the abort above is the message that matters.
-  .warn_created_duplicates(source_df, df, carried, "interviews")
-  df
+  # Inside the cleanup, on the rows it keeps: rows it drops or collapses are
+  # never returned, so a warning about them would mislead (GH #27).
+  .apply_cleanup(df, conn, "interviews", source = source_df, carried = carried)
 }
 
 #' @export
@@ -979,7 +987,10 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
   if (nrow(raw_df) == 0L) {
     # Through the corrections too: one for a table that came back empty matches
     # nothing, and must say so rather than be skipped.
-    return(.apply_corrections(.empty_interviews_frame(conn), conn, "interviews"))
+    # And the cleanup, so an empty fetch carries the same accounting as any
+    # other (GH #27).
+    empty <- .apply_corrections(.empty_interviews_frame(conn), conn, "interviews")
+    return(.apply_cleanup(empty, conn, "interviews"))
   }
 
   fm <- conn$con$api_field_map$interviews
@@ -1061,8 +1072,9 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
   validate_fetch_interviews_api(df) # nolint: object_usage_linter
   # After validation: a fetch that maps nothing has no columns left, every row
   # "duplicates" every other, and the abort above is the message that matters.
-  .warn_created_duplicates(raw_df, df, carried, "interviews")
-  df
+  # Inside the cleanup, on the rows it keeps: rows it drops or collapses are
+  # never returned, so a warning about them would mislead (GH #27).
+  .apply_cleanup(df, conn, "interviews", source = raw_df, carried = carried)
 }
 
 
@@ -1124,6 +1136,9 @@ fetch_interviews.creel_connection_api <- function(conn, ...) {
 #'   (numeric), plus `count_time` (character) and any stratum columns the
 #'   schema maps. Unmapped source columns are dropped.
 #'
+#'   A profile's `cleanup:` block can drop placeholder rows, those carrying
+#'   nothing but a date and strata; see [creel_connect_from_yaml()].
+#'
 #'   On the API backend every row also carries `creel_uid` (character), the
 #'   creel UID it was fetched for, so a connection to several creels returns
 #'   them labelled rather than pooled.
@@ -1159,8 +1174,13 @@ fetch_counts.creel_connection_csv <- function(conn, ...) {
   # Before the repeat check: a correction may fix the stratum or time that
   # tells two rows apart.
   df <- .apply_corrections(df, conn, "counts")
-  .warn_repeat_counts_no_time(df, conn$schema)
+  # Validated before the cleanup, as interviews are: a table missing a required
+  # column aborts before any rows are judged empty on the columns it lacks.
   validate_fetch_counts(df) # nolint: object_usage_linter
+  # Before the repeat check: a placeholder row on a counted date is a repeat
+  # of nothing (GH #27).
+  df <- .apply_cleanup(df, conn, "counts")
+  .warn_repeat_counts_no_time(df, conn$schema)
   df
 }
 
@@ -1192,8 +1212,13 @@ fetch_counts.creel_connection_dbi <- function(conn, ...) {
   # Before the repeat check: a correction may fix the stratum or time that
   # tells two rows apart.
   df <- .apply_corrections(df, conn, "counts")
-  .warn_repeat_counts_no_time(df, conn$schema)
+  # Validated before the cleanup, as interviews are: a table missing a required
+  # column aborts before any rows are judged empty on the columns it lacks.
   validate_fetch_counts(df) # nolint: object_usage_linter
+  # Before the repeat check: a placeholder row on a counted date is a repeat
+  # of nothing (GH #27).
+  df <- .apply_cleanup(df, conn, "counts")
+  .warn_repeat_counts_no_time(df, conn$schema)
   df
 }
 
@@ -1216,7 +1241,8 @@ fetch_counts.creel_connection_api <- function(conn, ...) {
     # response must not change the frame's shape (GH #129).
     fm_empty <- conn$con$api_field_map$counts
     if (.field_named(fm_empty$count_time)) empty$count_time <- character(0)
-    return(.apply_corrections(empty, conn, "counts"))
+    empty <- .apply_corrections(empty, conn, "counts")
+    return(.apply_cleanup(empty, conn, "counts"))
   }
 
   fm <- conn$con$api_field_map$counts
@@ -1242,9 +1268,13 @@ fetch_counts.creel_connection_api <- function(conn, ...) {
   # Before the repeat check: a correction may fix the stratum or time that
   # tells two rows apart.
   df <- .apply_corrections(df, conn, "counts")
-  .warn_repeat_counts_no_time(df, conn$schema)
-
+  # Validated before the cleanup, as interviews are: a table missing a required
+  # column aborts before any rows are judged empty on the columns it lacks.
   validate_fetch_counts(df) # nolint: object_usage_linter
+  # Before the repeat check: a placeholder row on a counted date is a repeat
+  # of nothing (GH #27).
+  df <- .apply_cleanup(df, conn, "counts")
+  .warn_repeat_counts_no_time(df, conn$schema)
   df
 }
 

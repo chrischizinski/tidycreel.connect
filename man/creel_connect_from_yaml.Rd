@@ -132,6 +132,46 @@ report to list. A correction that matches no record is an error
 has to be checked again rather than silently do nothing.
 }
 
+\subsection{Cleanup}{
+
+An optional top-level \verb{cleanup:} block removes rows that are artifacts of
+how the source serves data rather than records. Every step is off unless
+named \code{true}:
+
+\if{html}{\out{<div class="sourceCode yaml">}}\preformatted{cleanup:
+  interviews:
+    drop_placeholders: true
+    collapse_repeats: true
+  counts:
+    drop_placeholders: true
+}\if{html}{\out{</div>}}
+
+\code{drop_placeholders} drops rows that carry a value in no column but
+\code{creel_uid}, \code{date} and the strata: rows a source writes for a sampled date
+on which nothing was recorded. A blank string counts as no value. Rows are
+judged on the fetched columns, so a source column that holds data the
+analysis needs must be mapped to count. A blank count row is dropped, never read as
+a zero. An interview row with no \code{interview_uid} that does carry data is an
+error (\code{creel_error_cleanup_rows_without_uid}), not a placeholder.
+
+\code{collapse_repeats} keeps one of each set of interview rows identical in
+every fetched column: a long-format source repeats each interview once per
+questionnaire answer, which \code{fetch_interviews()} otherwise warns about
+(\code{creel_warning_fetch_created_duplicates}) and returns. If one interview
+still has two rows that differ, the fetch aborts
+(\code{creel_error_cleanup_conflicting_repeats}) and names the columns, since
+choosing one would be a guess. Rows with no \code{interview_uid} are refused
+before collapsing (\code{creel_error_cleanup_rows_without_uid}), since nothing
+says identical ones are one interview; set \code{drop_placeholders} too when they
+are placeholders. Counts have no \code{collapse_repeats}: two
+identical count rows can be two real counts.
+
+Cleanup runs after corrections. The fetch reports what it removed once per
+connection (\code{creel_message_rows_cleaned}), and the result carries the
+counts as \code{attr(x, "cleanup")}: \code{rows_in}, \code{placeholders_dropped},
+\code{repeats_collapsed} and \code{rows_kept}.
+}
+
 \subsection{Time zone}{
 
 An optional top-level \verb{tz:} key names the time zone of the water, as one

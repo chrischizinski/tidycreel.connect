@@ -112,6 +112,44 @@
 #' (`creel_error_correction_unmatched`): the data changed underneath it, and it
 #' has to be checked again rather than silently do nothing.
 #'
+#' ## Cleanup
+#'
+#' An optional top-level `cleanup:` block removes rows that are artifacts of
+#' how the source serves data rather than records. Every step is off unless
+#' named `true`:
+#' ```yaml
+#' cleanup:
+#'   interviews:
+#'     drop_placeholders: true
+#'     collapse_repeats: true
+#'   counts:
+#'     drop_placeholders: true
+#' ```
+#' `drop_placeholders` drops rows that carry a value in no column but
+#' `creel_uid`, `date` and the strata: rows a source writes for a sampled date
+#' on which nothing was recorded. A blank string counts as no value. Rows are
+#' judged on the fetched columns, so a source column that holds data the
+#' analysis needs must be mapped to count. A blank count row is dropped, never read as
+#' a zero. An interview row with no `interview_uid` that does carry data is an
+#' error (`creel_error_cleanup_rows_without_uid`), not a placeholder.
+#'
+#' `collapse_repeats` keeps one of each set of interview rows identical in
+#' every fetched column: a long-format source repeats each interview once per
+#' questionnaire answer, which `fetch_interviews()` otherwise warns about
+#' (`creel_warning_fetch_created_duplicates`) and returns. If one interview
+#' still has two rows that differ, the fetch aborts
+#' (`creel_error_cleanup_conflicting_repeats`) and names the columns, since
+#' choosing one would be a guess. Rows with no `interview_uid` are refused
+#' before collapsing (`creel_error_cleanup_rows_without_uid`), since nothing
+#' says identical ones are one interview; set `drop_placeholders` too when they
+#' are placeholders. Counts have no `collapse_repeats`: two
+#' identical count rows can be two real counts.
+#'
+#' Cleanup runs after corrections. The fetch reports what it removed once per
+#' connection (`creel_message_rows_cleaned`), and the result carries the
+#' counts as `attr(x, "cleanup")`: `rows_in`, `placeholders_dropped`,
+#' `repeats_collapsed` and `rows_kept`.
+#'
 #' ## Time zone
 #'
 #' An optional top-level `tz:` key names the time zone of the water, as one
@@ -172,6 +210,9 @@ creel_connect_from_yaml <- function(path, config = "default") {
   if (!is.null(cfg$corrections)) {
     cx_path <- .profile_relative(cfg$corrections, path)
     conn$corrections <- .read_corrections(cx_path, conn) # nolint: object_usage_linter
+  }
+  if (!is.null(cfg$cleanup)) {
+    conn$cleanup <- cfg$cleanup
   }
   if (!is.null(cfg$tz)) {
     conn$tz <- cfg$tz
@@ -334,7 +375,12 @@ creel_connect_from_yaml <- function(path, config = "default") {
     cli::cli_abort("{.field corrections} must be one file path: {.file {path}}")
   }
 
-  # 6. Optional tz: one IANA name. Checked here, so a typo aborts before any
+  # 6. Optional cleanup: known tables and steps, each true or false.
+  if (!is.null(cfg$cleanup)) {
+    .validate_cleanup(cfg$cleanup, path) # nolint: object_usage_linter
+  }
+
+  # 7. Optional tz: one IANA name. Checked here, so a typo aborts before any
   # connection is made rather than at the first night design.
   if (!is.null(cfg$tz)) {
     tz <- cfg$tz
