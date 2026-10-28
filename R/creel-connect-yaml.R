@@ -80,6 +80,22 @@
 #' `harvest_lengths_table` / `release_lengths_table` (both falling back to
 #' `lengths_table`).
 #'
+#' A SQL Server connection is encrypted and verifies the server's certificate
+#' unless the profile says otherwise (#31), because the login and the rows it
+#' returns -- which can include personal data -- otherwise cross the network in
+#' cleartext. Three optional keys control it:
+#' ```yaml
+#' driver: ODBC Driver 18 for SQL Server   # the default
+#' encrypt: true                           # the default
+#' trust_server_certificate: false         # the default
+#' ```
+#' `encrypt: false` warns (`creel_warning_sqlserver_unencrypted`) on every
+#' connect, and so does `trust_server_certificate: true`
+#' (`creel_warning_sqlserver_certificate_unverified`), which encrypts but
+#' accepts any certificate. Driver 17 does not encrypt unless asked, so naming
+#' it keeps `encrypt: true` in force. When a connect fails because the driver
+#' is not installed, the error says so; see [creel_check_driver()].
+#'
 #' ## Corrections
 #'
 #' An optional top-level `corrections:` key names a CSV of documented fixes to
@@ -365,6 +381,25 @@ creel_connect_from_yaml <- function(path, config = "default") {
         "i" = "Use {.code !expr Sys.getenv('VAR_NAME')} and ensure the variable is exported."
       ))
     }
+    # Transport settings (#31). Checked here so a typo aborts before any
+    # connection is attempted, not as a driver error.
+    # `[[` throughout, never `$`: `cfg$encrypt` would partially match an
+    # `encryption: false` key this check never saw, and switch encryption off.
+    drv <- cfg[["driver"]]
+    if (!is.null(drv) &&
+          (!is.character(drv) || length(drv) != 1L || is.na(drv) ||
+             !nzchar(drv))) {
+      cli::cli_abort(
+        "{.field driver} must be one ODBC driver name: {.file {path}}"
+      )
+    }
+    for (k in c("encrypt", "trust_server_certificate")) {
+      if (!is.null(cfg[[k]]) && !isTRUE(cfg[[k]]) && !isFALSE(cfg[[k]])) {
+        cli::cli_abort(
+          "{.field {k}} must be {.code true} or {.code false}: {.file {path}}"
+        )
+      }
+    }
   }
 
   # 5. Optional corrections: one path. Its contents are checked when read,
@@ -476,29 +511,115 @@ creel_connect_from_yaml <- function(path, config = "default") {
         "i" = "Install it with {.code install.packages('odbc')}."
       ))
     }
+    transport <- .sqlserver_transport(cfg)
     # WARNING: cfg$username and cfg$password must come from Sys.getenv() via YAML !expr tags.
     # Do NOT log or print cfg$password -- credentials are validated non-empty above.
     dbi_con <- tryCatch(
       DBI::dbConnect(
         odbc::odbc(),
-        Driver   = "ODBC Driver 17 for SQL Server",
-        Server   = cfg$server,
-        Database = cfg$database,
-        UID      = cfg$username,
-        PWD      = cfg$password
+        Driver                 = transport$driver,
+        Server                 = cfg$server,
+        Database               = cfg$database,
+        UID                    = cfg$username,
+        PWD                    = cfg$password,
+        Encrypt                = transport$encrypt,
+        TrustServerCertificate = transport$trust
       ),
       error = function(e) {
-        cli::cli_abort(c(
-          "Failed to connect to SQL Server {.val {cfg$database}} on {.val {cfg$server}}.",
-          "i" = "Check that the server is reachable and credentials are correct.",
-          "x" = conditionMessage(e)
-        ))
+        .abort_sqlserver_connect(e, cfg, transport$driver)
       }
     )
     .creel_connect_dbi(dbi_con, schema) # nolint: object_usage_linter
   }
 }
 
+
+# Internal: the SQL Server transport settings a profile asks for (#31).
+#
+# Encrypted, with the server's certificate verified, unless the profile says
+# otherwise. Driver 18 is the default because Driver 17 does not encrypt
+# unless asked, and naming `Encrypt` for it as well keeps the guarantee from
+# depending on which driver a profile names. Each protection a profile turns
+# off is warned about on every connect: the login and the returned rows --
+# which can include personal data -- then cross the network unprotected.
+#' @noRd
+.sqlserver_transport <- function(cfg) {
+  # `[[`, not `$`: a partial match on an unvalidated longer key (say
+  # `encryption: false`) must not reach the driver.
+  driver  <- cfg[["driver"]]
+  if (is.null(driver)) driver <- "ODBC Driver 18 for SQL Server"
+  encrypt <- !isFALSE(cfg[["encrypt"]])
+  trust   <- isTRUE(cfg[["trust_server_certificate"]])
+  if (!encrypt) {
+    cli::cli_warn(
+      c(
+        "SQL Server connection is not encrypted ({.code encrypt: false}).",
+        "!" = "The login and every row returned cross the network in cleartext."
+      ),
+      class = c("creel_warning_sqlserver_unencrypted", "creel_warning")
+    )
+  }
+  # Separately, not `else`: each setting removes its own protection, and a
+  # handler for one class should see it whatever the other is set to.
+  if (trust) {
+    cli::cli_warn(
+      c(
+        "SQL Server certificate is not verified \\
+         ({.code trust_server_certificate: true}).",
+        "!" = "The server's identity is not checked, so an interceptor can \\
+               read an encrypted connection."
+      ),
+      class = c(
+        "creel_warning_sqlserver_certificate_unverified", "creel_warning"
+      )
+    )
+  }
+  list(
+    driver  = driver,
+    encrypt = if (encrypt) "yes" else "no",
+    trust   = if (trust) "yes" else "no"
+  )
+}
+
+# Internal: abort on a failed SQL Server connect, saying what to check.
+#
+# The driver's own message is the most useful thing to show, and odbc 1.7.0
+# was checked not to quote the password in it (a failed login and a missing
+# driver, 2026-10-28). That is one version's behaviour, so a message that does
+# contain the password is withheld whole rather than redacted.
+#' @noRd
+.abort_sqlserver_connect <- function(e, cfg, driver) {
+  msg <- conditionMessage(e)
+  if (grepl(cfg$password, msg, fixed = TRUE)) {
+    msg <- "The driver's message is withheld: it quoted the password."
+  }
+  installed <- tryCatch(
+    unique(odbc::odbcListDrivers()$name),
+    error = function(e) NULL
+  )
+  hint <- if (!is.null(installed) && !driver %in% installed) {
+    c(
+      "i" = "Driver {.val {driver}} is not installed. Run \\
+             {.fn creel_check_driver} to see which are.",
+      "i" = "Name another with {.code driver:} in the profile; keep \\
+             {.code encrypt: true} if it is Driver 17, which does not \\
+             encrypt by default."
+    )
+  } else {
+    c(
+      "i" = "Check that the server is reachable and credentials are correct.",
+      "i" = "A certificate error means this machine does not trust the \\
+             server's certificate; fix the trust store rather than turning \\
+             off verification where you can."
+    )
+  }
+  cli::cli_abort(c(
+    "Failed to connect to SQL Server {.val {cfg$database}} on \\
+     {.val {cfg$server}}.",
+    "x" = "{msg}",
+    hint
+  ))
+}
 
 # Internal: turn the YAML `value_maps` block into the named character vectors
 # creel_schema() expects. Each column's codes arrive as a nested list; a code

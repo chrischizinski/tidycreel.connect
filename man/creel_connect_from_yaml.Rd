@@ -96,6 +96,23 @@ the table names, which the same \verb{schema:} block carries as
 \code{interviews_table}, \code{counts_table}, \code{catch_table} and
 \code{harvest_lengths_table} / \code{release_lengths_table} (both falling back to
 \code{lengths_table}).
+
+A SQL Server connection is encrypted and verifies the server's certificate
+unless the profile says otherwise (#31), because the login and the rows it
+returns -- which can include personal data -- otherwise cross the network in
+cleartext. Three optional keys control it:
+
+\if{html}{\out{<div class="sourceCode yaml">}}\preformatted{driver: ODBC Driver 18 for SQL Server   # the default
+encrypt: true                           # the default
+trust_server_certificate: false         # the default
+}\if{html}{\out{</div>}}
+
+\code{encrypt: false} warns (\code{creel_warning_sqlserver_unencrypted}) on every
+connect, and so does \code{trust_server_certificate: true}
+(\code{creel_warning_sqlserver_certificate_unverified}), which encrypts but
+accepts any certificate. Driver 17 does not encrypt unless asked, so naming
+it keeps \code{encrypt: true} in force. When a connect fails because the driver
+is not installed, the error says so; see \code{\link[=creel_check_driver]{creel_check_driver()}}.
 }
 
 \subsection{Corrections}{
