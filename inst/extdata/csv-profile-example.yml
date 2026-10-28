@@ -11,10 +11,9 @@
 # The left-hand name in each columns entry is tidycreel's canonical name and
 # must not be changed. The right-hand value is the column header in your CSV.
 #
-# `backend: api` ignores this block -- name raw JSON keys in field_map there,
-# and see api-profile-example.yml. `backend: sqlserver` accepts it, but its
-# fetch_*() methods are not implemented yet and abort when called, so nothing
-# reads it today.
+# `backend: api` refuses this block -- name raw JSON keys in field_map there,
+# and see api-profile-example.yml. `backend: sqlserver` reads it exactly as
+# `csv` does, alongside the table names under `schema:`.
 
 default:
   backend: csv
