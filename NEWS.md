@@ -1,5 +1,18 @@
 # tidycreel.connect (development version)
 
+* Documentation: the README and vignette no longer describe an `auth_type:`
+  profile key, which no code read (a profile always logs in with `username`
+  and `password`; Windows integrated login means building the connection
+  with `DBI::dbConnect()` yourself). The vignette's SQL Server profile now
+  maps columns with a `columns:` block; its `*_col` keys under `schema:`
+  were ignored, so a copied profile mapped no columns. Its
+  `creel_connect(..., auth_type =)` example, an unused-argument error, is
+  fixed. Both documented SQL Server profiles mapped `count:`, which no
+  loader reads, so `fetch_counts()` aborted for want of `bank_anglers`; they
+  now map `bank_anglers` and `angler_boats`. A new test loads every
+  documented SQL Server profile and fetches interviews and counts through
+  it (#36).
+
 * A `backend: sqlserver` profile now connects with ODBC Driver 18,
   encrypted, verifying the server's certificate (#31). It used Driver 17
   and named no encryption setting, and Driver 17 does not encrypt unless

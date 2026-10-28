@@ -65,9 +65,6 @@ Download and run the installer from Microsoft:
   winget install Microsoft.ODBCDriverForSQLServer
   ```
 
-Windows integrated authentication (`auth_type: windows`) is supported on
-Windows only. Use `auth_type: password` on macOS and Linux.
-
 #### macOS
 
 Install unixODBC and the Microsoft driver via Homebrew:
@@ -198,7 +195,6 @@ default:
   backend:   sqlserver
   server:    myserver.example.com
   database:  CreelDB
-  auth_type: password
   username:  !expr Sys.getenv("CREEL_USER")
   password:  !expr Sys.getenv("CREEL_PASS")
   # Optional. These are the defaults: Driver 18, encrypted, certificate
@@ -218,7 +214,8 @@ default:
       effort:        EffortHours
       catch:         TotalCatch
       trip_status:   TripStatus
-      count:         AnglerCount
+      bank_anglers:  BankAnglers
+      angler_boats:  AnglerBoats
       catch_uid:     CatchUID
       species:       SpeciesCode
       catch_count:   CatchCount
@@ -243,13 +240,14 @@ conn <- creel_connect_from_yaml("creel-config.yml")
 
 ## Authentication
 
-| `auth_type` | Platforms | Notes |
-|-------------|-----------|-------|
-| `password`  | Windows, macOS, Linux | Requires `username` + `password` in YAML |
-| `windows`   | **Windows only** | Uses domain credentials; no username/password needed |
+A SQL Server profile connects with a SQL Server login: `username` and
+`password`, read with `!expr` from the environment or a keyring, never written
+in the file. Windows integrated authentication is not supported by the profile
+route; for it, build the connection with `DBI::dbConnect()` and pass it to
+`creel_connect()`.
 
-Using `auth_type: windows` on macOS or Linux produces an immediate, helpful
-error before any connection is attempted.
+API profiles authenticate with a bearer token or an API key; see
+`?creel_connect_api`.
 
 ---
 
