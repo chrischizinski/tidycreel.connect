@@ -32,11 +32,14 @@ doc_sqlserver_profiles <- function(path) {
 doc_values <- list(
   interview_uid = "1", date = "2024-06-01", effort = 2.5, catch = 1,
   trip_status = "complete", bank_anglers = 3, angler_boats = 1,
-  non_ang_boats = 0, count_time = "08:00"
+  non_ang_boats = 0, count_time = "08:00",
+  length_uid = "1", species = "WAE", length_mm = 400, length_type = "harvest"
 )
 doc_interview_keys <- c("interview_uid", "date", "effort", "catch", "trip_status")
 doc_count_keys <- c("date", "count_time", "bank_anglers", "angler_boats",
                     "non_ang_boats")
+doc_length_keys <- c("length_uid", "interview_uid", "species", "length_mm",
+                     "length_type")
 
 # A one-row table holding the profile's own column names for these keys.
 doc_table <- function(columns, keys) {
@@ -94,6 +97,10 @@ for (doc in c("README.md", file.path("vignettes", "getting-started.Rmd"))) {
                           doc_table(sch[["columns"]], doc_interview_keys))
         DBI::dbWriteTable(con, sch[["counts_table"]],
                           doc_table(sch[["columns"]], doc_count_keys))
+        if (!is.null(sch[["lengths_table"]])) {
+          DBI::dbWriteTable(con, sch[["lengths_table"]],
+                            doc_table(sch[["columns"]], doc_length_keys))
+        }
       }
       expect_setequal(
         setdiff(names(raw[["default"]]), sqlserver_profile_keys),
@@ -115,6 +122,14 @@ for (doc in c("README.md", file.path("vignettes", "getting-started.Rmd"))) {
       expect_true(all(c("interview_uid", "date", "effort") %in% names(iv)))
       ct <- suppressMessages(fetch_counts(conn))
       expect_true("bank_anglers" %in% names(ct))
+      # A documented `lengths_table` is the fallback for both length tables;
+      # before #40 the profile route never passed it on, and both aborted.
+      if (!is.null(sch[["lengths_table"]])) {
+        hl <- suppressMessages(fetch_harvest_lengths(conn))
+        expect_true("length_mm" %in% names(hl))
+        rl <- suppressMessages(fetch_release_lengths(conn))
+        expect_true("length_mm" %in% names(rl))
+      }
     }
   })
 }

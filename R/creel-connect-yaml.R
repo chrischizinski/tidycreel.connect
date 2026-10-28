@@ -35,6 +35,26 @@
 #'   token: !expr function() keyring::key_get("creel-api")
 #' ```
 #'
+#' ## Every key is read or refused
+#'
+#' A key the profile route does not read aborts the load
+#' (`creel_error_profile_unknown_key`), naming it and listing the valid keys,
+#' before any connection is attempted. It is never ignored: an ignored key let
+#' a typo (`field_mpa:`, `interviews_tabel:`) fall back to a default, and let
+#' keys no code read sit in documented profiles. A key another backend reads
+#' says which backend; a `*_col` key under `schema:` is pointed at the
+#' `columns:` block. `config`'s own `inherits:` is accepted.
+#'
+#' Top-level keys every backend reads: `backend`, `schema`, `tz`,
+#' `corrections`, `cleanup`. `csv` adds `files`; `api` adds `base_url`,
+#' `uid_param`, `creel_uids`, `endpoints`, `field_map`, `auth`, `pagination`,
+#' `records_path`, `total_path`, `allow_http`; `sqlserver` adds `server`,
+#' `database`, `username`, `password`, `driver`, `encrypt`,
+#' `trust_server_certificate`. Under `schema:`: `survey_type`, the table names
+#' (`interviews_table`, `counts_table`, `catch_table`, `lengths_table`,
+#' `harvest_lengths_table`, `release_lengths_table`), `value_maps`,
+#' `strata_cols` and `columns`.
+#'
 #' ## API profiles
 #'
 #' With `backend: api`, the profile carries the whole API contract -- `base_url`,
@@ -317,6 +337,11 @@ creel_connect_from_yaml <- function(path, config = "default") {
     ))
   }
 
+  # 2b. Every key is one this backend reads (#40). An ignored key made a
+  # profile load while doing less than it said: a typo fell back to a
+  # default, and documented keys no code read (`auth_type`) went unnoticed.
+  .validate_profile_keys(cfg, backend, path)
+
   # 3. Require 'schema' key with 'survey_type'
   if (is.null(cfg$schema)) {
     cli::cli_abort(c(
@@ -324,6 +349,7 @@ creel_connect_from_yaml <- function(path, config = "default") {
       "i" = "Add a {.code schema:} block with at least {.code survey_type}."
     ))
   }
+  .validate_schema_keys(cfg$schema, path)
   if (is.null(cfg$schema$survey_type)) {
     cli::cli_abort(c(
       "Required key {.field schema.survey_type} is missing from YAML config: {.file {path}}",
@@ -452,6 +478,86 @@ creel_connect_from_yaml <- function(path, config = "default") {
   invisible(cfg)
 }
 
+# Internal: the top-level keys each backend reads (#40). `inherits` is
+# config's own, kept in the list it returns for a block that inherits another.
+#' @noRd
+.profile_keys <- function() {
+  list(
+    common    = c("backend", "schema", "tz", "corrections", "cleanup",
+                  "inherits"),
+    csv       = "files",
+    api       = c("base_url", "uid_param", "creel_uids", "endpoints",
+                  "field_map", "auth", "pagination", "records_path",
+                  "total_path", "allow_http"),
+    sqlserver = c("server", "database", "username", "password", "driver",
+                  "encrypt", "trust_server_certificate")
+  )
+}
+
+# Internal: refuse a top-level key this backend does not read (#40).
+#' @noRd
+.validate_profile_keys <- function(cfg, backend, path) {
+  keys    <- .profile_keys()
+  valid   <- c(keys$common, keys[[backend]])
+  unknown <- setdiff(names(cfg), valid)
+  if (length(unknown) == 0L) {
+    return(invisible(cfg))
+  }
+  # A key another backend reads is a likelier mistake than a typo: say whose.
+  others <- setdiff(c("csv", "api", "sqlserver"), backend)
+  owner  <- vapply(unknown, function(k) {
+    hit <- others[vapply(others, function(b) k %in% keys[[b]], logical(1))]
+    if (length(hit) == 0L) NA_character_ else hit[[1]]
+  }, character(1))
+  noun <- if (length(unknown) == 1L) "key" else "keys" # nolint: object_usage_linter
+  elsewhere <- stats::setNames(
+    sprintf("{.field %s} is read by {.code backend: %s}, not %s.",
+            unknown[!is.na(owner)], owner[!is.na(owner)], backend),
+    rep("x", sum(!is.na(owner)))
+  )
+  cli::cli_abort(
+    c(
+      "Unknown {noun} in YAML config for {.code backend: {backend}}: \
+       {.field {unknown}} ({.file {path}})",
+      elsewhere,
+      "i" = "A key nothing reads is refused rather than ignored, so a typo or \
+             a stale key cannot quietly change what the profile does.",
+      "i" = "Keys for {.code backend: {backend}}: {.field {valid}}."
+    ),
+    class = "creel_error_profile_unknown_key"
+  )
+}
+
+# Internal: refuse a `schema:` key the profile route does not read (#40).
+#' @noRd
+.validate_schema_keys <- function(schema, path) {
+  valid <- c(
+    "survey_type", "interviews_table", "counts_table", "catch_table",
+    "lengths_table", "harvest_lengths_table", "release_lengths_table",
+    "value_maps", "strata_cols", "columns"
+  )
+  unknown <- setdiff(names(schema), valid)
+  if (length(unknown) == 0L) {
+    return(invisible(schema))
+  }
+  noun <- if (length(unknown) == 1L) "key" else "keys" # nolint: object_usage_linter
+  # `date_col: SurveyDate` under `schema:` is the shape older docs showed.
+  suffixed <- unknown[grepl("_col$", unknown)]
+  hint <- if (length(suffixed) > 0L) {
+    c("i" = "Column mappings go in a {.code columns:} block, keyed without \
+             the suffix: {.code columns: {{date: SurveyDate}}}.")
+  }
+  cli::cli_abort(
+    c(
+      "Unknown {.field schema} {noun} in YAML config: {.field {unknown}} \
+       ({.file {path}})",
+      hint,
+      "i" = "Keys under {.code schema:}: {.field {valid}}."
+    ),
+    class = "creel_error_profile_unknown_key"
+  )
+}
+
 # Internal: build creel_connection from validated config list
 #' @noRd
 .build_creel_conn <- function(cfg) { # nolint: object_length_linter
@@ -471,8 +577,11 @@ creel_connect_from_yaml <- function(path, config = "default") {
     ))
   }
   schema_args <- list(survey_type = survey_type)
+  # `lengths_table` too: creel_schema() falls back to it for both length
+  # tables, and without it here a profile naming only it fetched no lengths
+  # (#40).
   table_keys <- c(
-    "interviews_table", "counts_table", "catch_table",
+    "interviews_table", "counts_table", "catch_table", "lengths_table",
     "harvest_lengths_table", "release_lengths_table"
   )
   for (k in table_keys) {

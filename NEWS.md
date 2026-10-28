@@ -1,5 +1,17 @@
 # tidycreel.connect (development version)
 
+* `creel_connect_from_yaml()` refuses a profile key it does not read,
+  naming it and listing the valid keys (`creel_error_profile_unknown_key`),
+  at the top level and under `schema:` (#40). Ignored keys let a profile
+  load while doing less than it said: a typo fell back to a default, and
+  documented keys no code read (`auth_type`, `*_col` under `schema:`) went
+  unnoticed. A key another backend reads says which; a `*_col` key is
+  pointed at `columns:`. **Breaking** for a profile carrying any extra key.
+
+* A profile's `schema: lengths_table:` now reaches the schema (#40). It is
+  the documented fallback for both length tables, but the profile route
+  never passed it on, so a profile naming only it could fetch no lengths.
+
 * Documentation: the README and vignette no longer describe an `auth_type:`
   profile key, which no code read (a profile always logs in with `username`
   and `password`; Windows integrated login means building the connection
