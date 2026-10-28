@@ -2,6 +2,29 @@
 
 ## tidycreel.connect (development version)
 
+- API requests now go only to the origin of `base_url` – its scheme,
+  host and port – so the credential cannot reach a server the user did
+  not name
+  ([\#30](https://github.com/chrischizinski/tidycreel.connect/issues/30)).
+  A next page (a `Link` header or a next-page URL in the body) or a
+  redirect pointing at another origin aborts the fetch
+  (`creel_error_api_cross_origin`), naming that origin. Before, a
+  next-page URL was followed wherever it pointed with the credential
+  attached, and curl’s redirect handling forwarded an API-key header to
+  any host a `Location` named (it strips only `Authorization`).
+  Redirects within the origin are still followed, now by the package, up
+  to five hops.
+
+- [`creel_connect_api()`](https://chrischizinski.com/tidycreel.connect/reference/creel_connect_api.md)
+  and `backend: api` profiles now require an `https://` `base_url`
+  ([\#30](https://github.com/chrischizinski/tidycreel.connect/issues/30)).
+  Plain `http://` is accepted for a loopback host; any other needs the
+  new `allow_http = TRUE` (profile key `allow_http: true`), which warns
+  each time (`creel_warning_api_plain_http`). A `base_url` carrying a
+  user name or password is refused; credentials go in `auth`.
+  **Breaking** for a connection that used plain `http://` to a remote
+  host.
+
 - A profile’s new `cleanup:` block removes rows a source serves that are
   not records, so every analysis of that source stops writing the same
   lines to do it

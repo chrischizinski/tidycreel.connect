@@ -88,6 +88,23 @@ retrying it would turn a clear 401 into a hang. A fixed-string
 credential is never retried at all, because the second attempt would
 send the same header and get the same answer.
 
+### Where requests go
+
+Every request goes to the origin of `base_url` – its scheme, host and
+port – and nowhere else, so the credential is never sent to a server you
+did not name (#30). A next page (a `Link` header, or a next-page URL in
+the body) or an HTTP redirect that points at another origin aborts the
+fetch, naming that origin. It is not followed without the credential
+instead: that would usually fail with a 401, or return unauthenticated
+data that is only part of what was asked for. A redirect within the
+origin is followed.
+
+`base_url` must use `https://`, so the credential and the records are
+encrypted in transit. Plain `http://` is accepted for a loopback host
+(`localhost`, `127.0.0.1`, `::1`), which never leaves the machine. Any
+other `http://` host needs `allow_http = TRUE`, and warns
+(`creel_warning_api_plain_http`) each time such a connection is created.
+
 ## Usage
 
 ``` r
@@ -101,7 +118,8 @@ creel_connect_api(
   api_field_map,
   pagination = NULL,
   records_path = NULL,
-  total_path = NULL
+  total_path = NULL,
+  allow_http = FALSE
 )
 ```
 
@@ -242,6 +260,13 @@ creel_connect_api(
   a conventional total (`count`, `total`, `total_count`, `totalCount`,
   `totalResults`) is read for this refusal too. Such a guess is never
   used to return data, only to stop.
+
+- allow_http:
+
+  Accept a plain `http://` `base_url` on a host other than loopback.
+  Default `FALSE`. Over plain HTTP the credential and every record cross
+  the network unencrypted, so this is for a server that cannot offer
+  HTTPS, and it warns each time it is used. See "Where requests go".
 
 ## Value
 

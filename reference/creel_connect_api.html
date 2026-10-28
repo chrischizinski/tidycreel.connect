@@ -86,6 +86,24 @@ get the same answer.
 
 
 
+
+
+Where requests go
+
+
+Every request goes to the origin of base_url – its scheme, host and port
+– and nowhere else, so the credential is never sent to a server you did not
+name (#30). A next page (a Link header, or a next-page URL in the body)
+or an HTTP redirect that points at another origin aborts the fetch, naming
+that origin. It is not followed without the credential instead: that would
+usually fail with a 401, or return unauthenticated data that is only part of
+what was asked for. A redirect within the origin is followed.
+base_url must use https://, so the credential and the records are
+encrypted in transit. Plain http:// is accepted for a loopback host
+(localhost, 127.0.0.1, ::1), which never leaves the machine. Any
+other http:// host needs allow_http = TRUE, and warns
+(creel_warning_api_plain_http) each time such a connection is created.
+
 "><meta property="og:description" content="creel_connect_api() creates a creel_connection object that fetches data
 from a REST API returning JSON arrays.
 Requests follow the pattern:
@@ -172,6 +190,24 @@ get the same answer.
 
 
 
+
+
+
+Where requests go
+
+
+Every request goes to the origin of base_url – its scheme, host and port
+– and nowhere else, so the credential is never sent to a server you did not
+name (#30). A next page (a Link header, or a next-page URL in the body)
+or an HTTP redirect that points at another origin aborts the fetch, naming
+that origin. It is not followed without the credential instead: that would
+usually fail with a 401, or return unauthenticated data that is only part of
+what was asked for. A redirect within the origin is followed.
+base_url must use https://, so the credential and the records are
+encrypted in transit. Plain http:// is accepted for a loopback host
+(localhost, 127.0.0.1, ::1), which never leaves the machine. Any
+other http:// host needs allow_http = TRUE, and warns
+(creel_warning_api_plain_http) each time such a connection is created.
 
 "><meta property="og:image" content="https://chrischizinski.com/tidycreel.connect/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -292,6 +328,24 @@ get the same answer.</p>
 
 </div>
 
+<div class="section">
+<h3 id="where-requests-go">Where requests go<a class="anchor" aria-label="anchor" href="#where-requests-go"></a></h3>
+
+
+<p>Every request goes to the origin of <code>base_url</code> – its scheme, host and port
+– and nowhere else, so the credential is never sent to a server you did not
+name (#30). A next page (a <code>Link</code> header, or a next-page URL in the body)
+or an HTTP redirect that points at another origin aborts the fetch, naming
+that origin. It is not followed without the credential instead: that would
+usually fail with a 401, or return unauthenticated data that is only part of
+what was asked for. A redirect within the origin is followed.</p>
+<p><code>base_url</code> must use <code>https://</code>, so the credential and the records are
+encrypted in transit. Plain <code>http://</code> is accepted for a loopback host
+(<code>localhost</code>, <code>127.0.0.1</code>, <code>::1</code>), which never leaves the machine. Any
+other <code>http://</code> host needs <code>allow_http = TRUE</code>, and warns
+(<code>creel_warning_api_plain_http</code>) each time such a connection is created.</p>
+</div>
+
     </div>
 
     <div class="section level2">
@@ -306,7 +360,8 @@ get the same answer.</p>
 <span>  <span class="va">api_field_map</span>,</span>
 <span>  pagination <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  records_path <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  total_path <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  total_path <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  allow_http <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -427,6 +482,13 @@ the dataset. Declaring it is optional, but leaving it out does not disable
 the check – an undeclared sibling whose <em>name</em> is a conventional total
 (<code>count</code>, <code>total</code>, <code>total_count</code>, <code>totalCount</code>, <code>totalResults</code>) is read for
 this refusal too. Such a guess is never used to return data, only to stop.</p></dd>
+
+
+<dt id="arg-allow-http">allow_http<a class="anchor" aria-label="anchor" href="#arg-allow-http"></a></dt>
+<dd><p>Accept a plain <code>http://</code> <code>base_url</code> on a host other than
+loopback. Default <code>FALSE</code>. Over plain HTTP the credential and every record
+cross the network unencrypted, so this is for a server that cannot offer
+HTTPS, and it warns each time it is used. See "Where requests go".</p></dd>
 
 </dl></div>
     <div class="section level2">

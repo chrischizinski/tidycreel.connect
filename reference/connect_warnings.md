@@ -92,6 +92,13 @@ nothing is recorded for
   Tier 1. Length bins were fetched without a fish count, so a
   distribution built from them is weighted by rows, not fish.
 
+- `creel_warning_api_plain_http`:
+
+  Tier 2. An API connection was created over plain `http://` to a
+  non-loopback host with `allow_http = TRUE`, so the credential and the
+  records cross the network unencrypted. See
+  [`creel_connect_api()`](https://chrischizinski.com/tidycreel.connect/reference/creel_connect_api.md).
+
 - `creel_warning_discovery_field_missing`:
 
   Tier 2. The discovery response lacks an expected field, which is

@@ -147,6 +147,12 @@ profile's. See <code><a href="creel_connect_from_yaml.html">creel_connect_from_y
 fetched without a fish count, so a distribution built from them is
 weighted by rows, not fish.</p></dd>
 
+<dt><code>creel_warning_api_plain_http</code></dt>
+<dd><p>Tier 2. An API connection
+was created over plain <code>http://</code> to a non-loopback host with
+<code>allow_http = TRUE</code>, so the credential and the records cross the
+network unencrypted. See <code><a href="creel_connect_api.html">creel_connect_api()</a></code>.</p></dd>
+
 <dt><code>creel_warning_discovery_field_missing</code></dt>
 <dd><p>Tier 2. The discovery
 response lacks an expected field, which is filled with <code>NA</code>.</p></dd>
