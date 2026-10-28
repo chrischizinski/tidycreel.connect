@@ -10,6 +10,10 @@
 #
 # The left-hand name in each field_map entry is tidycreel's canonical name and
 # must not be changed. The right-hand value is the raw JSON key your API returns.
+#
+# A profile is code: every `!expr` below runs as R when the file is loaded.
+# Read a profile you did not write before loading it. Never put a credential
+# in this file; read it from your keyring or environment (see `auth:` below).
 
 default:
   backend: api
@@ -47,15 +51,22 @@ default:
   creel_uids:
     - "survey-2016-001"
 
-  # Credentials, if your API needs them. Never write a token in this file --
-  # read it from the environment. Drop the block entirely for an open API.
+  # Credentials, if your API needs them. Never write a token in this file.
+  # Drop the block entirely for an open API. Best: a function that looks the
+  # token up at request time, so the connection never holds it (saveRDS() or
+  # str() of the connection would otherwise show it):
+  # auth:
+  #   type: bearer
+  #   token: !expr function() keyring::key_get("creel-api")
+  #
+  # Or from the environment, read once when the profile is loaded:
   # auth:
   #   type: bearer
   #   token: !expr Sys.getenv("CREEL_API_TOKEN")
   #
   # A token that EXPIRES needs a function rather than a string, so it can be
   # fetched again. It is called before every request, and once more if the API
-  # answers 401 -- which is what keeps a long paginated fetch from dying
+  # answers 401 or 403 -- which is what keeps a long paginated fetch from dying
   # part-way and discarding the pages it already has. What the function does is
   # yours; this package implements no provider's handshake.
   # auth:

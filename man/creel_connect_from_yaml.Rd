@@ -27,6 +27,27 @@ Credentials must never be stored as plain text in the YAML file. Use the
 \if{html}{\out{<div class="sourceCode yaml">}}\preformatted{username: !expr Sys.getenv("CREEL_USER")
 password: !expr Sys.getenv("CREEL_PASS")
 }\if{html}{\out{</div>}}
+\subsection{A profile is code}{
+
+\code{config} evaluates every \code{!expr} value as R, with your permissions, your
+credentials and your database access. That is what lets a profile read a
+secret from the environment, and it also means opening a profile runs
+whatever R it contains. Treat a profile like a script: read one you did not
+write before loading it, and do not load profiles from a source you would
+not run code from. Sharing the non-secret parts of a profile (endpoints,
+field names) is fine; the secrets stay in each user's own environment or
+keyring.
+
+For an API token, prefer a function that looks it up at request time, so
+the connection never holds the token itself (see "Where the credential is
+kept" in \code{\link[=creel_connect_api]{creel_connect_api()}}):
+
+\if{html}{\out{<div class="sourceCode yaml">}}\preformatted{auth:
+  type: bearer
+  token: !expr function() keyring::key_get("creel-api")
+}\if{html}{\out{</div>}}
+}
+
 \subsection{API profiles}{
 
 With \code{backend: api}, the profile carries the whole API contract -- \code{base_url},

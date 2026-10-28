@@ -88,6 +88,33 @@
 #' retried at all, because the second attempt would send the same header and
 #' get the same answer.
 #'
+#' ### Where the credential is kept
+#'
+#' A credential given as a string is stored in the connection object as it
+#' is. Printing the connection never shows it, but [str()], [dput()],
+#' [saveRDS()], [save()] and a workspace saved on exit (`.RData`) all write it
+#' out in plain text. Given as a function, the credential is looked up when a
+#' request is made and the connection holds only the function. (It is also
+#' called once more on a 401 or 403, as above; for a token that never expires
+#' that costs one extra request before the abort.) In order of preference:
+#'
+#' ```r
+#' # 1. A secret store, read at request time (the keyring package):
+#' auth = list(type = "bearer", token = function() keyring::key_get("creel-api"))
+#' # 2. An environment variable, read at request time:
+#' auth = list(type = "bearer", token = function() Sys.getenv("CREEL_API_TOKEN"))
+#' # 3. An environment variable, read once (the string is then held):
+#' auth = list(type = "bearer", token = Sys.getenv("CREEL_API_TOKEN"))
+#' ```
+#'
+#' Never write the credential itself into a script or profile. A function
+#' should look the secret up rather than return a variable holding it: made
+#' inside another function or [local()], `function() tok` carries `tok` with
+#' it, so the token is saved along with the connection; made at top level,
+#' `tok` sits in the workspace instead, which a saved `.RData` still holds.
+#' Whatever form it takes, do not save a connection to disk; save the data it
+#' fetched and reconnect.
+#'
 #' ## Where requests go
 #'
 #' Every request goes to the origin of `base_url` -- its scheme, host and port
