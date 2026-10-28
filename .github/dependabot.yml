@@ -1,0 +1,19 @@
+# Keeps the SHA-pinned actions current (#32). A pin to a commit cannot move by
+# itself, so without this the workflows would stop receiving fixes, security
+# ones included. Dependabot rewrites the SHA and the `# vX.Y.Z` comment
+# together. Grouped, so one weekly PR carries every bump: each merge to `main`
+# makes every other open PR fall behind. The cooldown waits a week before
+# proposing a release, so a hijacked version published and pulled within days
+# never reaches a PR.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"
