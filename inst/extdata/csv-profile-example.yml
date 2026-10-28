@@ -11,6 +11,9 @@
 # The left-hand name in each columns entry is tidycreel's canonical name and
 # must not be changed. The right-hand value is the column header in your CSV.
 #
+# A profile is code: any `!expr` in it runs as R when the file is loaded. Read a
+# profile you did not write before loading it.
+#
 # `backend: api` ignores this block -- name raw JSON keys in field_map there,
 # and see api-profile-example.yml. `backend: sqlserver` accepts it, but its
 # fetch_*() methods are not implemented yet and abort when called, so nothing

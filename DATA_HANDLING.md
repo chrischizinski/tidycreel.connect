@@ -26,12 +26,40 @@ helpers or written to `tempdir()`, and never copied from an agency extract.
 ## Credentials
 
 - Never written in code or in a committed YAML profile. Profiles read them with
-  `!expr Sys.getenv("VAR")`, and API tokens come from `Sys.getenv()`, the OS
-  keyring (`keyring::key_get()`) or a token-provider function.
+  `!expr`, from the OS keyring (`keyring::key_get()`) or the environment
+  (`Sys.getenv()`).
+- For an API token, prefer a **function** that looks it up at request time,
+  e.g. `token: !expr function() keyring::key_get("creel-api")`. A token given
+  as a string is held in the connection object: `print()` hides it, but
+  `str()`, `dput()`, `saveRDS()`, `save()` and a saved `.RData` workspace all
+  write it out (checked 2026-10-28). A function that looks the token up keeps
+  it out of all of them; a function that *captures* a token variable does not,
+  because the variable is serialized with the function.
+- Never save a connection object to disk, and do not save the workspace on exit
+  in a session that holds one. Save the fetched data and reconnect.
 - Print methods never show a password or token; keep it that way.
 - Use read-only database accounts.
 - A credential that appears in a commit, log, or chat transcript is treated as
   compromised and rotated.
+
+## Profiles are code
+
+A YAML profile is evaluated by `config`, which runs every `!expr` value as R
+with the user's permissions, credentials and data access. Read a profile you did
+not write before loading it, and never load one from a source you would not run
+code from. Share the non-secret parts of a profile (endpoints, field names,
+table names); each user keeps the secrets in their own keyring or environment.
+
+## Data in transit
+
+- API connections use `https://` and send requests, next pages and redirects
+  only to the origin of `base_url`, so a token cannot reach another server
+  (#30). Plain `http://` to a non-loopback host needs `allow_http = TRUE` and
+  warns.
+- SQL Server profiles connect with Driver 18, encrypted, verifying the server's
+  certificate (#31). Turning either protection off warns on every connect.
+- A connection built by hand with `DBI::dbConnect()` is the user's own: set
+  `Encrypt` there yourself.
 
 ## Safeguards in this repo
 

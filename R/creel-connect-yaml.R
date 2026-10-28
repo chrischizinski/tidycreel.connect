@@ -15,6 +15,26 @@
 #' password: !expr Sys.getenv("CREEL_PASS")
 #' ```
 #'
+#' ## A profile is code
+#'
+#' `config` evaluates every `!expr` value as R, with your permissions, your
+#' credentials and your database access. That is what lets a profile read a
+#' secret from the environment, and it also means opening a profile runs
+#' whatever R it contains. Treat a profile like a script: read one you did not
+#' write before loading it, and do not load profiles from a source you would
+#' not run code from. Sharing the non-secret parts of a profile (endpoints,
+#' field names) is fine; the secrets stay in each user's own environment or
+#' keyring.
+#'
+#' For an API token, prefer a function that looks it up at request time, so
+#' the connection never holds the token itself (see "Where the credential is
+#' kept" in [creel_connect_api()]):
+#' ```yaml
+#' auth:
+#'   type: bearer
+#'   token: !expr function() keyring::key_get("creel-api")
+#' ```
+#'
 #' ## API profiles
 #'
 #' With `backend: api`, the profile carries the whole API contract -- `base_url`,

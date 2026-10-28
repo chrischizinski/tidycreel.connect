@@ -82,6 +82,30 @@
 #' token's lifetime and renewal belong to a provider, not to a creel package,
 #' exactly as `endpoints` and `api_field_map` belong to a deployment.
 #'
+#' ### Where the credential is kept
+#'
+#' A credential given as a string is stored in the connection object as it
+#' is. Printing the connection never shows it, but [str()], [dput()],
+#' [saveRDS()], [save()] and a workspace saved on exit (`.RData`) all write it
+#' out in plain text. Given as a function, the credential is looked up when a
+#' request is made and the connection holds only the function. In order of
+#' preference:
+#'
+#' ```r
+#' # 1. A secret store, read at request time (the keyring package):
+#' auth = list(type = "bearer", token = function() keyring::key_get("creel-api"))
+#' # 2. An environment variable, read at request time:
+#' auth = list(type = "bearer", token = function() Sys.getenv("CREEL_API_TOKEN"))
+#' # 3. An environment variable, read once (the string is then held):
+#' auth = list(type = "bearer", token = Sys.getenv("CREEL_API_TOKEN"))
+#' ```
+#'
+#' Never write the credential itself into a script or profile. A function
+#' should look the secret up, not capture it: `function() tok` with `tok`
+#' holding the token keeps it in the function's environment, which is
+#' serialized with the function. Whatever form it takes, do not save a
+#' connection to disk; save the data it fetched and reconnect.
+#'
 #' A refusal that survives one refresh aborts rather than looping: a credential
 #' the provider keeps rejecting is a configuration problem, and retrying it
 #' would turn a clear 401 into a hang. A fixed-string credential is never
