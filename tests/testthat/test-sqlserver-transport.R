@@ -105,22 +105,20 @@ test_that("turning a protection off is passed through, and warns", {
 
 test_that("a longer key cannot reach a transport setting by partial matching", {
   # `cfg$encrypt` partially matches `encryption`, so reading the settings with
-  # `$` let an unvalidated key switch encryption off without a warning.
+  # `$` let an unvalidated key switch encryption off without a warning. The
+  # settings are read with `[[` now, and since #40 such a key never gets that
+  # far: it is refused by name before anything reads it.
   skip_if_no_sqlserver_mock()
-  path <- sqlserver_profile(c("encryption: false", "driverx: Some Driver"))
-  real_connect <- DBI::dbConnect
-  seen <- new.env()
   local_mocked_bindings(
-    dbConnect = function(drv, ...) {
-      seen$args <- list(...)
-      real_connect(duckdb::duckdb())
-    },
+    dbConnect = function(drv, ...) stop("dbConnect must not be reached"),
     .package = "DBI"
   )
-  expect_no_warning(conn <- creel_connect_from_yaml(path))
-  on.exit(DBI::dbDisconnect(conn$con, shutdown = TRUE), add = TRUE)
-  expect_identical(seen$args$Encrypt, "yes")
-  expect_identical(seen$args$Driver, "ODBC Driver 18 for SQL Server")
+  err <- expect_error(
+    creel_connect_from_yaml(sqlserver_profile(c("encryption: false", "driverx: Some Driver"))),
+    class = "creel_error_profile_unknown_key"
+  )
+  expect_match(conditionMessage(err), "encryption")
+  expect_match(conditionMessage(err), "driverx")
 })
 
 test_that("both protections off raise both warnings", {

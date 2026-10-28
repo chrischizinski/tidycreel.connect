@@ -48,6 +48,27 @@ kept" in \code{\link[=creel_connect_api]{creel_connect_api()}}):
 }\if{html}{\out{</div>}}
 }
 
+\subsection{Every key is read or refused}{
+
+A key the profile route does not read aborts the load
+(\code{creel_error_profile_unknown_key}), naming it and listing the valid keys,
+before any connection is attempted. It is never ignored: an ignored key let
+a typo (\verb{field_mpa:}, \verb{interviews_tabel:}) fall back to a default, and let
+keys no code read sit in documented profiles. A key another backend reads
+says which backend; a \verb{*_col} key under \verb{schema:} is pointed at the
+\verb{columns:} block. \code{config}'s own \verb{inherits:} is accepted.
+
+Top-level keys every backend reads: \code{backend}, \code{schema}, \code{tz},
+\code{corrections}, \code{cleanup}. \code{csv} adds \code{files}; \code{api} adds \code{base_url},
+\code{uid_param}, \code{creel_uids}, \code{endpoints}, \code{field_map}, \code{auth}, \code{pagination},
+\code{records_path}, \code{total_path}, \code{allow_http}; \code{sqlserver} adds \code{server},
+\code{database}, \code{username}, \code{password}, \code{driver}, \code{encrypt},
+\code{trust_server_certificate}. Under \verb{schema:}: \code{survey_type}, the table names
+(\code{interviews_table}, \code{counts_table}, \code{catch_table}, \code{lengths_table},
+\code{harvest_lengths_table}, \code{release_lengths_table}), \code{value_maps},
+\code{strata_cols} and \code{columns}.
+}
+
 \subsection{API profiles}{
 
 With \code{backend: api}, the profile carries the whole API contract -- \code{base_url},
