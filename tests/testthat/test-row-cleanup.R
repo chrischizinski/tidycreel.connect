@@ -193,7 +193,7 @@ test_that("the API path collapses within each creel, never across creels", {
     )
   })
   conn <- creel_connect_api(
-    base_url      = "http://test.example.com/api/",
+    base_url      = "https://test.example.com/api/",
     creel_uids    = c("S1", "S2"),
     schema        = tidycreel::creel_schema(survey_type = "instantaneous"),
     uid_param     = "survey_id",

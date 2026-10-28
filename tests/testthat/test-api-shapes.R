@@ -245,18 +245,18 @@ test_that("total_path without records_path is refused at construction (SHAPE-18)
   # envelope, so accepting it would leave a profile that looks configured for
   # the truncation check and is not.
   expect_error(
-    api_shapes_conn("http://example.invalid/", "bare", total_path = "count"),
+    api_shapes_conn("https://example.invalid/", "bare", total_path = "count"),
     "without.*records_path"
   )
 })
 
 test_that("records_path must be member names (SHAPE-19)", {
   expect_error(
-    api_shapes_conn("http://example.invalid/", "bare", records_path = 1L),
+    api_shapes_conn("https://example.invalid/", "bare", records_path = 1L),
     "character vector of member names"
   )
   expect_error(
-    api_shapes_conn("http://example.invalid/", "bare", records_path = ""),
+    api_shapes_conn("https://example.invalid/", "bare", records_path = ""),
     "character vector of member names"
   )
 })

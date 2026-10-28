@@ -21,7 +21,7 @@ test_that("creel_connect_api() aborts when api_field_map is not supplied", {
   # everyone's: it would decode their payload and silently misread every other.
   expect_error(
     creel_connect_api(
-      base_url   = "http://test.example.com/api/",
+      base_url   = "https://test.example.com/api/",
       creel_uids = "uid",
       schema     = tidycreel::creel_schema(survey_type = "instantaneous"),
       uid_param  = "survey_id",
@@ -35,7 +35,7 @@ test_that("creel_connect_api() aborts when api_field_map is not supplied", {
 test_that("creel_connect_api() aborts when endpoints are not supplied", {
   expect_error(
     creel_connect_api(
-      base_url      = "http://test.example.com/api/",
+      base_url      = "https://test.example.com/api/",
       creel_uids    = "uid",
       schema        = tidycreel::creel_schema(survey_type = "instantaneous"),
       uid_param     = "survey_id",
@@ -50,7 +50,7 @@ test_that("creel_connect_api() aborts when uid_param is not supplied", {
   # The query parameter name is as deployment-specific as the paths are.
   expect_error(
     creel_connect_api(
-      base_url      = "http://test.example.com/api/",
+      base_url      = "https://test.example.com/api/",
       creel_uids    = "uid",
       schema        = tidycreel::creel_schema(survey_type = "instantaneous"),
       endpoints     = test_api_endpoints(),
@@ -66,7 +66,7 @@ test_that("the abort points at the template profile", {
   # just makes the backend look broken.
   expect_error(
     creel_connect_api(
-      base_url   = "http://test.example.com/api/",
+      base_url   = "https://test.example.com/api/",
       creel_uids = "uid",
       schema     = tidycreel::creel_schema(survey_type = "instantaneous"),
       uid_param  = "survey_id",

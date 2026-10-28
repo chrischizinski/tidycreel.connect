@@ -36,6 +36,12 @@ default:
   #   GET {base_url}/{endpoint}?{uid_param}={one creel uid}
   # One request (and its pages) per creel uid; every fetched row carries its
   # uid as `creel_uid`.
+  #
+  # Must be https://. Every request -- next pages and redirects included --
+  # goes to this scheme, host and port only; one pointing anywhere else aborts,
+  # so the credential never reaches a server you did not name. Plain http://
+  # works for localhost only, unless you accept the risk explicitly (it warns):
+  # allow_http: true
   base_url: "https://api.example.org/creel/"
   uid_param: "survey_id"
   creel_uids:

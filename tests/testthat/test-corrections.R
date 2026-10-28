@@ -250,7 +250,7 @@ test_that("a value the column cannot hold is refused, not written as NA", {
 # API: corrections are matched on the creel too.
 api_corrections_conn <- function(uids, rows, .env = parent.frame()) {
   conn <- tidycreel.connect::creel_connect_api(
-    base_url      = "http://test.example.com/api/",
+    base_url      = "https://test.example.com/api/",
     creel_uids    = uids,
     schema        = tidycreel::creel_schema(survey_type = "instantaneous"),
     uid_param     = "survey_id",
