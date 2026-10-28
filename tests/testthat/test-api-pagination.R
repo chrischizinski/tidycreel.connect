@@ -16,7 +16,7 @@ test_that("an undeclared paginated response aborts rather than returning page 1 
   httr2::local_mocked_responses(function(req) {
     test_api_page(
       "A1",
-      'Link: <http://test.example.com/api/v2/interviews?page=2>; rel="next"'
+      'Link: <https://test.example.com/api/v2/interviews?page=2>; rel="next"'
     )
   })
   conn <- make_api_conn()
@@ -64,7 +64,7 @@ test_that("style 'none' still refuses a next link (PAG-05)", {
   httr2::local_mocked_responses(function(req) {
     test_api_page(
       "A1",
-      'Link: <http://test.example.com/api/v2/interviews?page=2>; rel="next"'
+      'Link: <https://test.example.com/api/v2/interviews?page=2>; rel="next"'
     )
   })
   conn <- make_api_conn(pagination = list(style = "none"))
@@ -145,7 +145,7 @@ test_that("style 'link' follows the header chain to its end (PAG-08)", {
   httr2::local_mocked_responses(list(
     test_api_page(
       c("A1", "A2"),
-      'Link: <http://test.example.com/api/v2/interviews?cursor=abc>; rel="next"'
+      'Link: <https://test.example.com/api/v2/interviews?cursor=abc>; rel="next"'
     ),
     test_api_page(c("A3", "A4")),
     test_api_page("A5")
@@ -163,13 +163,13 @@ test_that("a Link header is split on the element boundary, not on every comma (P
   # of its own. Splitting the header on "," would cut that URL in half and the
   # follow-up would 404 -- or worse, fetch a different filter's rows.
   link <- paste0(
-    '<http://test.example.com/api/v2/interviews?survey_id=u-1,u-2&page=1>; rel="prev", ',
-    '<http://test.example.com/api/v2/interviews?survey_id=u-1,u-2&page=2>; rel="next"'
+    '<https://test.example.com/api/v2/interviews?survey_id=u-1,u-2&page=1>; rel="prev", ',
+    '<https://test.example.com/api/v2/interviews?survey_id=u-1,u-2&page=2>; rel="next"'
   )
   resp <- test_api_page("A1", paste0("Link: ", link))
   expect_equal(
     tidycreel.connect:::.api_next_link(resp),
-    "http://test.example.com/api/v2/interviews?survey_id=u-1,u-2&page=2"
+    "https://test.example.com/api/v2/interviews?survey_id=u-1,u-2&page=2"
   )
 })
 
@@ -337,7 +337,7 @@ test_that("a YAML profile's pagination block reaches the connection (PAG-19)", {
   writeLines(c(
     "default:",
     "  backend: api",
-    '  base_url: "http://test.example.com/api/"',
+    '  base_url: "https://test.example.com/api/"',
     '  uid_param: "survey_id"',
     "  creel_uids:",
     '    - "test-uid-001"',
@@ -409,7 +409,7 @@ test_that("a Link chain that repeats a page aborts instead of binding it twice (
   httr2::local_mocked_responses(function(req) {
     n <<- n + 1L
     hdr <- if (n < 3L) {
-      'Link: <http://test.example.com/api/v2/interviews?page=1>; rel="next"'
+      'Link: <https://test.example.com/api/v2/interviews?page=1>; rel="next"'
     } else {
       character()
     }
@@ -462,5 +462,5 @@ test_that("a relative Link target is resolved against the request URL (PAG-23)",
 
   expect_equal(nrow(result), 3L)
   # The second request went to an absolute URL carrying the original host.
-  expect_match(seen[2], "^http://test\\.example\\.com/api/v2/interviews\\?page=2$")
+  expect_match(seen[2], "^https://test\\.example\\.com/api/v2/interviews\\?page=2$")
 })

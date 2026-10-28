@@ -464,7 +464,10 @@ creel_connect_from_yaml <- function(path, config = "default") {
       # verifies rather than assumes, refusing a body it can prove is wrapped.
       # `unlist()` so a nested path may be written as a YAML sequence.
       records_path  = if (is.null(cfg$records_path)) NULL else as.character(unlist(cfg$records_path)), # nolint: line_length_linter
-      total_path    = if (is.null(cfg$total_path)) NULL else as.character(unlist(cfg$total_path))
+      total_path    = if (is.null(cfg$total_path)) NULL else as.character(unlist(cfg$total_path)), # nolint: line_length_linter
+      # Optional, and an explicit risk: plain http:// to a non-loopback host
+      # sends the credential unencrypted (#30). The constructor validates it.
+      allow_http    = if (is.null(cfg$allow_http)) FALSE else cfg$allow_http
     )
   } else if (backend == "sqlserver") {
     if (!requireNamespace("odbc", quietly = TRUE)) {

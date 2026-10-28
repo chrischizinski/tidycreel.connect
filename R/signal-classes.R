@@ -62,6 +62,10 @@
 #'   \item{\code{creel_warning_bins_without_count}}{Tier 1. Length bins were
 #'     fetched without a fish count, so a distribution built from them is
 #'     weighted by rows, not fish.}
+#'   \item{\code{creel_warning_api_plain_http}}{Tier 2. An API connection
+#'     was created over plain `http://` to a non-loopback host with
+#'     `allow_http = TRUE`, so the credential and the records cross the
+#'     network unencrypted. See [creel_connect_api()].}
 #'   \item{\code{creel_warning_discovery_field_missing}}{Tier 2. The discovery
 #'     response lacks an expected field, which is filled with `NA`.}
 #'   \item{\code{creel_warning_odbc_drivers_unlisted}}{Tier 2.
@@ -104,6 +108,7 @@ connect_signal_tiers <- c(
   creel_warning_repeated_sampling_units = 1L,
   creel_warning_tz_option_differs = 1L,
   # Tier 2
+  creel_warning_api_plain_http = 2L,
   creel_warning_discovery_field_missing = 2L,
   creel_warning_odbc_drivers_unlisted = 2L,
   # Tier 3

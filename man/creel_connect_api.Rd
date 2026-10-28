@@ -14,7 +14,8 @@ creel_connect_api(
   api_field_map,
   pagination = NULL,
   records_path = NULL,
-  total_path = NULL
+  total_path = NULL,
+  allow_http = FALSE
 )
 }
 \arguments{
@@ -121,6 +122,11 @@ the dataset. Declaring it is optional, but leaving it out does not disable
 the check -- an undeclared sibling whose \emph{name} is a conventional total
 (\code{count}, \code{total}, \code{total_count}, \code{totalCount}, \code{totalResults}) is read for
 this refusal too. Such a guess is never used to return data, only to stop.}
+
+\item{allow_http}{Accept a plain \verb{http://} \code{base_url} on a host other than
+loopback. Default \code{FALSE}. Over plain HTTP the credential and every record
+cross the network unencrypted, so this is for a server that cannot offer
+HTTPS, and it warns each time it is used. See "Where requests go".}
 }
 \value{
 A \code{creel_connection} S3 object with subclass \code{creel_connection_api}.
@@ -214,6 +220,23 @@ retried at all, because the second attempt would send the same header and
 get the same answer.
 }
 
+}
+
+\subsection{Where requests go}{
+
+Every request goes to the origin of \code{base_url} -- its scheme, host and port
+-- and nowhere else, so the credential is never sent to a server you did not
+name (#30). A next page (a \code{Link} header, or a next-page URL in the body)
+or an HTTP redirect that points at another origin aborts the fetch, naming
+that origin. It is not followed without the credential instead: that would
+usually fail with a 401, or return unauthenticated data that is only part of
+what was asked for. A redirect within the origin is followed.
+
+\code{base_url} must use \verb{https://}, so the credential and the records are
+encrypted in transit. Plain \verb{http://} is accepted for a loopback host
+(\code{localhost}, \verb{127.0.0.1}, \verb{::1}), which never leaves the machine. Any
+other \verb{http://} host needs \code{allow_http = TRUE}, and warns
+(\code{creel_warning_api_plain_http}) each time such a connection is created.
 }
 }
 \examples{

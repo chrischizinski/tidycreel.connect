@@ -67,7 +67,7 @@ make_api_conn <- function(field_map    = test_api_field_map(),
                           records_path = NULL,
                           total_path   = NULL) {
   tidycreel.connect::creel_connect_api(
-    base_url      = "http://test.example.com/api/",
+    base_url      = "https://test.example.com/api/",
     creel_uids    = "test-uid-001",
     schema        = schema,
     uid_param     = "survey_id",

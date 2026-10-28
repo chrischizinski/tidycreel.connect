@@ -67,6 +67,10 @@ profile's. See \code{\link[=creel_connect_from_yaml]{creel_connect_from_yaml()}}
 \item{\code{creel_warning_bins_without_count}}{Tier 1. Length bins were
 fetched without a fish count, so a distribution built from them is
 weighted by rows, not fish.}
+\item{\code{creel_warning_api_plain_http}}{Tier 2. An API connection
+was created over plain \verb{http://} to a non-loopback host with
+\code{allow_http = TRUE}, so the credential and the records cross the
+network unencrypted. See \code{\link[=creel_connect_api]{creel_connect_api()}}.}
 \item{\code{creel_warning_discovery_field_missing}}{Tier 2. The discovery
 response lacks an expected field, which is filled with \code{NA}.}
 \item{\code{creel_warning_odbc_drivers_unlisted}}{Tier 2.

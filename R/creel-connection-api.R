@@ -88,6 +88,22 @@
 #' retried at all, because the second attempt would send the same header and
 #' get the same answer.
 #'
+#' ## Where requests go
+#'
+#' Every request goes to the origin of `base_url` -- its scheme, host and port
+#' -- and nowhere else, so the credential is never sent to a server you did not
+#' name (#30). A next page (a `Link` header, or a next-page URL in the body)
+#' or an HTTP redirect that points at another origin aborts the fetch, naming
+#' that origin. It is not followed without the credential instead: that would
+#' usually fail with a 401, or return unauthenticated data that is only part of
+#' what was asked for. A redirect within the origin is followed.
+#'
+#' `base_url` must use `https://`, so the credential and the records are
+#' encrypted in transit. Plain `http://` is accepted for a loopback host
+#' (`localhost`, `127.0.0.1`, `::1`), which never leaves the machine. Any
+#' other `http://` host needs `allow_http = TRUE`, and warns
+#' (`creel_warning_api_plain_http`) each time such a connection is created.
+#'
 #' @param base_url Base URL of the API, with or without a trailing slash.
 #'   Example: `"https://api.example.org/creel/"`.
 #' @param creel_uids Character vector of one or more creel UIDs to query.
@@ -181,6 +197,10 @@
 #'   the check -- an undeclared sibling whose *name* is a conventional total
 #'   (`count`, `total`, `total_count`, `totalCount`, `totalResults`) is read for
 #'   this refusal too. Such a guess is never used to return data, only to stop.
+#' @param allow_http Accept a plain `http://` `base_url` on a host other than
+#'   loopback. Default `FALSE`. Over plain HTTP the credential and every record
+#'   cross the network unencrypted, so this is for a server that cannot offer
+#'   HTTPS, and it warns each time it is used. See "Where requests go".
 #' @return A `creel_connection` S3 object with subclass `creel_connection_api`.
 #' @export
 #' @examples
@@ -235,7 +255,8 @@ creel_connect_api <- function(
     api_field_map,
     pagination    = NULL,
     records_path  = NULL,
-    total_path    = NULL
+    total_path    = NULL,
+    allow_http    = FALSE
 ) {
   if (!inherits(schema, "creel_schema")) {
     cli::cli_abort(c(
@@ -246,6 +267,7 @@ creel_connect_api <- function(
   if (!is.character(base_url) || length(base_url) != 1L || !nzchar(base_url)) {
     cli::cli_abort("{.arg base_url} must be a non-empty single string.")
   }
+  .validate_api_base_url(base_url, allow_http)
   if (!is.character(creel_uids) || length(creel_uids) == 0L || !all(nzchar(creel_uids))) {
     cli::cli_abort("{.arg creel_uids} must be a non-empty character vector with no blank entries.")
   }
@@ -480,6 +502,111 @@ creel_connect_api <- function(
     ))
   }
   invisible(auth)
+}
+
+# Validate the scheme and host of `base_url` (#30).
+#
+# HTTPS, or plain HTTP to a loopback host, which never leaves the machine (the
+# live-HTTP tests run there). Any other plain-HTTP host is an explicit opt-in
+# that warns: the credential and every record would cross the network in
+# cleartext. The URL itself is never echoed, since one with userinfo carries a
+# password.
+#' @noRd
+.validate_api_base_url <- function(base_url, allow_http) {
+  if (!isTRUE(allow_http) && !isFALSE(allow_http)) {
+    cli::cli_abort("{.arg allow_http} must be {.code TRUE} or {.code FALSE}.")
+  }
+  parsed <- tryCatch(httr2::url_parse(base_url), error = function(e) NULL)
+  scheme <- tolower(.api_url_part(parsed, "scheme"))
+  host   <- .api_url_part(parsed, "hostname")
+  if (!scheme %in% c("https", "http") || !nzchar(host)) {
+    cli::cli_abort(c(
+      "{.arg base_url} must be an absolute {.code https://} URL.",
+      "i" = "For example {.code \"https://api.example.org/creel/\"}."
+    ))
+  }
+  if (!is.null(parsed[["username"]]) || !is.null(parsed[["password"]])) {
+    cli::cli_abort(c(
+      "{.arg base_url} carries a user name or password.",
+      "x" = "A credential in the URL goes wherever the URL is copied, and \\
+             shows wherever it is printed.",
+      "i" = "Supply it through {.arg auth} instead."
+    ))
+  }
+  if (scheme == "https" || .api_is_loopback(host)) {
+    return(invisible(base_url))
+  }
+  if (!allow_http) {
+    cli::cli_abort(c(
+      "{.arg base_url} uses plain {.code http://}.",
+      "x" = "The credential and every record would cross the network \\
+             unencrypted.",
+      "i" = "Use the API's {.code https://} address.",
+      "i" = "If the server offers no HTTPS, set {.code allow_http = TRUE} to \\
+             accept that risk."
+    ))
+  }
+  cli::cli_warn(
+    c(
+      "{.arg base_url} uses plain {.code http://} ({.code allow_http = TRUE}).",
+      "!" = "The credential and every record cross the network unencrypted."
+    ),
+    class = c("creel_warning_api_plain_http", "creel_warning")
+  )
+  invisible(base_url)
+}
+
+#' @noRd
+.api_is_loopback <- function(host) {
+  tolower(host) %in% c("localhost", "127.0.0.1", "::1", "[::1]")
+}
+
+# The origin of a URL -- scheme, host and port -- as one comparable string.
+# The port is filled in from the scheme when absent, so `https://h/` and
+# `https://h:443/` are the same origin.
+#' @noRd
+.api_origin <- function(url) {
+  parsed <- tryCatch(httr2::url_parse(url), error = function(e) NULL)
+  if (is.null(parsed)) {
+    return(NA_character_)
+  }
+  scheme <- tolower(.api_url_part(parsed, "scheme"))
+  port   <- .api_url_part(parsed, "port")
+  if (!nzchar(port)) port <- switch(scheme, https = "443", http = "80", "")
+  paste0(scheme, "://", tolower(.api_url_part(parsed, "hostname")), ":", port)
+}
+
+# One component of an httr2::url_parse() result, "" when absent.
+#' @noRd
+.api_url_part <- function(parsed, part) {
+  value <- parsed[[part]]
+  if (is.null(value)) "" else as.character(value)
+}
+
+# Refuse a request to anywhere but the origin of `base_url` (#30).
+#
+# Credentials are applied to every request the fetch makes, so a next-page URL
+# or a redirect naming another host would hand that host the token. Refused,
+# not followed without the credential: that would usually 401, or return
+# unauthenticated data that is only part of the answer. Only the origin is
+# shown, never the full URL, whose query can carry a cursor or a key.
+#' @noRd
+.api_assert_same_origin <- function(url, base_url, endpoint, via) {
+  got  <- .api_origin(url)
+  want <- .api_origin(base_url)
+  if (identical(got, want)) {
+    return(invisible(url))
+  }
+  shown <- if (is.na(got)) "an unparseable URL" else got # nolint: object_usage_linter
+  cli::cli_abort(
+    c(
+      "{via} for {.val {endpoint}} points at another server: {.field {shown}}.",
+      "x" = "Requests are only sent to the origin of {.arg base_url}, so the \\
+             credential cannot reach a server you did not name.",
+      "i" = "If the API really moved, set {.arg base_url} to its new address."
+    ),
+    class = "creel_error_api_cross_origin"
+  )
 }
 
 # A credential is a non-empty string, or a function that returns one.
@@ -850,7 +977,9 @@ creel_connect_api <- function(
       # uid query is not re-applied -- only the credentials are.
       httr2::request(next_url)
     }
-    resp <- .api_perform_with_reauth(req, con_info$auth)
+    resp <- .api_perform_with_reauth(
+      req, con_info$auth, con_info$base_url, endpoint_key
+    )
     .api_check_status(
       resp, endpoint,
       auth       = con_info$auth,
@@ -920,6 +1049,10 @@ creel_connect_api <- function(
         # No parameter named: the body holds a whole URL, followed the way a
         # Link target is, relative targets included.
         next_url <- httr2::url_modify_relative(httr2::resp_url(resp), ptr)
+        .api_assert_same_origin(
+          next_url, con_info$base_url, endpoint_key,
+          via = "The next-page URL in the response body"
+        )
       } else {
         # An opaque token, sent back on the original request rather than
         # replacing it -- the uid filter has to survive the page turn.
@@ -936,6 +1069,10 @@ creel_connect_api <- function(
       # never performs the follow-up request. Resolving against the URL the page
       # actually came from is a no-op for an absolute target.
       next_url <- httr2::url_modify_relative(httr2::resp_url(resp), next_url)
+      .api_assert_same_origin(
+        next_url, con_info$base_url, endpoint_key,
+        via = cli::format_inline("The {.field Link} header")
+      )
     }
 
     page_no <- page_no + 1L
@@ -965,12 +1102,48 @@ creel_connect_api <- function(
 # A fixed-string credential gets no retry at all: the second attempt would send
 # the identical header and receive the identical answer.
 #' @noRd
-.api_perform_with_reauth <- function(req, auth) {
-  resp <- httr2::req_perform(.api_apply_retry(.api_apply_auth(req, auth)))
+.api_perform_with_reauth <- function(req, auth, base_url, endpoint) {
+  resp <- .api_perform_same_origin(req, auth, base_url, endpoint)
   if (!httr2::resp_status(resp) %in% c(401L, 403L) || !.api_auth_is_callable(auth)) {
     return(resp)
   }
-  httr2::req_perform(.api_apply_retry(.api_apply_auth(req, auth)))
+  .api_perform_same_origin(req, auth, base_url, endpoint)
+}
+
+# Perform a request, following redirects only within the origin of `base_url`
+# (#30).
+#
+# curl's own redirect handling is switched off because it is not enough: it
+# drops `Authorization` when a redirect changes host, but forwards every other
+# header -- an API-key header included -- to wherever the `Location` points.
+# So each hop is followed here, checked against the origin first, and only
+# then given the credential. Every request is a GET, so re-issuing one as a
+# GET is right for 301, 302, 303, 307 and 308 alike.
+#' @noRd
+.api_perform_same_origin <- function(req, auth, base_url, endpoint,
+                                     max_redirects = 5L) {
+  for (hop in seq_len(max_redirects + 1L)) {
+    req  <- httr2::req_options(req, followlocation = 0L)
+    resp <- httr2::req_perform(.api_apply_retry(.api_apply_auth(req, auth)))
+    status <- httr2::resp_status(resp)
+    location <- if (status >= 300L && status < 400L) {
+      tryCatch(httr2::resp_header(resp, "Location"), error = function(e) NULL)
+    }
+    if (is.null(location)) {
+      return(resp)
+    }
+    target <- httr2::url_modify_relative(httr2::resp_url(resp), location)
+    .api_assert_same_origin(
+      target, base_url, endpoint,
+      via = paste("A", status, "redirect")
+    )
+    req <- httr2::request(target)
+  }
+  cli::cli_abort(c(
+    "The API redirected {.val {endpoint}} more than {max_redirects} times.",
+    "i" = "Set {.arg base_url} and the endpoint path to the address the API \
+           finally serves."
+  ))
 }
 
 # Apply the connection's credentials to a request.

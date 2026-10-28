@@ -5,7 +5,7 @@
 
 two_creel_conn <- function(uids = c("creel-a", "creel-b"), pagination = NULL) {
   tidycreel.connect::creel_connect_api(
-    base_url      = "http://test.example.com/api/",
+    base_url      = "https://test.example.com/api/",
     creel_uids    = uids,
     schema        = tidycreel::creel_schema(survey_type = "instantaneous"),
     uid_param     = "survey_id",
