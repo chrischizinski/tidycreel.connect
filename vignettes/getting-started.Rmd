@@ -148,6 +148,11 @@ default:
   auth_type: password
   username:  !expr Sys.getenv("CREEL_USER")
   password:  !expr Sys.getenv("CREEL_PASS")
+  # Optional. These are the defaults: Driver 18, encrypted, certificate
+  # verified. Turning either protection off warns on every connect.
+  # driver: ODBC Driver 18 for SQL Server
+  # encrypt: true
+  # trust_server_certificate: false
   schema:
     survey_type:       instantaneous
     interviews_table:  vwInterviews
@@ -338,11 +343,12 @@ library(odbc)
 
 dbi_con <- dbConnect(
   odbc(),
-  driver   = "ODBC Driver 17 for SQL Server",
+  driver   = "ODBC Driver 18 for SQL Server",
   server   = "myserver.example.com",
   database = "CreelDB",
   uid      = Sys.getenv("CREEL_USER"),
-  pwd      = Sys.getenv("CREEL_PASS")
+  pwd      = Sys.getenv("CREEL_PASS"),
+  encrypt  = "yes"  # Driver 18's default; Driver 17 needs it said
 )
 
 conn <- creel_connect(dbi_con, schema, auth_type = "password")

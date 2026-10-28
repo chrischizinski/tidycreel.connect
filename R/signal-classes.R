@@ -66,6 +66,13 @@
 #'     was created over plain `http://` to a non-loopback host with
 #'     `allow_http = TRUE`, so the credential and the records cross the
 #'     network unencrypted. See [creel_connect_api()].}
+#'   \item{\code{creel_warning_sqlserver_certificate_unverified}}{Tier 2. A
+#'     SQL Server profile set `trust_server_certificate: true`: the connection
+#'     is encrypted, but the server's identity is not checked. See
+#'     [creel_connect_from_yaml()].}
+#'   \item{\code{creel_warning_sqlserver_unencrypted}}{Tier 2. A SQL Server
+#'     profile set `encrypt: false`, so the login and the rows cross the
+#'     network in cleartext. See [creel_connect_from_yaml()].}
 #'   \item{\code{creel_warning_discovery_field_missing}}{Tier 2. The discovery
 #'     response lacks an expected field, which is filled with `NA`.}
 #'   \item{\code{creel_warning_odbc_drivers_unlisted}}{Tier 2.
@@ -111,6 +118,8 @@ connect_signal_tiers <- c(
   creel_warning_api_plain_http = 2L,
   creel_warning_discovery_field_missing = 2L,
   creel_warning_odbc_drivers_unlisted = 2L,
+  creel_warning_sqlserver_certificate_unverified = 2L,
+  creel_warning_sqlserver_unencrypted = 2L,
   # Tier 3
   creel_message_argument_ignored = 3L,
   creel_message_columns_by_canonical_name = 3L,
