@@ -170,7 +170,6 @@ default:
   backend:   sqlserver
   server:    myserver.example.com
   database:  CreelDB
-  auth_type: password
   username:  !expr Sys.getenv("CREEL_USER")
   password:  !expr Sys.getenv("CREEL_PASS")
   # Optional. These are the defaults: Driver 18, encrypted, certificate
@@ -184,19 +183,22 @@ default:
     counts_table:      vwCounts
     catch_table:       vwCatch
     lengths_table:     vwLengths
-    interview_uid_col: InterviewID
-    date_col:          SurveyDate
-    effort_col:        EffortHours
-    catch_col:         TotalCatch
-    trip_status_col:   TripStatus
-    count_col:         AnglerCount
-    catch_uid_col:     CatchUID
-    species_col:       SpeciesCode
-    catch_count_col:   CatchCount
-    catch_type_col:    CatchCategory
-    length_uid_col:    LengthUID
-    length_mm_col:     LengthMM
-    length_type_col:   LengthType
+    # Canonical tidycreel name on the left, your table's column on the right.
+    columns:
+      interview_uid: InterviewID
+      date:          SurveyDate
+      effort:        EffortHours
+      catch:         TotalCatch
+      trip_status:   TripStatus
+      bank_anglers:  BankAnglers
+      angler_boats:  AnglerBoats
+      catch_uid:     CatchUID
+      species:       SpeciesCode
+      catch_count:   CatchCount
+      catch_type:    CatchCategory
+      length_uid:    LengthUID
+      length_mm:     LengthMM
+      length_type:   LengthType
 ```
 
 Set credentials before connecting:
@@ -207,15 +209,13 @@ Sys.setenv(CREEL_USER = "your_username", CREEL_PASS = "your_password")
 conn <- creel_connect_from_yaml("creel-config.yml")
 ```
 
-For Windows integrated authentication (Windows only):
-
-``` yaml
-auth_type: windows
-```
-
-> **Note:** `auth_type: windows` aborts immediately on macOS and Linux
-> with a helpful error message directing you to use
-> `auth_type: password` instead.
+A profile connects with a SQL Server login (`username` and `password`).
+Windows integrated authentication is not supported by the profile route;
+to use it, build the connection yourself with
+[`DBI::dbConnect()`](https://dbi.r-dbi.org/reference/dbConnect.html) and
+pass it to
+[`creel_connect()`](https://chrischizinski.com/tidycreel.connect/reference/creel_connect.md)
+(see below).
 
 ### Multiple environments
 
@@ -233,7 +233,6 @@ production:
   backend:   sqlserver
   server:    prod.example.com
   database:  CreelDB
-  auth_type: password
   username:  !expr Sys.getenv("CREEL_USER")
   password:  !expr Sys.getenv("CREEL_PASS")
   # ...
@@ -367,11 +366,11 @@ conn
 #> <creel_connection: csv>
 #> Status: ready
 #> Backend: CSV
-#> interviews → /tmp/RtmpVMrFvX/file1c846db1dc47/interviews.csv
-#> counts → /tmp/RtmpVMrFvX/file1c846db1dc47/counts.csv
-#> catch → /tmp/RtmpVMrFvX/file1c846db1dc47/catch.csv
-#> harvest_lengths → /tmp/RtmpVMrFvX/file1c846db1dc47/lengths.csv
-#> release_lengths → /tmp/RtmpVMrFvX/file1c846db1dc47/lengths.csv
+#> interviews → /tmp/Rtmp33I1w6/file1c84fa350fa/interviews.csv
+#> counts → /tmp/Rtmp33I1w6/file1c84fa350fa/counts.csv
+#> catch → /tmp/Rtmp33I1w6/file1c84fa350fa/catch.csv
+#> harvest_lengths → /tmp/Rtmp33I1w6/file1c84fa350fa/lengths.csv
+#> release_lengths → /tmp/Rtmp33I1w6/file1c84fa350fa/lengths.csv
 #> Schema: <creel_schema: instantaneous>
 #> 
 #> ── interviews: vwInterviews ──
@@ -419,7 +418,7 @@ dbi_con <- dbConnect(
   encrypt  = "yes"  # Driver 18's default; Driver 17 needs it said
 )
 
-conn <- creel_connect(dbi_con, schema, auth_type = "password")
+conn <- creel_connect(dbi_con, schema)
 ```
 
 ------------------------------------------------------------------------
