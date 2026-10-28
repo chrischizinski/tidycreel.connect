@@ -212,6 +212,12 @@ exchange, a refresh token, a shell-out to a CLI, a cached value with its own
 expiry check. This package implements none of them and never will -- a
 token's lifetime and renewal belong to a provider, not to a creel package,
 exactly as \code{endpoints} and \code{api_field_map} belong to a deployment.
+
+A refusal that survives one refresh aborts rather than looping: a credential
+the provider keeps rejecting is a configuration problem, and retrying it
+would turn a clear 401 into a hang. A fixed-string credential is never
+retried at all, because the second attempt would send the same header and
+get the same answer.
 }
 
 \subsection{Where the credential is kept}{
@@ -220,8 +226,9 @@ A credential given as a string is stored in the connection object as it
 is. Printing the connection never shows it, but \code{\link[=str]{str()}}, \code{\link[=dput]{dput()}},
 \code{\link[=saveRDS]{saveRDS()}}, \code{\link[=save]{save()}} and a workspace saved on exit (\code{.RData}) all write it
 out in plain text. Given as a function, the credential is looked up when a
-request is made and the connection holds only the function. In order of
-preference:
+request is made and the connection holds only the function. (It is also
+called once more on a 401 or 403, as above; for a token that never expires
+that costs one extra request before the abort.) In order of preference:
 
 \if{html}{\out{<div class="sourceCode r">}}\preformatted{# 1. A secret store, read at request time (the keyring package):
 auth = list(type = "bearer", token = function() keyring::key_get("creel-api"))
@@ -232,16 +239,12 @@ auth = list(type = "bearer", token = Sys.getenv("CREEL_API_TOKEN"))
 }\if{html}{\out{</div>}}
 
 Never write the credential itself into a script or profile. A function
-should look the secret up, not capture it: \code{function() tok} with \code{tok}
-holding the token keeps it in the function's environment, which is
-serialized with the function. Whatever form it takes, do not save a
-connection to disk; save the data it fetched and reconnect.
-
-A refusal that survives one refresh aborts rather than looping: a credential
-the provider keeps rejecting is a configuration problem, and retrying it
-would turn a clear 401 into a hang. A fixed-string credential is never
-retried at all, because the second attempt would send the same header and
-get the same answer.
+should look the secret up rather than return a variable holding it: made
+inside another function or \code{\link[=local]{local()}}, \code{function() tok} carries \code{tok} with
+it, so the token is saved along with the connection; made at top level,
+\code{tok} sits in the workspace instead, which a saved \code{.RData} still holds.
+Whatever form it takes, do not save a connection to disk; save the data it
+fetched and reconnect.
 }
 
 }

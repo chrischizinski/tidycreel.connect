@@ -66,7 +66,7 @@ default:
   #
   # A token that EXPIRES needs a function rather than a string, so it can be
   # fetched again. It is called before every request, and once more if the API
-  # answers 401 -- which is what keeps a long paginated fetch from dying
+  # answers 401 or 403 -- which is what keeps a long paginated fetch from dying
   # part-way and discarding the pages it already has. What the function does is
   # yours; this package implements no provider's handshake.
   # auth:

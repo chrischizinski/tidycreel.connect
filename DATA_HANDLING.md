@@ -33,8 +33,10 @@ helpers or written to `tempdir()`, and never copied from an agency extract.
   as a string is held in the connection object: `print()` hides it, but
   `str()`, `dput()`, `saveRDS()`, `save()` and a saved `.RData` workspace all
   write it out (checked 2026-10-28). A function that looks the token up keeps
-  it out of all of them; a function that *captures* a token variable does not,
-  because the variable is serialized with the function.
+  it out of all of them. A function that returns a token *variable* does not
+  help: made inside another function or `local()`, the variable is saved with
+  the function; made at top level, it stays in the workspace and a saved
+  `.RData` holds it.
 - Never save a connection object to disk, and do not save the workspace on exit
   in a session that holds one. Save the fetched data and reconnect.
 - Print methods never show a password or token; keep it that way.
