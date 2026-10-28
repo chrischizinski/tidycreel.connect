@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# Least privilege: the check only reads the repository. Explicit rather than
+# inherited, so a change to the repo default cannot widen it (#32).
+permissions:
+  contents: read
+
 jobs:
   r-cmd-check:
     runs-on: ${{ matrix.config.os }}
@@ -25,12 +30,14 @@ jobs:
       R_KEEP_PKG_SOURCE: true
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - uses: ./.github/actions/harden-apt
         if: runner.os == 'Linux'
 
-      - uses: r-lib/actions/setup-pandoc@v2
+      - uses: r-lib/actions/setup-pandoc@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
 
       # Install ODBC driver manager and SQL Server driver so creel_check_driver()
       # and odbc-dependent tests can run. Tests already skip gracefully via
@@ -69,7 +76,7 @@ jobs:
           sudo apt-get update -qq
           ACCEPT_EULA=Y sudo apt-get install -y msodbcsql18 unixodbc-dev
 
-      - uses: r-lib/actions/setup-r@v2
+      - uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
         timeout-minutes: 20
         with:
           r-version: ${{ matrix.config.r }}
@@ -78,12 +85,12 @@ jobs:
       # tidycreel comes from its GitHub main branch (DESCRIPTION Remotes), not
       # CRAN, so connect is checked against the tidycreel it will meet next,
       # as it was when both lived in one repository and CI installed `..`.
-      - uses: r-lib/actions/setup-r-dependencies@v2
+      - uses: r-lib/actions/setup-r-dependencies@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
         with:
           extra-packages: any::rcmdcheck
           needs: check
 
-      - uses: r-lib/actions/check-r-package@v2
+      - uses: r-lib/actions/check-r-package@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
         with:
           upload-snapshots: true
           error-on: '"error"'
