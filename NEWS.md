@@ -7,7 +7,11 @@
   maps columns with a `columns:` block; its `*_col` keys under `schema:`
   were ignored, so a copied profile mapped no columns. Its
   `creel_connect(..., auth_type =)` example, an unused-argument error, is
-  fixed. A new test loads every documented SQL Server profile (#36).
+  fixed. Both documented SQL Server profiles mapped `count:`, which no
+  loader reads, so `fetch_counts()` aborted for want of `bank_anglers`; they
+  now map `bank_anglers` and `angler_boats`. A new test loads every
+  documented SQL Server profile and fetches interviews and counts through
+  it (#36).
 
 * A `backend: sqlserver` profile now connects with ODBC Driver 18,
   encrypted, verifying the server's certificate (#31). It used Driver 17

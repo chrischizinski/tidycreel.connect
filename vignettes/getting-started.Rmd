@@ -165,7 +165,8 @@ default:
       effort:        EffortHours
       catch:         TotalCatch
       trip_status:   TripStatus
-      count:         AnglerCount
+      bank_anglers:  BankAnglers
+      angler_boats:  AnglerBoats
       catch_uid:     CatchUID
       species:       SpeciesCode
       catch_count:   CatchCount
