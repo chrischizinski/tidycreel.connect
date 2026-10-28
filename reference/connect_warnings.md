@@ -99,6 +99,18 @@ nothing is recorded for
   records cross the network unencrypted. See
   [`creel_connect_api()`](https://chrischizinski.com/tidycreel.connect/reference/creel_connect_api.md).
 
+- `creel_warning_sqlserver_certificate_unverified`:
+
+  Tier 2. A SQL Server profile set `trust_server_certificate: true`: the
+  connection is encrypted, but the server's identity is not checked. See
+  [`creel_connect_from_yaml()`](https://chrischizinski.com/tidycreel.connect/reference/creel_connect_from_yaml.md).
+
+- `creel_warning_sqlserver_unencrypted`:
+
+  Tier 2. A SQL Server profile set `encrypt: false`, so the login and
+  the rows cross the network in cleartext. See
+  [`creel_connect_from_yaml()`](https://chrischizinski.com/tidycreel.connect/reference/creel_connect_from_yaml.md).
+
 - `creel_warning_discovery_field_missing`:
 
   Tier 2. The discovery response lacks an expected field, which is

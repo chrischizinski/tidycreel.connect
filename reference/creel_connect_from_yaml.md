@@ -83,6 +83,23 @@ carries as `interviews_table`, `counts_table`, `catch_table` and
 `harvest_lengths_table` / `release_lengths_table` (both falling back to
 `lengths_table`).
 
+A SQL Server connection is encrypted and verifies the server's
+certificate unless the profile says otherwise (#31), because the login
+and the rows it returns – which can include personal data – otherwise
+cross the network in cleartext. Three optional keys control it:
+
+    driver: ODBC Driver 18 for SQL Server   # the default
+    encrypt: true                           # the default
+    trust_server_certificate: false         # the default
+
+`encrypt: false` warns (`creel_warning_sqlserver_unencrypted`) on every
+connect, and so does `trust_server_certificate: true`
+(`creel_warning_sqlserver_certificate_unverified`), which encrypts but
+accepts any certificate. Driver 17 does not encrypt unless asked, so
+naming it keeps `encrypt: true` in force. When a connect fails because
+the driver is not installed, the error says so; see
+[`creel_check_driver()`](https://chrischizinski.com/tidycreel.connect/reference/creel_check_driver.md).
+
 ### Corrections
 
 An optional top-level `corrections:` key names a CSV of documented fixes

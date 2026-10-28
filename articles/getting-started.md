@@ -173,6 +173,11 @@ default:
   auth_type: password
   username:  !expr Sys.getenv("CREEL_USER")
   password:  !expr Sys.getenv("CREEL_PASS")
+  # Optional. These are the defaults: Driver 18, encrypted, certificate
+  # verified. Turning either protection off warns on every connect.
+  # driver: ODBC Driver 18 for SQL Server
+  # encrypt: true
+  # trust_server_certificate: false
   schema:
     survey_type:       instantaneous
     interviews_table:  vwInterviews
@@ -362,11 +367,11 @@ conn
 #> <creel_connection: csv>
 #> Status: ready
 #> Backend: CSV
-#> interviews → /tmp/RtmpzpibjI/file1c66dd001ea/interviews.csv
-#> counts → /tmp/RtmpzpibjI/file1c66dd001ea/counts.csv
-#> catch → /tmp/RtmpzpibjI/file1c66dd001ea/catch.csv
-#> harvest_lengths → /tmp/RtmpzpibjI/file1c66dd001ea/lengths.csv
-#> release_lengths → /tmp/RtmpzpibjI/file1c66dd001ea/lengths.csv
+#> interviews → /tmp/RtmpN5NKRm/file1ce47deb3dca/interviews.csv
+#> counts → /tmp/RtmpN5NKRm/file1ce47deb3dca/counts.csv
+#> catch → /tmp/RtmpN5NKRm/file1ce47deb3dca/catch.csv
+#> harvest_lengths → /tmp/RtmpN5NKRm/file1ce47deb3dca/lengths.csv
+#> release_lengths → /tmp/RtmpN5NKRm/file1ce47deb3dca/lengths.csv
 #> Schema: <creel_schema: instantaneous>
 #> 
 #> ── interviews: vwInterviews ──
@@ -406,11 +411,12 @@ library(odbc)
 
 dbi_con <- dbConnect(
   odbc(),
-  driver   = "ODBC Driver 17 for SQL Server",
+  driver   = "ODBC Driver 18 for SQL Server",
   server   = "myserver.example.com",
   database = "CreelDB",
   uid      = Sys.getenv("CREEL_USER"),
-  pwd      = Sys.getenv("CREEL_PASS")
+  pwd      = Sys.getenv("CREEL_PASS"),
+  encrypt  = "yes"  # Driver 18's default; Driver 17 needs it said
 )
 
 conn <- creel_connect(dbi_con, schema, auth_type = "password")

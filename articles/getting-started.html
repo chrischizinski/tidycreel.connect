@@ -245,25 +245,30 @@ from environment variables:</p>
 <span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a><span class="at">  </span><span class="fu">auth_type</span><span class="kw">:</span><span class="at"> password</span></span>
 <span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a><span class="at">  </span><span class="fu">username</span><span class="kw">:</span><span class="at">  !expr Sys.getenv("CREEL_USER")</span></span>
 <span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a><span class="at">  </span><span class="fu">password</span><span class="kw">:</span><span class="at">  !expr Sys.getenv("CREEL_PASS")</span></span>
-<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a><span class="at">  </span><span class="fu">schema</span><span class="kw">:</span></span>
-<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a><span class="at">    </span><span class="fu">survey_type</span><span class="kw">:</span><span class="at">       instantaneous</span></span>
-<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a><span class="at">    </span><span class="fu">interviews_table</span><span class="kw">:</span><span class="at">  vwInterviews</span></span>
-<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a><span class="at">    </span><span class="fu">counts_table</span><span class="kw">:</span><span class="at">      vwCounts</span></span>
-<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a><span class="at">    </span><span class="fu">catch_table</span><span class="kw">:</span><span class="at">       vwCatch</span></span>
-<span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a><span class="at">    </span><span class="fu">lengths_table</span><span class="kw">:</span><span class="at">     vwLengths</span></span>
-<span id="cb5-15"><a href="#cb5-15" tabindex="-1"></a><span class="at">    </span><span class="fu">interview_uid_col</span><span class="kw">:</span><span class="at"> InterviewID</span></span>
-<span id="cb5-16"><a href="#cb5-16" tabindex="-1"></a><span class="at">    </span><span class="fu">date_col</span><span class="kw">:</span><span class="at">          SurveyDate</span></span>
-<span id="cb5-17"><a href="#cb5-17" tabindex="-1"></a><span class="at">    </span><span class="fu">effort_col</span><span class="kw">:</span><span class="at">        EffortHours</span></span>
-<span id="cb5-18"><a href="#cb5-18" tabindex="-1"></a><span class="at">    </span><span class="fu">catch_col</span><span class="kw">:</span><span class="at">         TotalCatch</span></span>
-<span id="cb5-19"><a href="#cb5-19" tabindex="-1"></a><span class="at">    </span><span class="fu">trip_status_col</span><span class="kw">:</span><span class="at">   TripStatus</span></span>
-<span id="cb5-20"><a href="#cb5-20" tabindex="-1"></a><span class="at">    </span><span class="fu">count_col</span><span class="kw">:</span><span class="at">         AnglerCount</span></span>
-<span id="cb5-21"><a href="#cb5-21" tabindex="-1"></a><span class="at">    </span><span class="fu">catch_uid_col</span><span class="kw">:</span><span class="at">     CatchUID</span></span>
-<span id="cb5-22"><a href="#cb5-22" tabindex="-1"></a><span class="at">    </span><span class="fu">species_col</span><span class="kw">:</span><span class="at">       SpeciesCode</span></span>
-<span id="cb5-23"><a href="#cb5-23" tabindex="-1"></a><span class="at">    </span><span class="fu">catch_count_col</span><span class="kw">:</span><span class="at">   CatchCount</span></span>
-<span id="cb5-24"><a href="#cb5-24" tabindex="-1"></a><span class="at">    </span><span class="fu">catch_type_col</span><span class="kw">:</span><span class="at">    CatchCategory</span></span>
-<span id="cb5-25"><a href="#cb5-25" tabindex="-1"></a><span class="at">    </span><span class="fu">length_uid_col</span><span class="kw">:</span><span class="at">    LengthUID</span></span>
-<span id="cb5-26"><a href="#cb5-26" tabindex="-1"></a><span class="at">    </span><span class="fu">length_mm_col</span><span class="kw">:</span><span class="at">     LengthMM</span></span>
-<span id="cb5-27"><a href="#cb5-27" tabindex="-1"></a><span class="at">    </span><span class="fu">length_type_col</span><span class="kw">:</span><span class="at">   LengthType</span></span></code></pre></div>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a><span class="co">  # Optional. These are the defaults: Driver 18, encrypted, certificate</span></span>
+<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a><span class="co">  # verified. Turning either protection off warns on every connect.</span></span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a><span class="co">  # driver: ODBC Driver 18 for SQL Server</span></span>
+<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a><span class="co">  # encrypt: true</span></span>
+<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a><span class="co">  # trust_server_certificate: false</span></span>
+<span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a><span class="at">  </span><span class="fu">schema</span><span class="kw">:</span></span>
+<span id="cb5-15"><a href="#cb5-15" tabindex="-1"></a><span class="at">    </span><span class="fu">survey_type</span><span class="kw">:</span><span class="at">       instantaneous</span></span>
+<span id="cb5-16"><a href="#cb5-16" tabindex="-1"></a><span class="at">    </span><span class="fu">interviews_table</span><span class="kw">:</span><span class="at">  vwInterviews</span></span>
+<span id="cb5-17"><a href="#cb5-17" tabindex="-1"></a><span class="at">    </span><span class="fu">counts_table</span><span class="kw">:</span><span class="at">      vwCounts</span></span>
+<span id="cb5-18"><a href="#cb5-18" tabindex="-1"></a><span class="at">    </span><span class="fu">catch_table</span><span class="kw">:</span><span class="at">       vwCatch</span></span>
+<span id="cb5-19"><a href="#cb5-19" tabindex="-1"></a><span class="at">    </span><span class="fu">lengths_table</span><span class="kw">:</span><span class="at">     vwLengths</span></span>
+<span id="cb5-20"><a href="#cb5-20" tabindex="-1"></a><span class="at">    </span><span class="fu">interview_uid_col</span><span class="kw">:</span><span class="at"> InterviewID</span></span>
+<span id="cb5-21"><a href="#cb5-21" tabindex="-1"></a><span class="at">    </span><span class="fu">date_col</span><span class="kw">:</span><span class="at">          SurveyDate</span></span>
+<span id="cb5-22"><a href="#cb5-22" tabindex="-1"></a><span class="at">    </span><span class="fu">effort_col</span><span class="kw">:</span><span class="at">        EffortHours</span></span>
+<span id="cb5-23"><a href="#cb5-23" tabindex="-1"></a><span class="at">    </span><span class="fu">catch_col</span><span class="kw">:</span><span class="at">         TotalCatch</span></span>
+<span id="cb5-24"><a href="#cb5-24" tabindex="-1"></a><span class="at">    </span><span class="fu">trip_status_col</span><span class="kw">:</span><span class="at">   TripStatus</span></span>
+<span id="cb5-25"><a href="#cb5-25" tabindex="-1"></a><span class="at">    </span><span class="fu">count_col</span><span class="kw">:</span><span class="at">         AnglerCount</span></span>
+<span id="cb5-26"><a href="#cb5-26" tabindex="-1"></a><span class="at">    </span><span class="fu">catch_uid_col</span><span class="kw">:</span><span class="at">     CatchUID</span></span>
+<span id="cb5-27"><a href="#cb5-27" tabindex="-1"></a><span class="at">    </span><span class="fu">species_col</span><span class="kw">:</span><span class="at">       SpeciesCode</span></span>
+<span id="cb5-28"><a href="#cb5-28" tabindex="-1"></a><span class="at">    </span><span class="fu">catch_count_col</span><span class="kw">:</span><span class="at">   CatchCount</span></span>
+<span id="cb5-29"><a href="#cb5-29" tabindex="-1"></a><span class="at">    </span><span class="fu">catch_type_col</span><span class="kw">:</span><span class="at">    CatchCategory</span></span>
+<span id="cb5-30"><a href="#cb5-30" tabindex="-1"></a><span class="at">    </span><span class="fu">length_uid_col</span><span class="kw">:</span><span class="at">    LengthUID</span></span>
+<span id="cb5-31"><a href="#cb5-31" tabindex="-1"></a><span class="at">    </span><span class="fu">length_mm_col</span><span class="kw">:</span><span class="at">     LengthMM</span></span>
+<span id="cb5-32"><a href="#cb5-32" tabindex="-1"></a><span class="at">    </span><span class="fu">length_type_col</span><span class="kw">:</span><span class="at">   LengthType</span></span></code></pre></div>
 <p>Set credentials before connecting:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Sys.setenv.html" class="external-link">Sys.setenv</a></span><span class="op">(</span>CREEL_USER <span class="op">=</span> <span class="st">"your_username"</span>, CREEL_PASS <span class="op">=</span> <span class="st">"your_password"</span><span class="op">)</span></span>
@@ -412,11 +417,11 @@ different organisation’s API.</p>
 <span><span class="co">#&gt; &lt;creel_connection: csv&gt;</span></span>
 <span><span class="co">#&gt; Status: ready</span></span>
 <span><span class="co">#&gt; Backend: CSV</span></span>
-<span><span class="co">#&gt; interviews → /tmp/RtmpzpibjI/file1c66dd001ea/interviews.csv</span></span>
-<span><span class="co">#&gt; counts → /tmp/RtmpzpibjI/file1c66dd001ea/counts.csv</span></span>
-<span><span class="co">#&gt; catch → /tmp/RtmpzpibjI/file1c66dd001ea/catch.csv</span></span>
-<span><span class="co">#&gt; harvest_lengths → /tmp/RtmpzpibjI/file1c66dd001ea/lengths.csv</span></span>
-<span><span class="co">#&gt; release_lengths → /tmp/RtmpzpibjI/file1c66dd001ea/lengths.csv</span></span>
+<span><span class="co">#&gt; interviews → /tmp/RtmpN5NKRm/file1ce47deb3dca/interviews.csv</span></span>
+<span><span class="co">#&gt; counts → /tmp/RtmpN5NKRm/file1ce47deb3dca/counts.csv</span></span>
+<span><span class="co">#&gt; catch → /tmp/RtmpN5NKRm/file1ce47deb3dca/catch.csv</span></span>
+<span><span class="co">#&gt; harvest_lengths → /tmp/RtmpN5NKRm/file1ce47deb3dca/lengths.csv</span></span>
+<span><span class="co">#&gt; release_lengths → /tmp/RtmpN5NKRm/file1ce47deb3dca/lengths.csv</span></span>
 <span><span class="co">#&gt; Schema: &lt;creel_schema: instantaneous&gt;</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; ── <span style="font-weight: bold;">interviews: vwInterviews</span> ──</span></span>
@@ -455,11 +460,12 @@ different organisation’s API.</p>
 <span></span>
 <span><span class="va">dbi_con</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="https://odbc.r-dbi.org/reference/dbConnect-OdbcDriver-method.html" class="external-link">odbc</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  driver   <span class="op">=</span> <span class="st">"ODBC Driver 17 for SQL Server"</span>,</span>
+<span>  driver   <span class="op">=</span> <span class="st">"ODBC Driver 18 for SQL Server"</span>,</span>
 <span>  server   <span class="op">=</span> <span class="st">"myserver.example.com"</span>,</span>
 <span>  database <span class="op">=</span> <span class="st">"CreelDB"</span>,</span>
 <span>  uid      <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.getenv.html" class="external-link">Sys.getenv</a></span><span class="op">(</span><span class="st">"CREEL_USER"</span><span class="op">)</span>,</span>
-<span>  pwd      <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.getenv.html" class="external-link">Sys.getenv</a></span><span class="op">(</span><span class="st">"CREEL_PASS"</span><span class="op">)</span></span>
+<span>  pwd      <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.getenv.html" class="external-link">Sys.getenv</a></span><span class="op">(</span><span class="st">"CREEL_PASS"</span><span class="op">)</span>,</span>
+<span>  encrypt  <span class="op">=</span> <span class="st">"yes"</span>  <span class="co"># Driver 18's default; Driver 17 needs it said</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">conn</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/creel_connect.html">creel_connect</a></span><span class="op">(</span><span class="va">dbi_con</span>, <span class="va">schema</span>, auth_type <span class="op">=</span> <span class="st">"password"</span><span class="op">)</span></span></code></pre></div>

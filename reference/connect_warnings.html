@@ -153,6 +153,17 @@ was created over plain <code>http://</code> to a non-loopback host with
 <code>allow_http = TRUE</code>, so the credential and the records cross the
 network unencrypted. See <code><a href="creel_connect_api.html">creel_connect_api()</a></code>.</p></dd>
 
+<dt><code>creel_warning_sqlserver_certificate_unverified</code></dt>
+<dd><p>Tier 2. A
+SQL Server profile set <code>trust_server_certificate: true</code>: the connection
+is encrypted, but the server's identity is not checked. See
+<code><a href="creel_connect_from_yaml.html">creel_connect_from_yaml()</a></code>.</p></dd>
+
+<dt><code>creel_warning_sqlserver_unencrypted</code></dt>
+<dd><p>Tier 2. A SQL Server
+profile set <code>encrypt: false</code>, so the login and the rows cross the
+network in cleartext. See <code><a href="creel_connect_from_yaml.html">creel_connect_from_yaml()</a></code>.</p></dd>
+
 <dt><code>creel_warning_discovery_field_missing</code></dt>
 <dd><p>Tier 2. The discovery
 response lacks an expected field, which is filled with <code>NA</code>.</p></dd>

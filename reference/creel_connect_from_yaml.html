@@ -68,6 +68,20 @@ the table names, which the same schema: block carries as
 interviews_table, counts_table, catch_table and
 harvest_lengths_table / release_lengths_table (both falling back to
 lengths_table).
+A SQL Server connection is encrypted and verifies the server's certificate
+unless the profile says otherwise (#31), because the login and the rows it
+returns – which can include personal data – otherwise cross the network in
+cleartext. Three optional keys control it:
+driver: ODBC Driver 18 for SQL Server   # the default
+encrypt: true                           # the default
+trust_server_certificate: false         # the default
+
+encrypt: false warns (creel_warning_sqlserver_unencrypted) on every
+connect, and so does trust_server_certificate: true
+(creel_warning_sqlserver_certificate_unverified), which encrypts but
+accepts any certificate. Driver 17 does not encrypt unless asked, so naming
+it keeps encrypt: true in force. When a connect fails because the driver
+is not installed, the error says so; see creel_check_driver().
 
 
 
@@ -229,6 +243,20 @@ the table names, which the same schema: block carries as
 interviews_table, counts_table, catch_table and
 harvest_lengths_table / release_lengths_table (both falling back to
 lengths_table).
+A SQL Server connection is encrypted and verifies the server's certificate
+unless the profile says otherwise (#31), because the login and the rows it
+returns – which can include personal data – otherwise cross the network in
+cleartext. Three optional keys control it:
+driver: ODBC Driver 18 for SQL Server   # the default
+encrypt: true                           # the default
+trust_server_certificate: false         # the default
+
+encrypt: false warns (creel_warning_sqlserver_unencrypted) on every
+connect, and so does trust_server_certificate: true
+(creel_warning_sqlserver_certificate_unverified), which encrypts but
+accepts any certificate. Driver 17 does not encrypt unless asked, so naming
+it keeps encrypt: true in force. When a connect fails because the driver
+is not installed, the error says so; see creel_check_driver().
 
 
 
@@ -423,6 +451,19 @@ the table names, which the same <code>schema:</code> block carries as
 <code>interviews_table</code>, <code>counts_table</code>, <code>catch_table</code> and
 <code>harvest_lengths_table</code> / <code>release_lengths_table</code> (both falling back to
 <code>lengths_table</code>).</p>
+<p>A SQL Server connection is encrypted and verifies the server's certificate
+unless the profile says otherwise (#31), because the login and the rows it
+returns – which can include personal data – otherwise cross the network in
+cleartext. Three optional keys control it:</p>
+<p></p><div class="sourceCode yaml"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">driver</span><span class="kw">:</span><span class="at"> ODBC Driver 18 for SQL Server</span><span class="co">   # the default</span></span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">encrypt</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span><span class="co">                           # the default</span></span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a><span class="fu">trust_server_certificate</span><span class="kw">:</span><span class="at"> </span><span class="ch">false</span><span class="co">         # the default</span></span></code></pre><p></p></div>
+<p><code>encrypt: false</code> warns (<code>creel_warning_sqlserver_unencrypted</code>) on every
+connect, and so does <code>trust_server_certificate: true</code>
+(<code>creel_warning_sqlserver_certificate_unverified</code>), which encrypts but
+accepts any certificate. Driver 17 does not encrypt unless asked, so naming
+it keeps <code>encrypt: true</code> in force. When a connect fails because the driver
+is not installed, the error says so; see <code><a href="creel_check_driver.html">creel_check_driver()</a></code>.</p>
 </div>
 
 <div class="section">

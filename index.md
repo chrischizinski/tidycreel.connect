@@ -47,7 +47,9 @@ your OS.
 install.packages("odbc")
 ```
 
-Then install the Microsoft ODBC Driver 17 or 18 for SQL Server:
+Then install the Microsoft ODBC Driver 18 for SQL Server, which a YAML
+profile uses by default (Driver 17 works too; see
+[`?creel_connect_from_yaml`](https://chrischizinski.com/tidycreel.connect/reference/creel_connect_from_yaml.md)):
 
 #### Windows
 
@@ -201,6 +203,11 @@ default:
   auth_type: password
   username:  !expr Sys.getenv("CREEL_USER")
   password:  !expr Sys.getenv("CREEL_PASS")
+  # Optional. These are the defaults: Driver 18, encrypted, certificate
+  # verified. Turning either protection off warns on every connect.
+  # driver: ODBC Driver 18 for SQL Server
+  # encrypt: true
+  # trust_server_certificate: false
   schema:
     survey_type:      instantaneous
     interviews_table: vwInterviews

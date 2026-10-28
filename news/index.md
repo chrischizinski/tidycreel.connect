@@ -2,6 +2,22 @@
 
 ## tidycreel.connect (development version)
 
+- A `backend: sqlserver` profile now connects with ODBC Driver 18,
+  encrypted, verifying the server’s certificate
+  ([\#31](https://github.com/chrischizinski/tidycreel.connect/issues/31)).
+  It used Driver 17 and named no encryption setting, and Driver 17 does
+  not encrypt unless asked, so unless the server forced it the login and
+  the rows crossed the network in cleartext. New optional profile keys
+  `driver:`, `encrypt:` and `trust_server_certificate:` override this;
+  `encrypt: false` warns (`creel_warning_sqlserver_unencrypted`) and
+  `trust_server_certificate: true` warns
+  (`creel_warning_sqlserver_certificate_unverified`) on every connect. A
+  failed connect names a driver that is not installed, and a driver
+  message that quotes the password is withheld. **Breaking** for a
+  profile on a machine with only Driver 17 (add
+  `driver: ODBC Driver 17 for SQL Server`) or against a server whose
+  certificate this machine does not trust.
+
 - API requests now go only to the origin of `base_url` – its scheme,
   host and port – so the credential cannot reach a server the user did
   not name
