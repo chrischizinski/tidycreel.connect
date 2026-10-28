@@ -7,6 +7,27 @@ config package's !expr tag to inject environment variables:
 username: !expr Sys.getenv(&quot;CREEL_USER&quot;)
 password: !expr Sys.getenv(&quot;CREEL_PASS&quot;)
 
+A profile is code
+
+
+config evaluates every !expr value as R, with your permissions, your
+credentials and your database access. That is what lets a profile read a
+secret from the environment, and it also means opening a profile runs
+whatever R it contains. Treat a profile like a script: read one you did not
+write before loading it, and do not load profiles from a source you would
+not run code from. Sharing the non-secret parts of a profile (endpoints,
+field names) is fine; the secrets stay in each user's own environment or
+keyring.
+For an API token, prefer a function that looks it up at request time, so
+the connection never holds the token itself (see &quot;Where the credential is
+kept&quot; in creel_connect_api()):
+auth:
+  type: bearer
+  token: !expr function() keyring::key_get(&quot;creel-api&quot;)
+
+
+
+
 API profiles
 
 
@@ -181,6 +202,27 @@ Credentials must never be stored as plain text in the YAML file. Use the
 config package's !expr tag to inject environment variables:
 username: !expr Sys.getenv(&quot;CREEL_USER&quot;)
 password: !expr Sys.getenv(&quot;CREEL_PASS&quot;)
+
+A profile is code
+
+
+config evaluates every !expr value as R, with your permissions, your
+credentials and your database access. That is what lets a profile read a
+secret from the environment, and it also means opening a profile runs
+whatever R it contains. Treat a profile like a script: read one you did not
+write before loading it, and do not load profiles from a source you would
+not run code from. Sharing the non-secret parts of a profile (endpoints,
+field names) is fine; the secrets stay in each user's own environment or
+keyring.
+For an API token, prefer a function that looks it up at request time, so
+the connection never holds the token itself (see &quot;Where the credential is
+kept&quot; in creel_connect_api()):
+auth:
+  type: bearer
+  token: !expr function() keyring::key_get(&quot;creel-api&quot;)
+
+
+
 
 API profiles
 
@@ -394,6 +436,26 @@ validated before any connection is attempted (fail-fast).</p>
 <code>config</code> package's <code>!expr</code> tag to inject environment variables:</p>
 <p></p><div class="sourceCode yaml"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">username</span><span class="kw">:</span><span class="at"> !expr Sys.getenv("CREEL_USER")</span></span>
 <span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">password</span><span class="kw">:</span><span class="at"> !expr Sys.getenv("CREEL_PASS")</span></span></code></pre><p></p></div><div class="section">
+<h3 id="a-profile-is-code">A profile is code<a class="anchor" aria-label="anchor" href="#a-profile-is-code"></a></h3>
+
+
+<p><code>config</code> evaluates every <code>!expr</code> value as R, with your permissions, your
+credentials and your database access. That is what lets a profile read a
+secret from the environment, and it also means opening a profile runs
+whatever R it contains. Treat a profile like a script: read one you did not
+write before loading it, and do not load profiles from a source you would
+not run code from. Sharing the non-secret parts of a profile (endpoints,
+field names) is fine; the secrets stay in each user's own environment or
+keyring.</p>
+<p>For an API token, prefer a function that looks it up at request time, so
+the connection never holds the token itself (see "Where the credential is
+kept" in <code><a href="creel_connect_api.html">creel_connect_api()</a></code>):</p>
+<p></p><div class="sourceCode yaml"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">auth</span><span class="kw">:</span></span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="at">  </span><span class="fu">type</span><span class="kw">:</span><span class="at"> bearer</span></span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a><span class="at">  </span><span class="fu">token</span><span class="kw">:</span><span class="at"> !expr function() keyring::key_get("creel-api")</span></span></code></pre><p></p></div>
+</div>
+
+<div class="section">
 <h3 id="api-profiles">API profiles<a class="anchor" aria-label="anchor" href="#api-profiles"></a></h3>
 
 

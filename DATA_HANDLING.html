@@ -64,10 +64,22 @@
 </ul></div>
 <div class="section level2">
 <h2 id="credentials">Credentials<a class="anchor" aria-label="anchor" href="#credentials"></a></h2>
-<ul><li>Never written in code or in a committed YAML profile. Profiles read them with <code>!expr Sys.getenv("VAR")</code>, and API tokens come from <code><a href="https://rdrr.io/r/base/Sys.getenv.html" class="external-link">Sys.getenv()</a></code>, the OS keyring (<code>keyring::key_get()</code>) or a token-provider function.</li>
+<ul><li>Never written in code or in a committed YAML profile. Profiles read them with <code>!expr</code>, from the OS keyring (<code>keyring::key_get()</code>) or the environment (<code><a href="https://rdrr.io/r/base/Sys.getenv.html" class="external-link">Sys.getenv()</a></code>).</li>
+<li>For an API token, prefer a <strong>function</strong> that looks it up at request time, e.g. <code>token: !expr function() keyring::key_get("creel-api")</code>. A token given as a string is held in the connection object: <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> hides it, but <code><a href="https://rdrr.io/r/utils/str.html" class="external-link">str()</a></code>, <code><a href="https://rdrr.io/r/base/dput.html" class="external-link">dput()</a></code>, <code><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS()</a></code>, <code><a href="https://rdrr.io/r/base/save.html" class="external-link">save()</a></code> and a saved <code>.RData</code> workspace all write it out (checked 2026-10-28). A function that looks the token up keeps it out of all of them. A function that returns a token <em>variable</em> does not help: made inside another function or <code><a href="https://rdrr.io/r/base/eval.html" class="external-link">local()</a></code>, the variable is saved with the function; made at top level, it stays in the workspace and a saved <code>.RData</code> holds it.</li>
+<li>Never save a connection object to disk, and do not save the workspace on exit in a session that holds one. Save the fetched data and reconnect.</li>
 <li>Print methods never show a password or token; keep it that way.</li>
 <li>Use read-only database accounts.</li>
 <li>A credential that appears in a commit, log, or chat transcript is treated as compromised and rotated.</li>
+</ul></div>
+<div class="section level2">
+<h2 id="profiles-are-code">Profiles are code<a class="anchor" aria-label="anchor" href="#profiles-are-code"></a></h2>
+<p>A YAML profile is evaluated by <code>config</code>, which runs every <code>!expr</code> value as R with the user’s permissions, credentials and data access. Read a profile you did not write before loading it, and never load one from a source you would not run code from. Share the non-secret parts of a profile (endpoints, field names, table names); each user keeps the secrets in their own keyring or environment.</p>
+</div>
+<div class="section level2">
+<h2 id="data-in-transit">Data in transit<a class="anchor" aria-label="anchor" href="#data-in-transit"></a></h2>
+<ul><li>API connections use <code>https://</code> and send requests, next pages and redirects only to the origin of <code>base_url</code>, so a token cannot reach another server (#30). Plain <code>http://</code> to a non-loopback host needs <code>allow_http = TRUE</code> and warns.</li>
+<li>SQL Server profiles connect with Driver 18, encrypted, verifying the server’s certificate (#31). Turning either protection off warns on every connect.</li>
+<li>A connection built by hand with <code><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">DBI::dbConnect()</a></code> is the user’s own: set <code>Encrypt</code> there yourself.</li>
 </ul></div>
 <div class="section level2">
 <h2 id="safeguards-in-this-repo">Safeguards in this repo<a class="anchor" aria-label="anchor" href="#safeguards-in-this-repo"></a></h2>
