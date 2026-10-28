@@ -383,9 +383,12 @@ creel_connect_from_yaml <- function(path, config = "default") {
     }
     # Transport settings (#31). Checked here so a typo aborts before any
     # connection is attempted, not as a driver error.
-    if (!is.null(cfg$driver) &&
-          (!is.character(cfg$driver) || length(cfg$driver) != 1L ||
-             is.na(cfg$driver) || !nzchar(cfg$driver))) {
+    # `[[` throughout, never `$`: `cfg$encrypt` would partially match an
+    # `encryption: false` key this check never saw, and switch encryption off.
+    drv <- cfg[["driver"]]
+    if (!is.null(drv) &&
+          (!is.character(drv) || length(drv) != 1L || is.na(drv) ||
+             !nzchar(drv))) {
       cli::cli_abort(
         "{.field driver} must be one ODBC driver name: {.file {path}}"
       )
@@ -541,10 +544,12 @@ creel_connect_from_yaml <- function(path, config = "default") {
 # which can include personal data -- then cross the network unprotected.
 #' @noRd
 .sqlserver_transport <- function(cfg) {
-  driver  <- cfg$driver
+  # `[[`, not `$`: a partial match on an unvalidated longer key (say
+  # `encryption: false`) must not reach the driver.
+  driver  <- cfg[["driver"]]
   if (is.null(driver)) driver <- "ODBC Driver 18 for SQL Server"
-  encrypt <- !isFALSE(cfg$encrypt)
-  trust   <- isTRUE(cfg$trust_server_certificate)
+  encrypt <- !isFALSE(cfg[["encrypt"]])
+  trust   <- isTRUE(cfg[["trust_server_certificate"]])
   if (!encrypt) {
     cli::cli_warn(
       c(
@@ -553,13 +558,16 @@ creel_connect_from_yaml <- function(path, config = "default") {
       ),
       class = c("creel_warning_sqlserver_unencrypted", "creel_warning")
     )
-  } else if (trust) {
+  }
+  # Separately, not `else`: each setting removes its own protection, and a
+  # handler for one class should see it whatever the other is set to.
+  if (trust) {
     cli::cli_warn(
       c(
         "SQL Server certificate is not verified \\
          ({.code trust_server_certificate: true}).",
-        "!" = "The connection is encrypted, but to a server whose identity is \\
-               not checked, so an interceptor can read it."
+        "!" = "The server's identity is not checked, so an interceptor can \\
+               read an encrypted connection."
       ),
       class = c(
         "creel_warning_sqlserver_certificate_unverified", "creel_warning"

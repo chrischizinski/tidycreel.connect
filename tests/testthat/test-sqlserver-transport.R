@@ -103,6 +103,50 @@ test_that("turning a protection off is passed through, and warns", {
   expect_identical(seen$args$TrustServerCertificate, "yes")
 })
 
+test_that("a longer key cannot reach a transport setting by partial matching", {
+  # `cfg$encrypt` partially matches `encryption`, so reading the settings with
+  # `$` let an unvalidated key switch encryption off without a warning.
+  skip_if_no_sqlserver_mock()
+  path <- sqlserver_profile(c("encryption: false", "driverx: Some Driver"))
+  real_connect <- DBI::dbConnect
+  seen <- new.env()
+  local_mocked_bindings(
+    dbConnect = function(drv, ...) {
+      seen$args <- list(...)
+      real_connect(duckdb::duckdb())
+    },
+    .package = "DBI"
+  )
+  expect_no_warning(conn <- creel_connect_from_yaml(path))
+  on.exit(DBI::dbDisconnect(conn$con, shutdown = TRUE), add = TRUE)
+  expect_identical(seen$args$Encrypt, "yes")
+  expect_identical(seen$args$Driver, "ODBC Driver 18 for SQL Server")
+})
+
+test_that("both protections off raise both warnings", {
+  skip_if_no_sqlserver_mock()
+  real_connect <- DBI::dbConnect
+  local_mocked_bindings(
+    dbConnect = function(drv, ...) real_connect(duckdb::duckdb()),
+    .package = "DBI"
+  )
+  classes <- character()
+  conn <- withCallingHandlers(
+    creel_connect_from_yaml(sqlserver_profile(
+      c("encrypt: false", "trust_server_certificate: true")
+    )),
+    creel_warning = function(w) {
+      classes <<- c(classes, class(w)[[1]])
+      invokeRestart("muffleWarning")
+    }
+  )
+  DBI::dbDisconnect(conn$con, shutdown = TRUE)
+  expect_setequal(classes, c(
+    "creel_warning_sqlserver_unencrypted",
+    "creel_warning_sqlserver_certificate_unverified"
+  ))
+})
+
 test_that("malformed transport keys abort before any connection is tried", {
   skip_if_no_sqlserver_mock()
   local_mocked_bindings(
