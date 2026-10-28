@@ -15,6 +15,9 @@
 # and see api-profile-example.yml. `backend: sqlserver` accepts it, but its
 # fetch_*() methods are not implemented yet and abort when called, so nothing
 # reads it today.
+#
+# A profile is code: any `!expr` in it runs as R when the file is loaded. Read a
+# profile you did not write before loading it.
 
 default:
   backend: csv
