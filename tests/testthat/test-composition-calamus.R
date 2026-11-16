@@ -151,7 +151,7 @@ test_that("a fetched Calamus design reproduces the reference effort total (GH #1
   ref    <- reference_outputs()
   want   <- ref[ref$estimand == "effort_total", ]
 
-  got <- suppressWarnings(tidycreel::estimate_effort(design))
+  got <- suppressWarnings(tidycreel::estimate_effort(design, target = "sampled_days"))
 
   expect_equal(got$estimates$estimate, want$estimate, tolerance = 1e-6)
   # The SE too: a dropped variance component leaves the point estimate intact,
@@ -164,7 +164,7 @@ test_that("a fetched Calamus design reproduces the reference catch total", {
   ref    <- reference_outputs()
   want   <- ref[ref$estimand == "catch_total", ]
 
-  got <- suppressWarnings(tidycreel::estimate_total_catch(design))
+  got <- suppressWarnings(tidycreel::estimate_total_catch(design, target = "sampled_days"))
 
   expect_equal(got$estimates$estimate, want$estimate, tolerance = 1e-6)
   # The SE too. This row's SE was re-baselined at v3.0.0 and the reason is
@@ -194,7 +194,7 @@ test_that("the catch total drops incomplete trips, moving neither estimate nor S
   ref    <- reference_outputs()
   want   <- ref[ref$estimand == "catch_total", ]
 
-  got <- suppressWarnings(tidycreel::estimate_total_catch(design))
+  got <- suppressWarnings(tidycreel::estimate_total_catch(design, target = "sampled_days"))
   expect_equal(got$estimates$n, 22)
 
   unfiltered <- build_calamus_design(calamus_conn())
@@ -206,7 +206,7 @@ test_that("the catch total drops incomplete trips, moving neither estimate nor S
   expect_true(all(unfiltered$interviews[[unfiltered$catch_col]][incomplete] == 0))
 
   unfiltered$interviews[[unfiltered$trip_status_col]] <- "complete"
-  got_all <- suppressWarnings(tidycreel::estimate_total_catch(unfiltered))
+  got_all <- suppressWarnings(tidycreel::estimate_total_catch(unfiltered, target = "sampled_days"))
 
   expect_equal(got_all$estimates$n, 24)
   expect_equal(got_all$estimates$estimate, got$estimates$estimate, tolerance = 1e-9)
@@ -218,7 +218,7 @@ test_that("the catch total drops incomplete trips, moving neither estimate nor S
   moved <- build_calamus_design(calamus_conn())
   moved$interviews[[moved$catch_col]][incomplete] <- 40
   moved$interviews[[moved$trip_status_col]] <- "complete"
-  got_moved <- suppressWarnings(tidycreel::estimate_total_catch(moved))
+  got_moved <- suppressWarnings(tidycreel::estimate_total_catch(moved, target = "sampled_days"))
   expect_gt(got_moved$estimates$se, got$estimates$se * 10)
 })
 
@@ -232,7 +232,7 @@ test_that("a fetched Calamus design reproduces the reference harvest total", {
   ref    <- reference_outputs()
   want   <- ref[ref$estimand == "harvest_total", ]
 
-  got <- suppressWarnings(tidycreel::estimate_total_harvest(design))
+  got <- suppressWarnings(tidycreel::estimate_total_harvest(design, target = "sampled_days"))
 
   expect_equal(got$estimates$estimate, want$estimate, tolerance = 1e-6)
   expect_equal(got$estimates$se, want$se, tolerance = 1e-6)
@@ -254,7 +254,7 @@ test_that("the composed estimate moves when a fetched column is withheld", {
   # Dropping the enumeration columns the bus-route weights are built from must
   # change the answer or abort -- either way, not agree silently.
   design <- build_calamus_design(calamus_conn())
-  baseline <- suppressWarnings(tidycreel::estimate_effort(design))$estimates$estimate
+  baseline <- suppressWarnings(tidycreel::estimate_effort(design, target = "sampled_days"))$estimates$estimate
 
   conn <- calamus_conn()
   interviews <- suppressMessages(fetch_interviews(conn))
@@ -276,7 +276,7 @@ test_that("the composed estimate moves when a fetched column is withheld", {
         catch = catch_count, harvest = harvest_count,
         effort = effort, trip_status = trip_status
       ))
-      suppressWarnings(tidycreel::estimate_effort(d2))$estimates$estimate
+      suppressWarnings(tidycreel::estimate_effort(d2, target = "sampled_days"))$estimates$estimate
     },
     error = function(e) NA_real_
   )
